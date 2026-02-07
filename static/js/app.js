@@ -27,14 +27,28 @@ async function api(method, path, body = null) {
     if (body) {
         opts.body = JSON.stringify(body);
     }
-    const resp = await fetch(`/api${path}`, opts);
+    let resp;
+    try {
+        resp = await fetch(`/api${path}`, opts);
+    } catch (networkErr) {
+        console.error(`API network error: ${method} ${path}`, networkErr);
+        throw new Error('Network error — server not reachable.');
+    }
     if (resp.status === 401) {
         logout();
         throw new Error('Session expired.');
     }
-    const data = await resp.json();
+    let data;
+    try {
+        data = await resp.json();
+    } catch (jsonErr) {
+        console.error(`API JSON parse error: ${method} ${path} (status ${resp.status})`, jsonErr);
+        throw new Error(`Server error (HTTP ${resp.status}).`);
+    }
     if (!resp.ok) {
-        throw new Error(data.detail || data.message || 'Request failed.');
+        const msg = data.detail || data.message || 'Request failed.';
+        console.error(`API error: ${method} ${path} (status ${resp.status})`, msg);
+        throw new Error(msg);
     }
     return data;
 }
@@ -221,7 +235,8 @@ function showNewCustomerModal() {
         document.getElementById('cust-subdomain-suffix').textContent = `.${cfg.base_domain || 'domain.com'}`;
     }).catch(() => {});
 
-    const modal = new bootstrap.Modal(document.getElementById('customer-modal'));
+    const modalEl = document.getElementById('customer-modal');
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
     // Enable subdomain field for new customers
     document.getElementById('cust-subdomain').disabled = false;
     modal.show();
@@ -242,7 +257,8 @@ function editCurrentCustomer() {
     document.getElementById('customer-modal-error').classList.add('d-none');
     document.getElementById('customer-save-btn').textContent = 'Save Changes';
 
-    const modal = new bootstrap.Modal(document.getElementById('customer-modal'));
+    const modalEl = document.getElementById('customer-modal');
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
     modal.show();
 }
 
@@ -268,14 +284,25 @@ async function saveCustomer() {
             payload.subdomain = document.getElementById('cust-subdomain').value.toLowerCase();
             await api('POST', '/customers', payload);
         }
-        bootstrap.Modal.getInstance(document.getElementById('customer-modal')).hide();
+        // Close modal safely
+        const modalEl = document.getElementById('customer-modal');
+        const modalInstance = bootstrap.Modal.getInstance(modalEl);
+        if (modalInstance) {
+            modalInstance.hide();
+        } else {
+            modalEl.classList.remove('show');
+            document.body.classList.remove('modal-open');
+            document.querySelector('.modal-backdrop')?.remove();
+        }
         loadDashboard();
         if (editId && currentCustomerId == editId) {
             viewCustomer(editId);
         }
     } catch (err) {
-        errorEl.textContent = err.message;
+        console.error('saveCustomer error:', err);
+        errorEl.textContent = err.message || 'An unknown error occurred.';
         errorEl.classList.remove('d-none');
+        errorEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     } finally {
         spinner.classList.add('d-none');
     }

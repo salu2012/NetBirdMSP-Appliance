@@ -1,6 +1,5 @@
 """Customer CRUD API endpoints with automatic deployment on create."""
 
-import asyncio
 import logging
 from datetime import datetime
 from typing import Optional
