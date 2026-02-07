@@ -1,0 +1,67 @@
+version: '3.8'
+
+networks:
+  {{ docker_network }}:
+    external: true
+
+services:
+  netbird-management:
+    image: {{ netbird_management_image }}
+    container_name: netbird-kunde{{ customer_id }}-management
+    restart: unless-stopped
+    networks:
+      - {{ docker_network }}
+    volumes:
+      - {{ instance_dir }}/data/management:/var/lib/netbird
+      - {{ instance_dir }}/management.json:/etc/netbird/management.json
+    command:
+      - "--port"
+      - "80"
+      - "--log-file"
+      - "console"
+      - "--log-level"
+      - "info"
+      - "--single-account-mode-domain={{ subdomain }}.{{ base_domain }}"
+      - "--dns-domain={{ subdomain }}.{{ base_domain }}"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:80/api/accounts"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  netbird-signal:
+    image: {{ netbird_signal_image }}
+    container_name: netbird-kunde{{ customer_id }}-signal
+    restart: unless-stopped
+    networks:
+      - {{ docker_network }}
+    volumes:
+      - {{ instance_dir }}/data/signal:/var/lib/netbird
+
+  netbird-relay:
+    image: {{ netbird_relay_image }}
+    container_name: netbird-kunde{{ customer_id }}-relay
+    restart: unless-stopped
+    networks:
+      - {{ docker_network }}
+    ports:
+      - "{{ relay_udp_port }}:3478/udp"
+    env_file:
+      - {{ instance_dir }}/relay.env
+    environment:
+      - NB_ENABLE_STUN=true
+      - NB_STUN_PORTS=3478
+      - NB_LISTEN_ADDRESS=:80
+      - NB_EXPOSED_ADDRESS=rels://{{ subdomain }}.{{ base_domain }}:443
+      - NB_AUTH_SECRET={{ relay_secret }}
+
+  netbird-dashboard:
+    image: {{ netbird_dashboard_image }}
+    container_name: netbird-kunde{{ customer_id }}-dashboard
+    restart: unless-stopped
+    networks:
+      - {{ docker_network }}
+    environment:
+      - NETBIRD_MGMT_API_ENDPOINT=https://{{ subdomain }}.{{ base_domain }}
+      - NETBIRD_MGMT_GRPC_API_ENDPOINT=https://{{ subdomain }}.{{ base_domain }}

@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  netbird-msp-appliance:
+    build: .
+    container_name: netbird-msp-appliance
+    restart: unless-stopped
+    ports:
+      - "${WEB_UI_PORT:-8000}:8000"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./backups:/app/backups
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${DATA_DIR:-/opt/netbird-instances}:${DATA_DIR:-/opt/netbird-instances}
+    environment:
+      - SECRET_KEY=${SECRET_KEY}
+      - DATABASE_PATH=/app/data/netbird_msp.db
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - DATA_DIR=${DATA_DIR:-/opt/netbird-instances}
+      - DOCKER_NETWORK=${DOCKER_NETWORK:-npm-network}
+    networks:
+      - npm-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+networks:
+  npm-network:
+    external: true

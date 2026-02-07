@@ -1,0 +1,63 @@
+{
+  "Stuns": [
+    {
+      "Proto": "udp",
+      "URI": "stun:{{ subdomain }}.{{ base_domain }}:{{ relay_udp_port }}",
+      "Username": "",
+      "Password": null
+    }
+  ],
+  "TURNConfig": {
+    "Turns": [
+      {
+        "Proto": "udp",
+        "URI": "turn:{{ subdomain }}.{{ base_domain }}:{{ relay_udp_port }}",
+        "Username": "netbird",
+        "Password": "{{ relay_secret }}"
+      }
+    ],
+    "CredentialsTTL": "12h",
+    "Secret": "{{ relay_secret }}",
+    "TimeBasedCredentials": false
+  },
+  "Relay": {
+    "Addresses": [
+      "rels://{{ subdomain }}.{{ base_domain }}:443"
+    ],
+    "CredentialsTTL": "12h",
+    "Secret": "{{ relay_secret }}"
+  },
+  "Signal": {
+    "Proto": "https",
+    "URI": "{{ subdomain }}.{{ base_domain }}:443",
+    "Username": "",
+    "Password": null
+  },
+  "HttpConfig": {
+    "AuthIssuer": "https://{{ subdomain }}.{{ base_domain }}",
+    "AuthAudience": "{{ subdomain }}.{{ base_domain }}",
+    "OIDCConfigEndpoint": ""
+  },
+  "IdpManagerConfig": {
+    "ManagerType": "none"
+  },
+  "DeviceAuthorizationFlow": {
+    "Provider": "none"
+  },
+  "PKCEAuthorizationFlow": {
+    "ProviderConfig": {
+      "Audience": "{{ subdomain }}.{{ base_domain }}",
+      "ClientID": "",
+      "ClientSecret": "",
+      "Domain": "",
+      "AuthorizationEndpoint": "",
+      "TokenEndpoint": "",
+      "Scope": "openid profile email",
+      "RedirectURLs": [
+        "https://{{ subdomain }}.{{ base_domain }}/auth/callback"
+      ],
+      "UseIDToken": false
+    }
+  },
+  "DataStoreEncryptionKey": "{{ relay_secret }}"
+}

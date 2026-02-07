@@ -2,7 +2,8 @@
 
 # NetBird MSP Appliance - Interactive Installation Script
 # This script sets up the complete NetBird MSP management platform
-# All configuration is done interactively - no .env file editing needed!
+# All configuration is done interactively and stored in the DATABASE.
+# There is NO .env file for application config!
 
 set -e  # Exit on error
 
@@ -29,6 +30,8 @@ cat << 'BANNER'
 ║                                                           ║
 ║   Multi-Tenant NetBird Management Platform               ║
 ║                                                           ║
+║   All config stored in database - no .env editing!       ║
+║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
 BANNER
 echo -e "${NC}"
@@ -53,7 +56,7 @@ echo -e "${BLUE}${BOLD}[Step 1/10]${NC} ${BLUE}Checking system requirements...${
 CPU_CORES=$(nproc)
 echo -e "CPU Cores: ${CYAN}$CPU_CORES${NC}"
 if [ "$CPU_CORES" -lt 4 ]; then
-    echo -e "${YELLOW}⚠ Warning: Only $CPU_CORES CPU cores detected.${NC}"
+    echo -e "${YELLOW}Warning: Only $CPU_CORES CPU cores detected.${NC}"
     echo -e "${YELLOW}  Minimum 8 cores recommended for 100 customers.${NC}"
 else
     echo -e "${GREEN}✓ CPU cores: Sufficient${NC}"
@@ -63,7 +66,7 @@ fi
 TOTAL_RAM=$(free -g | awk '/^Mem:/{print $2}')
 echo -e "RAM: ${CYAN}${TOTAL_RAM}GB${NC}"
 if [ "$TOTAL_RAM" -lt 32 ]; then
-    echo -e "${YELLOW}⚠ Warning: Only ${TOTAL_RAM}GB RAM detected.${NC}"
+    echo -e "${YELLOW}Warning: Only ${TOTAL_RAM}GB RAM detected.${NC}"
     echo -e "${YELLOW}  Minimum 64GB recommended for 100 customers.${NC}"
 else
     echo -e "${GREEN}✓ RAM: Sufficient${NC}"
@@ -73,7 +76,7 @@ fi
 DISK_SPACE=$(df -BG / | awk 'NR==2 {print $4}' | sed 's/G//')
 echo -e "Free Disk Space: ${CYAN}${DISK_SPACE}GB${NC}"
 if [ "$DISK_SPACE" -lt 200 ]; then
-    echo -e "${YELLOW}⚠ Warning: Only ${DISK_SPACE}GB free disk space.${NC}"
+    echo -e "${YELLOW}Warning: Only ${DISK_SPACE}GB free disk space.${NC}"
     echo -e "${YELLOW}  Minimum 500GB recommended.${NC}"
 else
     echo -e "${GREEN}✓ Disk space: Sufficient${NC}"
@@ -263,13 +266,13 @@ CUSTOMIZE_IMAGES=${CUSTOMIZE_IMAGES:-no}
 if [[ "$CUSTOMIZE_IMAGES" =~ ^[Yy]([Ee][Ss])?$ ]]; then
     read -p "Management Image [netbirdio/management:latest]: " NETBIRD_MANAGEMENT_IMAGE
     NETBIRD_MANAGEMENT_IMAGE=${NETBIRD_MANAGEMENT_IMAGE:-netbirdio/management:latest}
-    
+
     read -p "Signal Image [netbirdio/signal:latest]: " NETBIRD_SIGNAL_IMAGE
     NETBIRD_SIGNAL_IMAGE=${NETBIRD_SIGNAL_IMAGE:-netbirdio/signal:latest}
-    
+
     read -p "Relay Image [netbirdio/relay:latest]: " NETBIRD_RELAY_IMAGE
     NETBIRD_RELAY_IMAGE=${NETBIRD_RELAY_IMAGE:-netbirdio/relay:latest}
-    
+
     read -p "Dashboard Image [netbirdio/dashboard:latest]: " NETBIRD_DASHBOARD_IMAGE
     NETBIRD_DASHBOARD_IMAGE=${NETBIRD_DASHBOARD_IMAGE:-netbirdio/dashboard:latest}
 else
@@ -284,7 +287,7 @@ sleep 1
 clear
 
 # ============================================================================
-# STEP 8: INSTALLATION
+# STEP 8: INSTALLATION (stores config in DATABASE, not .env)
 # ============================================================================
 echo -e "${BLUE}${BOLD}[Step 8/10]${NC} ${BLUE}Installation${NC}\n"
 
@@ -322,52 +325,27 @@ else
     echo -e "${GREEN}✓ Docker network '$DOCKER_NETWORK' created${NC}"
 fi
 
-# Generate secret key
+# Generate secret key for encryption (only env-level secret)
 echo "Generating encryption keys..."
 SECRET_KEY=$(openssl rand -base64 32)
 echo -e "${GREEN}✓ Encryption keys generated${NC}"
 
-# Create .env file
-echo "Creating configuration..."
+# Create MINIMAL .env — only container-level vars needed by docker-compose.yml
+# All application config goes into the DATABASE, not here!
+echo "Creating minimal container environment..."
 cat > "$INSTALL_DIR/.env" << ENVEOF
-# NetBird MSP Appliance Configuration
-# Generated on $(date)
-# DO NOT EDIT - Use Web UI to change settings
-
-# Security
+# Container-level environment only (NOT application config!)
+# All settings are stored in the database and editable via Web UI.
 SECRET_KEY=$SECRET_KEY
-ADMIN_USERNAME=$ADMIN_USERNAME
-ADMIN_PASSWORD=$ADMIN_PASSWORD
-
-# Nginx Proxy Manager
-NPM_API_URL=$NPM_API_URL
-NPM_API_TOKEN=$NPM_API_TOKEN
-
-# System
+DATABASE_PATH=/app/data/netbird_msp.db
 DATA_DIR=$DATA_DIR
 DOCKER_NETWORK=$DOCKER_NETWORK
-BASE_DOMAIN=$BASE_DOMAIN
-ADMIN_EMAIL=$ADMIN_EMAIL
-
-# NetBird Images
-NETBIRD_MANAGEMENT_IMAGE=$NETBIRD_MANAGEMENT_IMAGE
-NETBIRD_SIGNAL_IMAGE=$NETBIRD_SIGNAL_IMAGE
-NETBIRD_RELAY_IMAGE=$NETBIRD_RELAY_IMAGE
-NETBIRD_DASHBOARD_IMAGE=$NETBIRD_DASHBOARD_IMAGE
-
-# Database
-DATABASE_PATH=/app/data/netbird_msp.db
-
-# Logging
 LOG_LEVEL=INFO
-
-# Port Configuration
-RELAY_BASE_PORT=3478
 WEB_UI_PORT=8000
 ENVEOF
 
 chmod 600 "$INSTALL_DIR/.env"
-echo -e "${GREEN}✓ Configuration file created${NC}"
+echo -e "${GREEN}✓ Container environment created${NC}"
 
 # Copy application files
 echo "Copying application files..."
@@ -391,10 +369,64 @@ else
     exit 1
 fi
 
-# Initialize database
+# Initialize database tables
 echo "Initializing database..."
 docker exec $CONTAINER_NAME python -m app.database init || true
-echo -e "${GREEN}✓ Database initialized${NC}"
+echo -e "${GREEN}✓ Database tables created${NC}"
+
+# Seed all configuration into the database (system_config + users table)
+echo "Seeding configuration into database..."
+docker exec $CONTAINER_NAME python -c "
+import os
+os.environ['SECRET_KEY'] = '$SECRET_KEY'
+
+from app.database import SessionLocal, init_db
+from app.models import SystemConfig, User
+from app.utils.security import hash_password, encrypt_value
+
+init_db()
+db = SessionLocal()
+
+# Create admin user
+existing_user = db.query(User).filter(User.username == '$ADMIN_USERNAME').first()
+if not existing_user:
+    user = User(
+        username='$ADMIN_USERNAME',
+        password_hash=hash_password('$ADMIN_PASSWORD'),
+        email='$ADMIN_EMAIL',
+    )
+    db.add(user)
+    print('Admin user created.')
+else:
+    print('Admin user already exists.')
+
+# Create system config (singleton row)
+existing_config = db.query(SystemConfig).filter(SystemConfig.id == 1).first()
+if not existing_config:
+    config = SystemConfig(
+        id=1,
+        base_domain='$BASE_DOMAIN',
+        admin_email='$ADMIN_EMAIL',
+        npm_api_url='$NPM_API_URL',
+        npm_api_token_encrypted=encrypt_value('$NPM_API_TOKEN'),
+        netbird_management_image='$NETBIRD_MANAGEMENT_IMAGE',
+        netbird_signal_image='$NETBIRD_SIGNAL_IMAGE',
+        netbird_relay_image='$NETBIRD_RELAY_IMAGE',
+        netbird_dashboard_image='$NETBIRD_DASHBOARD_IMAGE',
+        data_dir='$DATA_DIR',
+        docker_network='$DOCKER_NETWORK',
+        relay_base_port=3478,
+    )
+    db.add(config)
+    print('System configuration saved to database.')
+else:
+    print('System configuration already exists.')
+
+db.commit()
+db.close()
+print('Database seeding complete.')
+"
+echo -e "${GREEN}✓ Configuration stored in database${NC}"
 
 clear
 
@@ -448,6 +480,11 @@ echo -e "  Web Interface: ${GREEN}http://${SERVER_IP}:8000${NC}"
 echo -e "  Username:      ${GREEN}${ADMIN_USERNAME}${NC}"
 echo -e "  Password:      ${CYAN}<the password you entered>${NC}\n"
 
+echo -e "${BLUE}${BOLD}Configuration:${NC}\n"
+echo -e "  ${YELLOW}All settings are stored in the database${NC}"
+echo -e "  ${YELLOW}Edit them anytime via Web UI > Settings${NC}"
+echo -e "  ${YELLOW}NO .env file editing needed!${NC}\n"
+
 echo -e "${BLUE}${BOLD}Next Steps:${NC}\n"
 echo -e "  1. ${CYAN}Access the web interface${NC}"
 echo -e "  2. ${CYAN}Review system settings${NC} (all editable via Web UI)"
@@ -464,11 +501,10 @@ echo -e "${BLUE}${BOLD}Important Notes:${NC}\n"
 echo -e "  ${YELLOW}•${NC} All settings can be changed via the Web UI"
 echo -e "  ${YELLOW}•${NC} Installation directory: ${INSTALL_DIR}"
 echo -e "  ${YELLOW}•${NC} Customer data directory: ${DATA_DIR}"
+echo -e "  ${YELLOW}•${NC} Database: ${INSTALL_DIR}/data/netbird_msp.db"
 echo -e "  ${YELLOW}•${NC} Backup your database regularly\n"
 
-echo -e "${GREEN}${BOLD}Happy MSP-ing! 🚀${NC}\n"
-
-# Save installation summary
+# Save installation summary (no secrets!)
 cat > "$INSTALL_DIR/INSTALLATION_SUMMARY.txt" << SUMMARY
 NetBird MSP Appliance - Installation Summary
 =============================================
@@ -482,6 +518,9 @@ Admin Email:     $ADMIN_EMAIL
 Base Domain:     $BASE_DOMAIN
 NPM API URL:     $NPM_API_URL
 Data Directory:  $DATA_DIR
+
+NOTE: All settings are stored in the database and editable via Web UI.
+      No manual config file editing needed!
 
 Access:
 -------

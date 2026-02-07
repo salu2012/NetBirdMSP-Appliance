@@ -1,14 +1,63 @@
-# ---> VisualStudioCode
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# IDE
 .vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
 !.vscode/*.code-snippets
-
-# Local History for Visual Studio Code
+.idea/
+*.swp
+*.swo
+*~
 .history/
-
-# Built Visual Studio Code Extensions
 *.vsix
 
+# Environment & secrets
+.env
+.env.local
+.env.production
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+data/
+
+# Logs
+logs/
+*.log
+
+# Backups
+backups/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Docker
+docker-compose.override.yml
+
+# Build artifacts
+*.tar.gz
+*.zip
+
+# Test
+.pytest_cache/
+.coverage
+htmlcov/
