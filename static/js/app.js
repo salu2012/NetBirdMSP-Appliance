@@ -112,7 +112,16 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
 });
 
 function logout() {
-    api('POST', '/auth/logout').catch(() => {});
+    // Use fetch directly (not api()) to avoid 401 → logout → 401 infinite loop
+    if (authToken) {
+        fetch('/api/auth/logout', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`,
+            },
+        }).catch(() => {});
+    }
     authToken = null;
     currentUser = null;
     localStorage.removeItem('authToken');
@@ -228,7 +237,7 @@ function showNewCustomerModal() {
     document.getElementById('customer-form').reset();
     document.getElementById('cust-max-devices').value = '20';
     document.getElementById('customer-modal-error').classList.add('d-none');
-    document.getElementById('customer-save-btn').textContent = 'Save & Deploy';
+    document.getElementById('customer-save-btn').innerHTML = '<span class="spinner-border spinner-border-sm d-none me-1" id="customer-save-spinner"></span> Save &amp; Deploy';
 
     // Update subdomain suffix
     api('GET', '/settings/system').then(cfg => {
@@ -255,7 +264,7 @@ function editCurrentCustomer() {
     document.getElementById('cust-max-devices').value = c.max_devices;
     document.getElementById('cust-notes').value = c.notes || '';
     document.getElementById('customer-modal-error').classList.add('d-none');
-    document.getElementById('customer-save-btn').textContent = 'Save Changes';
+    document.getElementById('customer-save-btn').innerHTML = '<span class="spinner-border spinner-border-sm d-none me-1" id="customer-save-spinner"></span> Save Changes';
 
     const modalEl = document.getElementById('customer-modal');
     const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
