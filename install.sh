@@ -1,0 +1,516 @@
+#!/bin/bash
+
+# NetBird MSP Appliance - Interactive Installation Script
+# This script sets up the complete NetBird MSP management platform
+# All configuration is done interactively - no .env file editing needed!
+
+set -e  # Exit on error
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+NC='\033[0m' # No Color
+
+# Configuration
+INSTALL_DIR="/opt/netbird-msp"
+DOCKER_NETWORK="npm-network"
+CONTAINER_NAME="netbird-msp-appliance"
+
+clear
+echo -e "${BLUE}"
+cat << 'BANNER'
+╔═══════════════════════════════════════════════════════════╗
+║                                                           ║
+║       NetBird MSP Appliance - Interactive Installer      ║
+║                                                           ║
+║   Multi-Tenant NetBird Management Platform               ║
+║                                                           ║
+╚═══════════════════════════════════════════════════════════╝
+BANNER
+echo -e "${NC}"
+
+# Check if running as root
+if [[ $EUID -ne 0 ]]; then
+   echo -e "${RED}Error: This script must be run as root${NC}"
+   echo "Please run: sudo $0"
+   exit 1
+fi
+
+echo -e "${GREEN}Welcome to the NetBird MSP Appliance installer!${NC}"
+echo -e "This wizard will guide you through the installation process.\n"
+sleep 2
+
+# ============================================================================
+# STEP 1: SYSTEM REQUIREMENTS CHECK
+# ============================================================================
+echo -e "${BLUE}${BOLD}[Step 1/10]${NC} ${BLUE}Checking system requirements...${NC}\n"
+
+# Check CPU cores
+CPU_CORES=$(nproc)
+echo -e "CPU Cores: ${CYAN}$CPU_CORES${NC}"
+if [ "$CPU_CORES" -lt 4 ]; then
+    echo -e "${YELLOW}⚠ Warning: Only $CPU_CORES CPU cores detected.${NC}"
+    echo -e "${YELLOW}  Minimum 8 cores recommended for 100 customers.${NC}"
+else
+    echo -e "${GREEN}✓ CPU cores: Sufficient${NC}"
+fi
+
+# Check RAM
+TOTAL_RAM=$(free -g | awk '/^Mem:/{print $2}')
+echo -e "RAM: ${CYAN}${TOTAL_RAM}GB${NC}"
+if [ "$TOTAL_RAM" -lt 32 ]; then
+    echo -e "${YELLOW}⚠ Warning: Only ${TOTAL_RAM}GB RAM detected.${NC}"
+    echo -e "${YELLOW}  Minimum 64GB recommended for 100 customers.${NC}"
+else
+    echo -e "${GREEN}✓ RAM: Sufficient${NC}"
+fi
+
+# Check disk space
+DISK_SPACE=$(df -BG / | awk 'NR==2 {print $4}' | sed 's/G//')
+echo -e "Free Disk Space: ${CYAN}${DISK_SPACE}GB${NC}"
+if [ "$DISK_SPACE" -lt 200 ]; then
+    echo -e "${YELLOW}⚠ Warning: Only ${DISK_SPACE}GB free disk space.${NC}"
+    echo -e "${YELLOW}  Minimum 500GB recommended.${NC}"
+else
+    echo -e "${GREEN}✓ Disk space: Sufficient${NC}"
+fi
+
+echo ""
+read -p "Press ENTER to continue..."
+clear
+
+# ============================================================================
+# STEP 2: DOCKER INSTALLATION
+# ============================================================================
+echo -e "${BLUE}${BOLD}[Step 2/10]${NC} ${BLUE}Checking Docker installation...${NC}\n"
+
+if ! command -v docker &> /dev/null; then
+    echo -e "${YELLOW}Docker not found. Installing Docker...${NC}"
+    curl -fsSL https://get.docker.com -o get-docker.sh
+    sh get-docker.sh
+    rm get-docker.sh
+    systemctl enable docker
+    systemctl start docker
+    echo -e "${GREEN}✓ Docker installed successfully${NC}"
+else
+    DOCKER_VERSION=$(docker --version | awk '{print $3}' | sed 's/,//')
+    echo -e "${GREEN}✓ Docker already installed (${DOCKER_VERSION})${NC}"
+fi
+
+# Check Docker Compose
+if ! docker compose version &> /dev/null; then
+    echo -e "${RED}Error: Docker Compose plugin not found${NC}"
+    echo "Please install Docker Compose plugin: https://docs.docker.com/compose/install/"
+    exit 1
+else
+    echo -e "${GREEN}✓ Docker Compose available${NC}"
+fi
+
+echo ""
+read -p "Press ENTER to continue..."
+clear
+
+# ============================================================================
+# STEP 3: CONFIGURATION - BASIC SETTINGS
+# ============================================================================
+echo -e "${BLUE}${BOLD}[Step 3/10]${NC} ${BLUE}Basic Configuration${NC}\n"
+
+echo -e "${CYAN}Please provide the following information:${NC}\n"
+
+# Admin Username
+while true; do
+    read -p "Admin Username [admin]: " ADMIN_USERNAME
+    ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+    if [[ "$ADMIN_USERNAME" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        break
+    else
+        echo -e "${RED}Invalid username. Use only letters, numbers, dash and underscore.${NC}"
+    fi
+done
+
+# Admin Password
+while true; do
+    read -sp "Admin Password (min 12 chars): " ADMIN_PASSWORD
+    echo ""
+    if [ ${#ADMIN_PASSWORD} -ge 12 ]; then
+        read -sp "Confirm Password: " ADMIN_PASSWORD_CONFIRM
+        echo ""
+        if [ "$ADMIN_PASSWORD" == "$ADMIN_PASSWORD_CONFIRM" ]; then
+            break
+        else
+            echo -e "${RED}Passwords do not match. Try again.${NC}"
+        fi
+    else
+        echo -e "${RED}Password must be at least 12 characters long.${NC}"
+    fi
+done
+
+# Admin Email
+while true; do
+    read -p "Admin Email: " ADMIN_EMAIL
+    if [[ "$ADMIN_EMAIL" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+        break
+    else
+        echo -e "${RED}Invalid email address.${NC}"
+    fi
+done
+
+echo -e "\n${GREEN}✓ Basic configuration saved${NC}"
+sleep 1
+clear
+
+# ============================================================================
+# STEP 4: CONFIGURATION - DOMAIN
+# ============================================================================
+echo -e "${BLUE}${BOLD}[Step 4/10]${NC} ${BLUE}Domain Configuration${NC}\n"
+
+echo -e "${CYAN}Your customers will get subdomains like: kunde1.yourdomain.com${NC}\n"
+
+while true; do
+    read -p "Base Domain (e.g., yourdomain.com): " BASE_DOMAIN
+    if [[ "$BASE_DOMAIN" =~ ^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$ ]]; then
+        echo -e "\n${YELLOW}Important: Make sure you have wildcard DNS configured:${NC}"
+        echo -e "${YELLOW}  *.${BASE_DOMAIN} → Your server IP${NC}\n"
+        read -p "Is your DNS configured? (yes/no): " DNS_CONFIRM
+        if [[ "$DNS_CONFIRM" =~ ^[Yy]([Ee][Ss])?$ ]]; then
+            break
+        else
+            echo -e "${YELLOW}Please configure DNS first, then restart the installer.${NC}"
+            exit 0
+        fi
+    else
+        echo -e "${RED}Invalid domain format.${NC}"
+    fi
+done
+
+echo -e "${GREEN}✓ Domain configuration saved${NC}"
+sleep 1
+clear
+
+# ============================================================================
+# STEP 5: CONFIGURATION - NGINX PROXY MANAGER
+# ============================================================================
+echo -e "${BLUE}${BOLD}[Step 5/10]${NC} ${BLUE}Nginx Proxy Manager Configuration${NC}\n"
+
+echo -e "${CYAN}NetBird MSP needs to integrate with Nginx Proxy Manager (NPM).${NC}\n"
+
+# NPM API URL
+while true; do
+    read -p "NPM API URL [http://nginx-proxy-manager:81/api]: " NPM_API_URL
+    NPM_API_URL=${NPM_API_URL:-http://nginx-proxy-manager:81/api}
+    if [[ "$NPM_API_URL" =~ ^https?:// ]]; then
+        break
+    else
+        echo -e "${RED}Invalid URL format. Must start with http:// or https://${NC}"
+    fi
+done
+
+# NPM API Token
+echo -e "\n${YELLOW}To get your NPM API Token:${NC}"
+echo -e "  1. Login to Nginx Proxy Manager"
+echo -e "  2. Go to Users → Your User"
+echo -e "  3. Copy the API Token\n"
+
+while true; do
+    read -sp "NPM API Token: " NPM_API_TOKEN
+    echo ""
+    if [ ${#NPM_API_TOKEN} -ge 20 ]; then
+        break
+    else
+        echo -e "${RED}Token seems too short. Please enter the complete token.${NC}"
+    fi
+done
+
+echo -e "${GREEN}✓ NPM configuration saved${NC}"
+sleep 1
+clear
+
+# ============================================================================
+# STEP 6: CONFIGURATION - DIRECTORIES
+# ============================================================================
+echo -e "${BLUE}${BOLD}[Step 6/10]${NC} ${BLUE}Directory Configuration${NC}\n"
+
+echo -e "${CYAN}Where should customer NetBird instances be stored?${NC}\n"
+
+read -p "Data Directory [/opt/netbird-instances]: " DATA_DIR
+DATA_DIR=${DATA_DIR:-/opt/netbird-instances}
+
+echo -e "\n${YELLOW}The following directories will be created:${NC}"
+echo -e "  - ${DATA_DIR} (customer instances)"
+echo -e "  - ${INSTALL_DIR} (application)"
+echo -e "  - ${INSTALL_DIR}/data (database)"
+echo -e "  - ${INSTALL_DIR}/logs (logs)"
+echo -e "  - ${INSTALL_DIR}/backups (backups)\n"
+
+echo -e "${GREEN}✓ Directory configuration saved${NC}"
+sleep 1
+clear
+
+# ============================================================================
+# STEP 7: CONFIGURATION - DOCKER IMAGES (OPTIONAL)
+# ============================================================================
+echo -e "${BLUE}${BOLD}[Step 7/10]${NC} ${BLUE}NetBird Docker Images${NC}\n"
+
+echo -e "${CYAN}You can customize the NetBird Docker images or use defaults.${NC}\n"
+
+read -p "Customize Docker images? (yes/no) [no]: " CUSTOMIZE_IMAGES
+CUSTOMIZE_IMAGES=${CUSTOMIZE_IMAGES:-no}
+
+if [[ "$CUSTOMIZE_IMAGES" =~ ^[Yy]([Ee][Ss])?$ ]]; then
+    read -p "Management Image [netbirdio/management:latest]: " NETBIRD_MANAGEMENT_IMAGE
+    NETBIRD_MANAGEMENT_IMAGE=${NETBIRD_MANAGEMENT_IMAGE:-netbirdio/management:latest}
+    
+    read -p "Signal Image [netbirdio/signal:latest]: " NETBIRD_SIGNAL_IMAGE
+    NETBIRD_SIGNAL_IMAGE=${NETBIRD_SIGNAL_IMAGE:-netbirdio/signal:latest}
+    
+    read -p "Relay Image [netbirdio/relay:latest]: " NETBIRD_RELAY_IMAGE
+    NETBIRD_RELAY_IMAGE=${NETBIRD_RELAY_IMAGE:-netbirdio/relay:latest}
+    
+    read -p "Dashboard Image [netbirdio/dashboard:latest]: " NETBIRD_DASHBOARD_IMAGE
+    NETBIRD_DASHBOARD_IMAGE=${NETBIRD_DASHBOARD_IMAGE:-netbirdio/dashboard:latest}
+else
+    NETBIRD_MANAGEMENT_IMAGE="netbirdio/management:latest"
+    NETBIRD_SIGNAL_IMAGE="netbirdio/signal:latest"
+    NETBIRD_RELAY_IMAGE="netbirdio/relay:latest"
+    NETBIRD_DASHBOARD_IMAGE="netbirdio/dashboard:latest"
+fi
+
+echo -e "${GREEN}✓ Docker image configuration saved${NC}"
+sleep 1
+clear
+
+# ============================================================================
+# STEP 8: INSTALLATION
+# ============================================================================
+echo -e "${BLUE}${BOLD}[Step 8/10]${NC} ${BLUE}Installation${NC}\n"
+
+echo -e "${CYAN}Ready to install with the following configuration:${NC}\n"
+echo -e "  Admin Username:  ${GREEN}$ADMIN_USERNAME${NC}"
+echo -e "  Admin Email:     ${GREEN}$ADMIN_EMAIL${NC}"
+echo -e "  Base Domain:     ${GREEN}$BASE_DOMAIN${NC}"
+echo -e "  NPM API URL:     ${GREEN}$NPM_API_URL${NC}"
+echo -e "  Data Directory:  ${GREEN}$DATA_DIR${NC}"
+echo -e "  Install Dir:     ${GREEN}$INSTALL_DIR${NC}\n"
+
+read -p "Proceed with installation? (yes/no): " PROCEED
+if [[ ! "$PROCEED" =~ ^[Yy]([Ee][Ss])?$ ]]; then
+    echo -e "${YELLOW}Installation cancelled.${NC}"
+    exit 0
+fi
+
+echo -e "\n${GREEN}Starting installation...${NC}\n"
+
+# Create directories
+echo "Creating directories..."
+mkdir -p "$INSTALL_DIR"
+mkdir -p "$DATA_DIR"
+mkdir -p "$INSTALL_DIR/data"
+mkdir -p "$INSTALL_DIR/logs"
+mkdir -p "$INSTALL_DIR/backups"
+echo -e "${GREEN}✓ Directories created${NC}"
+
+# Create Docker network
+echo "Setting up Docker network..."
+if docker network inspect $DOCKER_NETWORK &> /dev/null; then
+    echo -e "${GREEN}✓ Docker network '$DOCKER_NETWORK' already exists${NC}"
+else
+    docker network create $DOCKER_NETWORK
+    echo -e "${GREEN}✓ Docker network '$DOCKER_NETWORK' created${NC}"
+fi
+
+# Generate secret key
+echo "Generating encryption keys..."
+SECRET_KEY=$(openssl rand -base64 32)
+echo -e "${GREEN}✓ Encryption keys generated${NC}"
+
+# Create .env file
+echo "Creating configuration..."
+cat > "$INSTALL_DIR/.env" << ENVEOF
+# NetBird MSP Appliance Configuration
+# Generated on $(date)
+# DO NOT EDIT - Use Web UI to change settings
+
+# Security
+SECRET_KEY=$SECRET_KEY
+ADMIN_USERNAME=$ADMIN_USERNAME
+ADMIN_PASSWORD=$ADMIN_PASSWORD
+
+# Nginx Proxy Manager
+NPM_API_URL=$NPM_API_URL
+NPM_API_TOKEN=$NPM_API_TOKEN
+
+# System
+DATA_DIR=$DATA_DIR
+DOCKER_NETWORK=$DOCKER_NETWORK
+BASE_DOMAIN=$BASE_DOMAIN
+ADMIN_EMAIL=$ADMIN_EMAIL
+
+# NetBird Images
+NETBIRD_MANAGEMENT_IMAGE=$NETBIRD_MANAGEMENT_IMAGE
+NETBIRD_SIGNAL_IMAGE=$NETBIRD_SIGNAL_IMAGE
+NETBIRD_RELAY_IMAGE=$NETBIRD_RELAY_IMAGE
+NETBIRD_DASHBOARD_IMAGE=$NETBIRD_DASHBOARD_IMAGE
+
+# Database
+DATABASE_PATH=/app/data/netbird_msp.db
+
+# Logging
+LOG_LEVEL=INFO
+
+# Port Configuration
+RELAY_BASE_PORT=3478
+WEB_UI_PORT=8000
+ENVEOF
+
+chmod 600 "$INSTALL_DIR/.env"
+echo -e "${GREEN}✓ Configuration file created${NC}"
+
+# Copy application files
+echo "Copying application files..."
+cp -r ./* "$INSTALL_DIR/" 2>/dev/null || true
+cd "$INSTALL_DIR"
+echo -e "${GREEN}✓ Files copied to $INSTALL_DIR${NC}"
+
+# Build and start containers
+echo "Building and starting Docker containers..."
+docker compose up -d --build
+
+# Wait for container to be ready
+echo "Waiting for application to start..."
+sleep 15
+
+if docker ps | grep -q $CONTAINER_NAME; then
+    echo -e "${GREEN}✓ Container started successfully${NC}"
+else
+    echo -e "${RED}Error: Container failed to start${NC}"
+    echo "Check logs with: docker logs $CONTAINER_NAME"
+    exit 1
+fi
+
+# Initialize database
+echo "Initializing database..."
+docker exec $CONTAINER_NAME python -m app.database init || true
+echo -e "${GREEN}✓ Database initialized${NC}"
+
+clear
+
+# ============================================================================
+# STEP 9: FIREWALL CONFIGURATION
+# ============================================================================
+echo -e "${BLUE}${BOLD}[Step 9/10]${NC} ${BLUE}Firewall Configuration${NC}\n"
+
+echo -e "${CYAN}The following firewall ports need to be opened:${NC}\n"
+echo -e "  ${YELLOW}TCP 8000${NC}      - Web UI"
+echo -e "  ${YELLOW}UDP 3478-3577${NC} - NetBird Relay/STUN (100 ports for 100 customers)\n"
+
+if command -v ufw &> /dev/null; then
+    read -p "Configure firewall automatically with ufw? (yes/no): " CONFIG_FW
+    if [[ "$CONFIG_FW" =~ ^[Yy]([Ee][Ss])?$ ]]; then
+        ufw allow 8000/tcp comment "NetBird MSP Web UI"
+        ufw allow 3478:3577/udp comment "NetBird Relay Ports"
+        echo -e "${GREEN}✓ Firewall configured${NC}"
+    else
+        echo -e "${YELLOW}Please configure firewall manually:${NC}"
+        echo "  sudo ufw allow 8000/tcp"
+        echo "  sudo ufw allow 3478:3577/udp"
+    fi
+else
+    echo -e "${YELLOW}UFW not found. Please configure firewall manually:${NC}"
+    echo "  - Allow TCP port 8000"
+    echo "  - Allow UDP ports 3478-3577"
+fi
+
+echo ""
+read -p "Press ENTER to continue..."
+clear
+
+# ============================================================================
+# STEP 10: COMPLETION
+# ============================================================================
+echo -e "${GREEN}${BOLD}"
+cat << 'SUCCESS'
+╔═══════════════════════════════════════════════════════════╗
+║                                                           ║
+║        ✓✓✓ Installation Completed Successfully! ✓✓✓      ║
+║                                                           ║
+╚═══════════════════════════════════════════════════════════╝
+SUCCESS
+echo -e "${NC}"
+
+SERVER_IP=$(hostname -I | awk '{print $1}')
+
+echo -e "${BLUE}${BOLD}Access Your NetBird MSP Appliance:${NC}\n"
+echo -e "  Web Interface: ${GREEN}http://${SERVER_IP}:8000${NC}"
+echo -e "  Username:      ${GREEN}${ADMIN_USERNAME}${NC}"
+echo -e "  Password:      ${CYAN}<the password you entered>${NC}\n"
+
+echo -e "${BLUE}${BOLD}Next Steps:${NC}\n"
+echo -e "  1. ${CYAN}Access the web interface${NC}"
+echo -e "  2. ${CYAN}Review system settings${NC} (all editable via Web UI)"
+echo -e "  3. ${CYAN}Deploy your first customer${NC} (click 'New Customer')"
+echo -e "  4. ${CYAN}Share setup URL${NC} with your customer\n"
+
+echo -e "${BLUE}${BOLD}Useful Commands:${NC}\n"
+echo -e "  View logs:    ${CYAN}docker logs -f $CONTAINER_NAME${NC}"
+echo -e "  Stop:         ${CYAN}docker compose -f $INSTALL_DIR/docker-compose.yml stop${NC}"
+echo -e "  Start:        ${CYAN}docker compose -f $INSTALL_DIR/docker-compose.yml start${NC}"
+echo -e "  Restart:      ${CYAN}docker compose -f $INSTALL_DIR/docker-compose.yml restart${NC}\n"
+
+echo -e "${BLUE}${BOLD}Important Notes:${NC}\n"
+echo -e "  ${YELLOW}•${NC} All settings can be changed via the Web UI"
+echo -e "  ${YELLOW}•${NC} Installation directory: ${INSTALL_DIR}"
+echo -e "  ${YELLOW}•${NC} Customer data directory: ${DATA_DIR}"
+echo -e "  ${YELLOW}•${NC} Backup your database regularly\n"
+
+echo -e "${GREEN}${BOLD}Happy MSP-ing! 🚀${NC}\n"
+
+# Save installation summary
+cat > "$INSTALL_DIR/INSTALLATION_SUMMARY.txt" << SUMMARY
+NetBird MSP Appliance - Installation Summary
+=============================================
+
+Installation Date: $(date)
+
+Configuration:
+--------------
+Admin Username:  $ADMIN_USERNAME
+Admin Email:     $ADMIN_EMAIL
+Base Domain:     $BASE_DOMAIN
+NPM API URL:     $NPM_API_URL
+Data Directory:  $DATA_DIR
+
+Access:
+-------
+Web UI: http://${SERVER_IP}:8000
+
+Directories:
+------------
+Installation: $INSTALL_DIR
+Data:         $DATA_DIR
+Database:     $INSTALL_DIR/data/netbird_msp.db
+Logs:         $INSTALL_DIR/logs
+Backups:      $INSTALL_DIR/backups
+
+Docker:
+-------
+Container Name: $CONTAINER_NAME
+Network:        $DOCKER_NETWORK
+
+Ports:
+------
+Web UI:   TCP 8000
+Relay:    UDP 3478-3577
+
+Images:
+-------
+Management: $NETBIRD_MANAGEMENT_IMAGE
+Signal:     $NETBIRD_SIGNAL_IMAGE
+Relay:      $NETBIRD_RELAY_IMAGE
+Dashboard:  $NETBIRD_DASHBOARD_IMAGE
+SUMMARY
+
+echo -e "${CYAN}Installation summary saved to: ${INSTALL_DIR}/INSTALLATION_SUMMARY.txt${NC}\n"

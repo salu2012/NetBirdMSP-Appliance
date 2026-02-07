@@ -135,36 +135,42 @@ git clone https://github.com/yourusername/netbird-msp-appliance.git
 cd netbird-msp-appliance
 ```
 
-### 2. Run the Installation Script
+### 2. Run the Interactive Installation Script
 
 ```bash
 chmod +x install.sh
 sudo ./install.sh
 ```
 
-The installer will:
+The installer will **interactively ask you** for:
+- ✅ Admin username and password
+- ✅ Admin email address
+- ✅ Base domain (e.g., `yourdomain.com`)
+- ✅ Nginx Proxy Manager API URL and token
+- ✅ Data directory location
+- ✅ NetBird Docker images (optional customization)
+
+**No manual .env file editing required!** Everything is configured through the installation wizard.
+
+The installer will then:
 - ✅ Check system requirements
 - ✅ Install Docker if needed
-- ✅ Create Docker network
-- ✅ Generate secure secrets
+- ✅ Create directories and Docker network
+- ✅ Generate encryption keys
 - ✅ Build and start all containers
+- ✅ Configure firewall (optional)
 - ✅ Initialize the database
 
-### 3. Complete the Setup Wizard
+### 3. Access the Web Interface
 
-Open your browser and navigate to:
+After installation completes, open your browser:
 ```
 http://your-server-ip:8000
 ```
 
-On first access, you'll be guided through:
-1. **Admin Account Creation**: Set your admin username and password
-2. **System Configuration**:
-   - Base Domain (e.g., `yourdomain.com`)
-   - Admin Email
-   - NPM API URL (e.g., `http://npm-host:81/api`)
-   - NPM API Token
-3. **Firewall Rules**: Instructions for opening required UDP ports
+Login with the credentials you provided during installation.
+
+**All settings can be changed later via the Web UI!**
 
 ### 4. Deploy Your First Customer
 
