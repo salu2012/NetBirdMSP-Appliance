@@ -131,7 +131,7 @@ For 100 customers: 40-60 GB RAM + 8 GB for OS + 8 GB for Appliance = ~64 GB mini
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/netbird-msp-appliance.git
+git clone https://git.0x26.ch/BurgerGames/NetBirdMSP-Appliance.git
 cd netbird-msp-appliance
 ```
 
