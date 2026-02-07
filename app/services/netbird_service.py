@@ -162,7 +162,8 @@ async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
         dashboard_container = f"netbird-kunde{customer_id}-dashboard"
         npm_result = await npm_service.create_proxy_host(
             api_url=config.npm_api_url,
-            api_token=config.npm_api_token,
+            npm_email=config.npm_api_email,
+            npm_password=config.npm_api_password,
             domain=domain,
             forward_host=dashboard_container,
             forward_port=80,
@@ -260,10 +261,11 @@ async def undeploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
             _log_action(db, customer_id, "undeploy", "error", f"Container removal error: {exc}")
 
         # Remove NPM proxy host
-        if deployment.npm_proxy_id and config.npm_api_token:
+        if deployment.npm_proxy_id and config.npm_api_email:
             try:
                 await npm_service.delete_proxy_host(
-                    config.npm_api_url, config.npm_api_token, deployment.npm_proxy_id
+                    config.npm_api_url, config.npm_api_email, config.npm_api_password,
+                    deployment.npm_proxy_id,
                 )
                 _log_action(db, customer_id, "undeploy", "info", "NPM proxy host removed.")
             except Exception as exc:

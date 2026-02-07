@@ -21,7 +21,8 @@ class AppConfig:
     base_domain: str
     admin_email: str
     npm_api_url: str
-    npm_api_token: str  # decrypted
+    npm_api_email: str  # decrypted — NPM login email
+    npm_api_password: str  # decrypted — NPM login password
     netbird_management_image: str
     netbird_signal_image: str
     netbird_relay_image: str
@@ -55,15 +56,20 @@ def get_system_config(db: Session) -> Optional[AppConfig]:
         return None
 
     try:
-        npm_token = decrypt_value(row.npm_api_token_encrypted)
+        npm_email = decrypt_value(row.npm_api_email_encrypted)
     except Exception:
-        npm_token = ""
+        npm_email = ""
+    try:
+        npm_password = decrypt_value(row.npm_api_password_encrypted)
+    except Exception:
+        npm_password = ""
 
     return AppConfig(
         base_domain=row.base_domain,
         admin_email=row.admin_email,
         npm_api_url=row.npm_api_url,
-        npm_api_token=npm_token,
+        npm_api_email=npm_email,
+        npm_api_password=npm_password,
         netbird_management_image=row.netbird_management_image,
         netbird_signal_image=row.netbird_signal_image,
         netbird_relay_image=row.netbird_relay_image,

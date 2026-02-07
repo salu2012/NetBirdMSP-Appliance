@@ -100,7 +100,8 @@ class SystemConfigUpdate(BaseModel):
     base_domain: Optional[str] = Field(None, min_length=1, max_length=255)
     admin_email: Optional[str] = Field(None, max_length=255)
     npm_api_url: Optional[str] = Field(None, max_length=500)
-    npm_api_token: Optional[str] = None  # plaintext, will be encrypted before storage
+    npm_api_email: Optional[str] = Field(None, max_length=255)  # NPM login email
+    npm_api_password: Optional[str] = None  # NPM login password, encrypted before storage
     netbird_management_image: Optional[str] = Field(None, max_length=255)
     netbird_signal_image: Optional[str] = Field(None, max_length=255)
     netbird_relay_image: Optional[str] = Field(None, max_length=255)

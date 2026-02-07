@@ -451,7 +451,7 @@ async function loadSettings() {
         document.getElementById('cfg-docker-network').value = cfg.docker_network || '';
         document.getElementById('cfg-relay-base-port').value = cfg.relay_base_port || 3478;
         document.getElementById('cfg-npm-api-url').value = cfg.npm_api_url || '';
-        document.getElementById('npm-token-status').textContent = cfg.npm_api_token_set ? 'Token is set (leave empty to keep current)' : 'No token configured';
+        document.getElementById('npm-credentials-status').textContent = cfg.npm_credentials_set ? 'Credentials are set (leave empty to keep current)' : 'No NPM credentials configured';
         document.getElementById('cfg-mgmt-image').value = cfg.netbird_management_image || '';
         document.getElementById('cfg-signal-image').value = cfg.netbird_signal_image || '';
         document.getElementById('cfg-relay-image').value = cfg.netbird_relay_image || '';
@@ -482,12 +482,15 @@ document.getElementById('settings-system-form').addEventListener('submit', async
 document.getElementById('settings-npm-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const payload = { npm_api_url: document.getElementById('cfg-npm-api-url').value };
-    const token = document.getElementById('cfg-npm-api-token').value;
-    if (token) payload.npm_api_token = token;
+    const email = document.getElementById('cfg-npm-api-email').value;
+    const password = document.getElementById('cfg-npm-api-password').value;
+    if (email) payload.npm_api_email = email;
+    if (password) payload.npm_api_password = password;
     try {
         await api('PUT', '/settings/system', payload);
         showSettingsAlert('success', 'NPM settings saved.');
-        document.getElementById('cfg-npm-api-token').value = '';
+        document.getElementById('cfg-npm-api-email').value = '';
+        document.getElementById('cfg-npm-api-password').value = '';
         loadSettings();
     } catch (err) {
         showSettingsAlert('danger', 'Failed: ' + err.message);

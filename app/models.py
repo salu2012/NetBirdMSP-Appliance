@@ -128,7 +128,8 @@ class SystemConfig(Base):
     base_domain: Mapped[str] = mapped_column(String(255), nullable=False)
     admin_email: Mapped[str] = mapped_column(String(255), nullable=False)
     npm_api_url: Mapped[str] = mapped_column(String(500), nullable=False)
-    npm_api_token_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
+    npm_api_email_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
+    npm_api_password_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
     netbird_management_image: Mapped[str] = mapped_column(
         String(255), default="netbirdio/management:latest"
     )
@@ -154,12 +155,12 @@ class SystemConfig(Base):
     )
 
     def to_dict(self) -> dict:
-        """Serialize config to dictionary (token masked)."""
+        """Serialize config to dictionary (credentials masked)."""
         return {
             "base_domain": self.base_domain,
             "admin_email": self.admin_email,
             "npm_api_url": self.npm_api_url,
-            "npm_api_token_set": bool(self.npm_api_token_encrypted),
+            "npm_credentials_set": bool(self.npm_api_email_encrypted and self.npm_api_password_encrypted),
             "netbird_management_image": self.netbird_management_image,
             "netbird_signal_image": self.netbird_signal_image,
             "netbird_relay_image": self.netbird_relay_image,

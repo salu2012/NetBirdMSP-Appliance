@@ -202,6 +202,9 @@ echo -e "${BLUE}${BOLD}[Step 5/10]${NC} ${BLUE}Nginx Proxy Manager Configuration
 echo -e "${CYAN}NetBird MSP needs to integrate with Nginx Proxy Manager (NPM).${NC}\n"
 
 # NPM API URL
+echo -e "${YELLOW}NPM uses JWT authentication (email + password login).${NC}"
+echo -e "${YELLOW}There are no static API keys — the system logs in automatically.${NC}\n"
+
 while true; do
     read -p "NPM API URL [http://nginx-proxy-manager:81/api]: " NPM_API_URL
     NPM_API_URL=${NPM_API_URL:-http://nginx-proxy-manager:81/api}
@@ -212,19 +215,25 @@ while true; do
     fi
 done
 
-# NPM API Token
-echo -e "\n${YELLOW}To get your NPM API Token:${NC}"
-echo -e "  1. Login to Nginx Proxy Manager"
-echo -e "  2. Go to Users → Your User"
-echo -e "  3. Copy the API Token\n"
-
+# NPM Login Email
+echo ""
 while true; do
-    read -sp "NPM API Token: " NPM_API_TOKEN
-    echo ""
-    if [ ${#NPM_API_TOKEN} -ge 20 ]; then
+    read -p "NPM Login Email (your NPM admin email): " NPM_EMAIL
+    if [[ "$NPM_EMAIL" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
         break
     else
-        echo -e "${RED}Token seems too short. Please enter the complete token.${NC}"
+        echo -e "${RED}Invalid email address.${NC}"
+    fi
+done
+
+# NPM Login Password
+while true; do
+    read -sp "NPM Login Password: " NPM_PASSWORD
+    echo ""
+    if [ ${#NPM_PASSWORD} -ge 1 ]; then
+        break
+    else
+        echo -e "${RED}Password cannot be empty.${NC}"
     fi
 done
 
@@ -296,6 +305,7 @@ echo -e "  Admin Username:  ${GREEN}$ADMIN_USERNAME${NC}"
 echo -e "  Admin Email:     ${GREEN}$ADMIN_EMAIL${NC}"
 echo -e "  Base Domain:     ${GREEN}$BASE_DOMAIN${NC}"
 echo -e "  NPM API URL:     ${GREEN}$NPM_API_URL${NC}"
+echo -e "  NPM Login:       ${GREEN}$NPM_EMAIL${NC}"
 echo -e "  Data Directory:  ${GREEN}$DATA_DIR${NC}"
 echo -e "  Install Dir:     ${GREEN}$INSTALL_DIR${NC}\n"
 
@@ -408,7 +418,8 @@ if not existing_config:
         base_domain='$BASE_DOMAIN',
         admin_email='$ADMIN_EMAIL',
         npm_api_url='$NPM_API_URL',
-        npm_api_token_encrypted=encrypt_value('$NPM_API_TOKEN'),
+        npm_api_email_encrypted=encrypt_value('$NPM_EMAIL'),
+        npm_api_password_encrypted=encrypt_value('$NPM_PASSWORD'),
         netbird_management_image='$NETBIRD_MANAGEMENT_IMAGE',
         netbird_signal_image='$NETBIRD_SIGNAL_IMAGE',
         netbird_relay_image='$NETBIRD_RELAY_IMAGE',
@@ -517,6 +528,7 @@ Admin Username:  $ADMIN_USERNAME
 Admin Email:     $ADMIN_EMAIL
 Base Domain:     $BASE_DOMAIN
 NPM API URL:     $NPM_API_URL
+NPM Login:       $NPM_EMAIL
 Data Directory:  $DATA_DIR
 
 NOTE: All settings are stored in the database and editable via Web UI.

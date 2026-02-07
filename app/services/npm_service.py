@@ -1,12 +1,17 @@
 """Nginx Proxy Manager API integration.
 
+NPM uses JWT authentication — there are no static API tokens.
+Every API session starts with a login (POST /api/tokens) using email + password,
+which returns a short-lived JWT. That JWT is then used as Bearer token for all
+subsequent requests.
+
 Creates, updates, and deletes proxy host entries so each customer's NetBird
 dashboard is accessible at ``{subdomain}.{base_domain}`` with automatic
 Let's Encrypt SSL certificates.
 """
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 
@@ -16,29 +21,67 @@ logger = logging.getLogger(__name__)
 NPM_TIMEOUT = 30
 
 
-async def test_npm_connection(api_url: str, api_token: str) -> dict[str, Any]:
-    """Test connectivity to the Nginx Proxy Manager API.
+async def _npm_login(client: httpx.AsyncClient, api_url: str, email: str, password: str) -> str:
+    """Authenticate with NPM and return a JWT token.
+
+    NPM does NOT support static API keys. Auth is always:
+    POST /api/tokens  with {"identity": "<email>", "secret": "<password>"}
 
     Args:
+        client: httpx async client.
         api_url: NPM API base URL (e.g. ``http://npm:81/api``).
-        api_token: Bearer token for authentication.
+        email: NPM login email / identity.
+        password: NPM login password / secret.
+
+    Returns:
+        JWT token string.
+
+    Raises:
+        RuntimeError: If login fails.
+    """
+    resp = await client.post(
+        f"{api_url}/tokens",
+        json={"identity": email, "secret": password},
+    )
+    if resp.status_code in (200, 201):
+        data = resp.json()
+        token = data.get("token")
+        if token:
+            logger.debug("NPM login successful for %s", email)
+            return token
+        raise RuntimeError("NPM login response did not contain a token.")
+    raise RuntimeError(
+        f"NPM login failed (HTTP {resp.status_code}): {resp.text[:300]}"
+    )
+
+
+async def test_npm_connection(api_url: str, email: str, password: str) -> dict[str, Any]:
+    """Test connectivity to NPM by logging in and listing proxy hosts.
+
+    Args:
+        api_url: NPM API base URL.
+        email: NPM login email.
+        password: NPM login password.
 
     Returns:
         Dict with ``ok`` (bool) and ``message`` (str).
     """
-    headers = {"Authorization": f"Bearer {api_token}"}
     try:
         async with httpx.AsyncClient(timeout=NPM_TIMEOUT) as client:
+            token = await _npm_login(client, api_url, email, password)
+            headers = {"Authorization": f"Bearer {token}"}
             resp = await client.get(f"{api_url}/nginx/proxy-hosts", headers=headers)
             if resp.status_code == 200:
                 count = len(resp.json())
-                return {"ok": True, "message": f"Connected. {count} proxy hosts found."}
+                return {"ok": True, "message": f"Connected. Login OK. {count} proxy hosts found."}
             return {
                 "ok": False,
-                "message": f"NPM returned status {resp.status_code}: {resp.text[:200]}",
+                "message": f"Login OK but listing hosts returned {resp.status_code}: {resp.text[:200]}",
             }
+    except RuntimeError as exc:
+        return {"ok": False, "message": str(exc)}
     except httpx.ConnectError:
-        return {"ok": False, "message": "Connection refused. Is NPM running?"}
+        return {"ok": False, "message": "Connection refused. Is NPM running and reachable?"}
     except httpx.TimeoutException:
         return {"ok": False, "message": "Connection timed out."}
     except Exception as exc:
@@ -47,7 +90,8 @@ async def test_npm_connection(api_url: str, api_token: str) -> dict[str, Any]:
 
 async def create_proxy_host(
     api_url: str,
-    api_token: str,
+    npm_email: str,
+    npm_password: str,
     domain: str,
     forward_host: str,
     forward_port: int = 80,
@@ -57,15 +101,13 @@ async def create_proxy_host(
 ) -> dict[str, Any]:
     """Create a proxy host entry in NPM with SSL for a customer.
 
-    The proxy routes traffic as follows:
-    - ``/``            -> dashboard container (port 80)
-    - ``/api``         -> management container (port 80)
-    - ``/signalexchange.*`` -> signal container (port 80)
-    - ``/relay``       -> relay container (port 80)
+    Logs in first to get a JWT, then creates the proxy host with advanced
+    routing config for management, signal, and relay containers.
 
     Args:
         api_url: NPM API base URL.
-        api_token: Bearer token.
+        npm_email: NPM login email.
+        npm_password: NPM login password.
         domain: Full domain (e.g. ``kunde1.example.com``).
         forward_host: Container name for the dashboard.
         forward_port: Port to forward to (default 80).
@@ -76,11 +118,6 @@ async def create_proxy_host(
     Returns:
         Dict with ``proxy_id`` on success or ``error`` on failure.
     """
-    headers = {
-        "Authorization": f"Bearer {api_token}",
-        "Content-Type": "application/json",
-    }
-
     # Build advanced Nginx config to route sub-paths to different containers
     mgmt_container = f"netbird-kunde{customer_id}-management"
     signal_container = f"netbird-kunde{customer_id}-signal"
@@ -136,6 +173,14 @@ location /relay {{
 
     try:
         async with httpx.AsyncClient(timeout=NPM_TIMEOUT) as client:
+            # Step 1: Login to NPM
+            token = await _npm_login(client, api_url, npm_email, npm_password)
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+            }
+
+            # Step 2: Create proxy host
             resp = await client.post(
                 f"{api_url}/nginx/proxy-hosts", json=payload, headers=headers
             )
@@ -144,7 +189,7 @@ location /relay {{
                 proxy_id = data.get("id")
                 logger.info("Created NPM proxy host %s (id=%s)", domain, proxy_id)
 
-                # Request SSL certificate
+                # Step 3: Request SSL certificate
                 await _request_ssl(client, api_url, headers, proxy_id, domain, admin_email)
 
                 return {"proxy_id": proxy_id}
@@ -152,6 +197,9 @@ location /relay {{
                 error_msg = f"NPM returned {resp.status_code}: {resp.text[:300]}"
                 logger.error("Failed to create proxy host: %s", error_msg)
                 return {"error": error_msg}
+    except RuntimeError as exc:
+        logger.error("NPM login failed: %s", exc)
+        return {"error": f"NPM login failed: {exc}"}
     except Exception as exc:
         logger.error("NPM API error: %s", exc)
         return {"error": str(exc)}
@@ -168,9 +216,9 @@ async def _request_ssl(
     """Request a Let's Encrypt SSL certificate for a proxy host.
 
     Args:
-        client: httpx client.
+        client: httpx client (already authenticated).
         api_url: NPM API base URL.
-        headers: Auth headers.
+        headers: Auth headers with Bearer token.
         proxy_id: The proxy host ID.
         domain: The domain to certify.
         admin_email: Contact email for LE.
@@ -203,21 +251,25 @@ async def _request_ssl(
 
 
 async def delete_proxy_host(
-    api_url: str, api_token: str, proxy_id: int
+    api_url: str, npm_email: str, npm_password: str, proxy_id: int
 ) -> bool:
     """Delete a proxy host from NPM.
 
+    Logs in first to get a fresh JWT, then deletes the proxy host.
+
     Args:
         api_url: NPM API base URL.
-        api_token: Bearer token.
+        npm_email: NPM login email.
+        npm_password: NPM login password.
         proxy_id: The proxy host ID to delete.
 
     Returns:
         True on success.
     """
-    headers = {"Authorization": f"Bearer {api_token}"}
     try:
         async with httpx.AsyncClient(timeout=NPM_TIMEOUT) as client:
+            token = await _npm_login(client, api_url, npm_email, npm_password)
+            headers = {"Authorization": f"Bearer {token}"}
             resp = await client.delete(
                 f"{api_url}/nginx/proxy-hosts/{proxy_id}", headers=headers
             )

@@ -45,7 +45,8 @@ def test_db():
         base_domain="test.example.com",
         admin_email="admin@test.com",
         npm_api_url="http://localhost:81/api",
-        npm_api_token_encrypted=encrypt_value("test-npm-token"),
+        npm_api_email_encrypted=encrypt_value("admin@npm.local"),
+        npm_api_password_encrypted=encrypt_value("test-npm-password"),
     )
     session.add(config)
     session.commit()

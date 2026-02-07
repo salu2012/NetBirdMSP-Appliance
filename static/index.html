@@ -295,18 +295,24 @@
                         <div class="card shadow-sm">
                             <div class="card-body">
                                 <form id="settings-npm-form">
+                                    <p class="text-muted mb-3">NPM uses JWT authentication. Enter your NPM login credentials (email + password). The system will automatically log in and obtain tokens for API calls.</p>
                                     <div class="row g-3">
                                         <div class="col-md-8">
                                             <label class="form-label">NPM API URL</label>
-                                            <input type="url" class="form-control" id="cfg-npm-api-url" placeholder="http://nginx-proxy-manager:81/api">
+                                            <input type="text" class="form-control" id="cfg-npm-api-url" placeholder="http://nginx-proxy-manager:81/api">
+                                            <div class="form-text">http:// or https:// - must include /api at the end</div>
                                         </div>
                                         <div class="col-md-8">
-                                            <label class="form-label">NPM API Token</label>
+                                            <label class="form-label">NPM Login Email</label>
+                                            <input type="text" class="form-control" id="cfg-npm-api-email" placeholder="Leave empty to keep current">
+                                            <div class="form-text" id="npm-credentials-status"></div>
+                                        </div>
+                                        <div class="col-md-8">
+                                            <label class="form-label">NPM Login Password</label>
                                             <div class="input-group">
-                                                <input type="password" class="form-control" id="cfg-npm-api-token" placeholder="Leave empty to keep current token">
-                                                <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('cfg-npm-api-token')"><i class="bi bi-eye"></i></button>
+                                                <input type="password" class="form-control" id="cfg-npm-api-password" placeholder="Leave empty to keep current">
+                                                <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('cfg-npm-api-password')"><i class="bi bi-eye"></i></button>
                                             </div>
-                                            <div class="form-text" id="npm-token-status"></div>
                                         </div>
                                     </div>
                                     <div class="mt-4">

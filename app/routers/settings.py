@@ -49,7 +49,7 @@ async def update_settings(
 ):
     """Update system configuration values.
 
-    Only provided (non-None) fields are updated. The NPM API token is
+    Only provided (non-None) fields are updated. NPM credentials are
     encrypted before storage.
 
     Args:
@@ -67,10 +67,13 @@ async def update_settings(
 
     update_data = payload.model_dump(exclude_none=True)
 
-    # Handle NPM token encryption
-    if "npm_api_token" in update_data:
-        raw_token = update_data.pop("npm_api_token")
-        row.npm_api_token_encrypted = encrypt_value(raw_token)
+    # Handle NPM credentials encryption
+    if "npm_api_email" in update_data:
+        raw_email = update_data.pop("npm_api_email")
+        row.npm_api_email_encrypted = encrypt_value(raw_email)
+    if "npm_api_password" in update_data:
+        raw_password = update_data.pop("npm_api_password")
+        row.npm_api_password_encrypted = encrypt_value(raw_password)
 
     for field, value in update_data.items():
         if hasattr(row, field):
@@ -103,11 +106,13 @@ async def test_npm(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="System configuration not initialized.",
         )
-    if not config.npm_api_url or not config.npm_api_token:
+    if not config.npm_api_url or not config.npm_api_email or not config.npm_api_password:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="NPM API URL or token not configured.",
+            detail="NPM API URL or credentials not configured.",
         )
 
-    result = await npm_service.test_npm_connection(config.npm_api_url, config.npm_api_token)
+    result = await npm_service.test_npm_connection(
+        config.npm_api_url, config.npm_api_email, config.npm_api_password
+    )
     return result
