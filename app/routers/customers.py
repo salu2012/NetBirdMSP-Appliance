@@ -1,5 +1,6 @@
 """Customer CRUD API endpoints with automatic deployment on create."""
 
+import asyncio
 import logging
 from datetime import datetime
 from typing import Optional
@@ -7,7 +8,7 @@ from typing import Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.database import SessionLocal, get_db
 from app.dependencies import get_current_user
 from app.models import Customer, Deployment, DeploymentLog, User
 from app.services import netbird_service
@@ -59,11 +60,22 @@ async def create_customer(
 
     logger.info("Customer %d (%s) created by %s.", customer.id, customer.subdomain, current_user.username)
 
-    # Deploy in background
-    result = await netbird_service.deploy_customer(db, customer.id)
+    # Deploy in background so the HTTP response returns immediately.
+    # We create a dedicated DB session for the background task because
+    # the request session will be closed once the response is sent.
+    async def _deploy_in_background(customer_id: int) -> None:
+        bg_db = SessionLocal()
+        try:
+            await netbird_service.deploy_customer(bg_db, customer_id)
+        except Exception:
+            logger.exception("Background deployment failed for customer %d", customer_id)
+        finally:
+            bg_db.close()
+
+    background_tasks.add_task(_deploy_in_background, customer.id)
 
     response = customer.to_dict()
-    response["deployment"] = result
+    response["deployment"] = {"deployment_status": "deploying"}
     return response
 
 
@@ -221,7 +233,10 @@ async def delete_customer(
         )
 
     # Undeploy first (containers, NPM, files)
-    await netbird_service.undeploy_customer(db, customer_id)
+    try:
+        await netbird_service.undeploy_customer(db, customer_id)
+    except Exception:
+        logger.exception("Undeploy error for customer %d (continuing with delete)", customer_id)
 
     # Delete customer record (cascades to deployment + logs)
     db.delete(customer)

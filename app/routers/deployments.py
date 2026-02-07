@@ -2,10 +2,10 @@
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.database import SessionLocal, get_db
 from app.dependencies import get_current_user
 from app.models import Customer, Deployment, User
 from app.services import docker_service, netbird_service
@@ -17,35 +17,43 @@ router = APIRouter()
 @router.post("/{customer_id}/deploy")
 async def manual_deploy(
     customer_id: int,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Manually trigger deployment for a customer.
 
     Use this to re-deploy a customer whose previous deployment failed.
+    Runs in background and returns immediately.
 
     Args:
         customer_id: Customer ID.
 
     Returns:
-        Deployment result dict.
+        Acknowledgement dict.
     """
     customer = db.query(Customer).filter(Customer.id == customer_id).first()
     if not customer:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found.")
 
-    # Remove existing deployment if present
-    existing = db.query(Deployment).filter(Deployment.customer_id == customer_id).first()
-    if existing:
-        await netbird_service.undeploy_customer(db, customer_id)
+    customer.status = "deploying"
+    db.commit()
 
-    result = await netbird_service.deploy_customer(db, customer_id)
-    if not result.get("success"):
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=result.get("error", "Deployment failed."),
-        )
-    return result
+    async def _deploy_bg(cid: int) -> None:
+        bg_db = SessionLocal()
+        try:
+            # Remove existing deployment if present
+            existing = bg_db.query(Deployment).filter(Deployment.customer_id == cid).first()
+            if existing:
+                await netbird_service.undeploy_customer(bg_db, cid)
+            await netbird_service.deploy_customer(bg_db, cid)
+        except Exception:
+            logger.exception("Background re-deploy failed for customer %d", cid)
+        finally:
+            bg_db.close()
+
+    background_tasks.add_task(_deploy_bg, customer_id)
+    return {"message": "Deployment started in background.", "status": "deploying"}
 
 
 @router.post("/{customer_id}/start")
