@@ -112,6 +112,29 @@ async def test_npm_connection(api_url: str, email: str, password: str) -> dict[s
         return {"ok": False, "message": f"Unexpected error: {exc}"}
 
 
+async def _find_proxy_host_by_domain(
+    client: httpx.AsyncClient, api_url: str, headers: dict, domain: str
+) -> int | None:
+    """Find an existing proxy host by domain name.
+
+    Args:
+        client: httpx client (already authenticated).
+        api_url: NPM API base URL.
+        headers: Auth headers with Bearer token.
+        domain: Domain to search for.
+
+    Returns:
+        Proxy host ID if found, None otherwise.
+    """
+    resp = await client.get(f"{api_url}/nginx/proxy-hosts", headers=headers)
+    if resp.status_code == 200:
+        for host in resp.json():
+            domains = host.get("domain_names", [])
+            if domain in domains:
+                return host.get("id")
+    return None
+
+
 async def create_proxy_host(
     api_url: str,
     npm_email: str,
@@ -182,15 +205,32 @@ async def create_proxy_host(
                 proxy_id = data.get("id")
                 logger.info("Created NPM proxy host %s -> %s:%d (id=%s)",
                             domain, forward_host, forward_port, proxy_id)
-
-                # Step 2: Request SSL certificate and enable HTTPS
-                ssl_ok = await _request_ssl(client, api_url, headers, proxy_id, domain, admin_email)
-
-                return {"proxy_id": proxy_id, "ssl": ssl_ok}
+            elif resp.status_code == 400 and "already in use" in resp.text:
+                # Domain already exists — find and update the existing proxy host
+                proxy_id = await _find_proxy_host_by_domain(client, api_url, headers, domain)
+                if not proxy_id:
+                    return {"error": f"Domain {domain} already in use but could not find existing proxy host"}
+                logger.info("Found existing NPM proxy host for %s (id=%s), updating...", domain, proxy_id)
+                update_resp = await client.put(
+                    f"{api_url}/nginx/proxy-hosts/{proxy_id}",
+                    json=payload,
+                    headers=headers,
+                )
+                if update_resp.status_code in (200, 201):
+                    logger.info("Updated NPM proxy host %s -> %s:%d (id=%s)",
+                                domain, forward_host, forward_port, proxy_id)
+                else:
+                    logger.warning("Could not update proxy host %s: HTTP %s — %s",
+                                   proxy_id, update_resp.status_code, update_resp.text[:300])
             else:
                 error_msg = f"NPM returned {resp.status_code}: {resp.text[:300]}"
                 logger.error("Failed to create proxy host: %s", error_msg)
                 return {"error": error_msg}
+
+            # Step 2: Request SSL certificate and enable HTTPS
+            ssl_ok = await _request_ssl(client, api_url, headers, proxy_id, domain, admin_email)
+
+            return {"proxy_id": proxy_id, "ssl": ssl_ok}
     except RuntimeError as exc:
         logger.error("NPM login failed: %s", exc)
         return {"error": f"NPM login failed: {exc}"}
@@ -228,6 +268,32 @@ async def _request_ssl(
     if not admin_email:
         logger.warning("No admin email set — skipping SSL certificate for %s", domain)
         return False
+
+    # Check if proxy host already has a valid certificate
+    try:
+        host_resp = await client.get(f"{api_url}/nginx/proxy-hosts/{proxy_id}", headers=headers)
+        if host_resp.status_code == 200:
+            host_data = host_resp.json()
+            existing_cert_id = host_data.get("certificate_id", 0)
+            if existing_cert_id and existing_cert_id > 0:
+                logger.info("Proxy host %s already has certificate (id=%s), ensuring SSL is enabled",
+                            proxy_id, existing_cert_id)
+                ssl_update = {
+                    "certificate_id": existing_cert_id,
+                    "ssl_forced": True,
+                    "hsts_enabled": True,
+                    "http2_support": True,
+                }
+                update_resp = await client.put(
+                    f"{api_url}/nginx/proxy-hosts/{proxy_id}",
+                    json=ssl_update,
+                    headers=headers,
+                )
+                if update_resp.status_code in (200, 201):
+                    logger.info("SSL enabled on existing proxy host %s (cert_id=%s)", proxy_id, existing_cert_id)
+                    return True
+    except Exception as exc:
+        logger.warning("Could not check existing cert for proxy host %s: %s", proxy_id, exc)
 
     ssl_payload = {
         "domain_names": [domain],
