@@ -257,6 +257,7 @@ DATA_DIR=/opt/netbird-instances
 DOCKER_NETWORK=npm-network
 LOG_LEVEL=INFO
 WEB_UI_PORT=8000
+HOST_IP=<your-server-ip>
 ```
 
 > **All application settings** (domain, NPM credentials, Docker images, branding, etc.) are stored in the SQLite database and editable via the Web UI under **Settings**.

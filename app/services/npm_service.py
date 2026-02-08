@@ -13,7 +13,7 @@ Also manages NPM streams for STUN/TURN relay UDP ports.
 """
 
 import logging
-import socket
+import os
 from typing import Any
 
 import httpx
@@ -25,27 +25,24 @@ NPM_TIMEOUT = 30
 
 
 def _get_forward_host() -> str:
-    """Detect the host machine's real IP address.
+    """Get the host machine's real IP address for NPM forwarding.
 
     NPM proxy hosts must forward to the actual host IP where Docker
     port mappings are exposed — NOT a container name or Docker gateway.
 
-    Uses a UDP socket to determine the primary outbound IP address
-    of the host (works inside Docker containers).
+    Reads the HOST_IP environment variable set during installation
+    (detected via ``hostname -I`` on the host and stored in .env).
 
     Returns:
-        The host's primary IP address (e.g. ``192.168.26.191``).
+        The host's IP address (e.g. ``192.168.26.191``).
     """
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        host_ip = s.getsockname()[0]
-        s.close()
-        logger.info("Detected host IP: %s", host_ip)
+    host_ip = os.environ.get("HOST_IP", "").strip()
+    if host_ip:
+        logger.info("Using HOST_IP from environment: %s", host_ip)
         return host_ip
-    except Exception:
-        logger.warning("Could not detect host IP, falling back to 172.17.0.1")
-        return "172.17.0.1"
+
+    logger.warning("HOST_IP not set in environment — please add HOST_IP=<your-server-ip> to .env")
+    return "127.0.0.1"
 
 
 async def _npm_login(client: httpx.AsyncClient, api_url: str, email: str, password: str) -> str:
@@ -164,7 +161,7 @@ async def create_proxy_host(
     }
 
     try:
-        async with httpx.AsyncClient(timeout=NPM_TIMEOUT) as client:
+        async with httpx.AsyncClient(timeout=180) as client:  # Long timeout for LE cert
             # Step 1: Login to NPM
             token = await _npm_login(client, api_url, npm_email, npm_password)
             headers = {
@@ -208,6 +205,9 @@ async def _request_ssl(
 ) -> None:
     """Request a Let's Encrypt SSL certificate for a proxy host.
 
+    Let's Encrypt validation can take up to 120 seconds, so we use
+    a longer timeout for certificate requests.
+
     Args:
         client: httpx client (already authenticated).
         api_url: NPM API base URL.
@@ -227,20 +227,28 @@ async def _request_ssl(
         },
     }
     try:
+        logger.info("Requesting Let's Encrypt certificate for %s ...", domain)
         resp = await client.post(
-            f"{api_url}/nginx/certificates", json=ssl_payload, headers=headers
+            f"{api_url}/nginx/certificates",
+            json=ssl_payload,
+            headers=headers,
+            timeout=120,  # LE validation can be slow
         )
         if resp.status_code in (200, 201):
             cert_id = resp.json().get("id")
-            # Assign certificate to proxy host
-            await client.put(
+            logger.info("Certificate created (id=%s), assigning to proxy host %s", cert_id, proxy_id)
+            assign_resp = await client.put(
                 f"{api_url}/nginx/proxy-hosts/{proxy_id}",
                 json={"certificate_id": cert_id},
                 headers=headers,
             )
-            logger.info("SSL certificate %s assigned to proxy host %s", cert_id, proxy_id)
+            if assign_resp.status_code in (200, 201):
+                logger.info("SSL certificate %s assigned to proxy host %s", cert_id, proxy_id)
+            else:
+                logger.warning("Failed to assign cert to proxy host: %s %s",
+                               assign_resp.status_code, assign_resp.text[:200])
         else:
-            logger.warning("SSL request returned %s: %s", resp.status_code, resp.text[:200])
+            logger.warning("SSL cert request returned %s: %s", resp.status_code, resp.text[:500])
     except Exception as exc:
         logger.warning("SSL certificate request failed: %s", exc)
 

@@ -17,6 +17,7 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - DATA_DIR=${DATA_DIR:-/opt/netbird-instances}
       - DOCKER_NETWORK=${DOCKER_NETWORK:-npm-network}
+      - HOST_IP=${HOST_IP:-}
     networks:
       - npm-network
     healthcheck:

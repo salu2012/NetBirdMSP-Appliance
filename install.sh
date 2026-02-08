@@ -338,6 +338,10 @@ echo "Generating encryption keys..."
 SECRET_KEY=$(openssl rand -base64 32)
 echo -e "${GREEN}✓ Encryption keys generated${NC}"
 
+# Detect host IP for NPM forwarding
+HOST_IP=$(hostname -I | awk '{print $1}')
+echo -e "Host IP: ${CYAN}${HOST_IP}${NC}"
+
 # Create MINIMAL .env — only container-level vars needed by docker-compose.yml
 # All application config goes into the DATABASE, not here!
 echo "Creating minimal container environment..."
@@ -350,6 +354,7 @@ DATA_DIR=$DATA_DIR
 DOCKER_NETWORK=$DOCKER_NETWORK
 LOG_LEVEL=INFO
 WEB_UI_PORT=8000
+HOST_IP=$HOST_IP
 ENVEOF
 
 chmod 600 "$INSTALL_DIR/.env"
@@ -482,8 +487,9 @@ if [ -n "$MSP_DOMAIN" ]; then
         if [ -n "$PROXY_ID" ] && [ "$PROXY_ID" != "None" ] && [ "$PROXY_ID" != "" ]; then
             echo -e "${GREEN}✓ NPM proxy host created (ID: ${PROXY_ID})${NC}"
 
-            # Step 3: Request Let's Encrypt certificate
-            CERT_RESULT=$(curl -s -X POST "${NPM_API_URL}/nginx/certificates" \
+            # Step 3: Request Let's Encrypt certificate (can take up to 120s)
+            echo -e "${CYAN}Requesting Let's Encrypt certificate (this may take a minute)...${NC}"
+            CERT_RESULT=$(curl -s --max-time 120 -X POST "${NPM_API_URL}/nginx/certificates" \
                 -H "Authorization: Bearer ${NPM_TOKEN}" \
                 -H "Content-Type: application/json" \
                 -d "{
