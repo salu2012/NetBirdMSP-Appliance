@@ -64,6 +64,10 @@ htmlcov/
 
 # Claude Code
 .claude/
+CLAUDE_CODE_SPEC.md
+PROJECT_SUMMARY.md
+QUICKSTART.md
+VS_CODE_SETUP.md
 
 # Windows artifacts
 nul
