@@ -112,6 +112,45 @@ async def test_npm_connection(api_url: str, email: str, password: str) -> dict[s
         return {"ok": False, "message": f"Unexpected error: {exc}"}
 
 
+async def list_certificates(api_url: str, email: str, password: str) -> dict[str, Any]:
+    """Fetch all SSL certificates from NPM.
+
+    Args:
+        api_url: NPM API base URL.
+        email: NPM login email.
+        password: NPM login password.
+
+    Returns:
+        Dict with ``certificates`` list on success, or ``error`` on failure.
+    """
+    try:
+        async with httpx.AsyncClient(timeout=NPM_TIMEOUT) as client:
+            token = await _npm_login(client, api_url, email, password)
+            headers = {"Authorization": f"Bearer {token}"}
+            resp = await client.get(f"{api_url}/nginx/certificates", headers=headers)
+            if resp.status_code == 200:
+                result = []
+                for cert in resp.json():
+                    domains = cert.get("domain_names", [])
+                    result.append({
+                        "id": cert.get("id"),
+                        "domain_names": domains,
+                        "provider": cert.get("provider", "unknown"),
+                        "expires_on": cert.get("expires_on"),
+                        "is_wildcard": any(d.startswith("*.") for d in domains),
+                    })
+                return {"certificates": result}
+            return {"error": f"NPM returned {resp.status_code}: {resp.text[:200]}"}
+    except RuntimeError as exc:
+        return {"error": str(exc)}
+    except httpx.ConnectError:
+        return {"error": "Connection refused. Is NPM running and reachable?"}
+    except httpx.TimeoutException:
+        return {"error": "Connection timed out."}
+    except Exception as exc:
+        return {"error": f"Unexpected error: {exc}"}
+
+
 async def _find_cert_by_domain(
     client: httpx.AsyncClient, api_url: str, headers: dict, domain: str
 ) -> int | None:
@@ -169,6 +208,8 @@ async def create_proxy_host(
     forward_host: str,
     forward_port: int = 80,
     admin_email: str = "",
+    ssl_mode: str = "letsencrypt",
+    wildcard_cert_id: int | None = None,
 ) -> dict[str, Any]:
     """Create a proxy host entry in NPM with SSL for a customer.
 
@@ -265,7 +306,10 @@ async def create_proxy_host(
                 return {"error": error_msg}
 
             # Step 2: Request SSL certificate and enable HTTPS
-            ssl_ok = await _request_ssl(client, api_url, headers, proxy_id, domain, admin_email)
+            ssl_ok = await _request_ssl(
+                client, api_url, headers, proxy_id, domain, admin_email,
+                ssl_mode=ssl_mode, wildcard_cert_id=wildcard_cert_id,
+            )
 
             return {"proxy_id": proxy_id, "ssl": ssl_ok}
     except RuntimeError as exc:
@@ -283,13 +327,14 @@ async def _request_ssl(
     proxy_id: int,
     domain: str,
     admin_email: str,
+    ssl_mode: str = "letsencrypt",
+    wildcard_cert_id: int | None = None,
 ) -> bool:
-    """Request a Let's Encrypt SSL certificate and enable HTTPS on the proxy host.
+    """Request an SSL certificate and enable HTTPS on the proxy host.
 
-    Flow:
-    1. Create LE certificate via NPM API (HTTP-01 validation, up to 120s)
-    2. Assign certificate to the proxy host
-    3. Enable ssl_forced + hsts on the proxy host
+    Supports two modes:
+    - ``letsencrypt``: Create a per-domain LE certificate (HTTP-01 validation).
+    - ``wildcard``: Assign a pre-existing wildcard certificate from NPM.
 
     Args:
         client: httpx client (already authenticated).
@@ -298,10 +343,49 @@ async def _request_ssl(
         proxy_id: The proxy host ID.
         domain: The domain to certify.
         admin_email: Contact email for LE.
+        ssl_mode: ``"letsencrypt"`` or ``"wildcard"``.
+        wildcard_cert_id: NPM certificate ID for wildcard mode.
 
     Returns:
         True if SSL was successfully enabled, False otherwise.
     """
+    # Wildcard mode: assign the pre-existing wildcard cert directly
+    if ssl_mode == "wildcard" and wildcard_cert_id:
+        logger.info(
+            "Wildcard mode: assigning cert id=%s to proxy host %s for %s",
+            wildcard_cert_id, proxy_id, domain,
+        )
+        ssl_update = {
+            "certificate_id": wildcard_cert_id,
+            "ssl_forced": True,
+            "hsts_enabled": True,
+            "http2_support": True,
+        }
+        try:
+            update_resp = await client.put(
+                f"{api_url}/nginx/proxy-hosts/{proxy_id}",
+                json=ssl_update,
+                headers=headers,
+            )
+            if update_resp.status_code in (200, 201):
+                logger.info(
+                    "SSL enabled on proxy host %s (wildcard cert_id=%s)",
+                    proxy_id, wildcard_cert_id,
+                )
+                return True
+            logger.error(
+                "Failed to assign wildcard cert %s to proxy host %s: HTTP %s — %s",
+                wildcard_cert_id, proxy_id,
+                update_resp.status_code, update_resp.text[:300],
+            )
+            return False
+        except Exception as exc:
+            logger.error(
+                "Failed to assign wildcard cert to proxy host %s: %s", proxy_id, exc,
+            )
+            return False
+
+    # Let's Encrypt mode (default)
     if not admin_email:
         logger.warning("No admin email set — skipping SSL certificate for %s", domain)
         return False

@@ -83,6 +83,8 @@ def _run_migrations() -> None:
         ("system_config", "mfa_enabled", "BOOLEAN DEFAULT 0"),
         ("users", "totp_secret_encrypted", "TEXT"),
         ("users", "totp_enabled", "BOOLEAN DEFAULT 0"),
+        ("system_config", "ssl_mode", "TEXT DEFAULT 'letsencrypt'"),
+        ("system_config", "wildcard_cert_id", "INTEGER"),
     ]
     for table, column, col_type in migrations:
         if not _has_column(table, column):

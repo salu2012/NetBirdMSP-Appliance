@@ -816,6 +816,14 @@ async function loadSettings() {
         document.getElementById('cfg-dashboard-base-port').value = cfg.dashboard_base_port || 9000;
         document.getElementById('cfg-npm-api-url').value = cfg.npm_api_url || '';
         document.getElementById('npm-credentials-status').textContent = cfg.npm_credentials_set ? t('settings.credentialsSet') : t('settings.noCredentials');
+
+        // SSL mode
+        document.getElementById('cfg-ssl-mode').value = cfg.ssl_mode || 'letsencrypt';
+        onSslModeChange();
+        if (cfg.ssl_mode === 'wildcard') {
+            loadNpmCertificates(cfg.wildcard_cert_id);
+        }
+
         document.getElementById('cfg-mgmt-image').value = cfg.netbird_management_image || '';
         document.getElementById('cfg-signal-image').value = cfg.netbird_signal_image || '';
         document.getElementById('cfg-relay-image').value = cfg.netbird_relay_image || '';
@@ -876,6 +884,14 @@ document.getElementById('settings-npm-form').addEventListener('submit', async (e
     const password = document.getElementById('cfg-npm-api-password').value;
     if (email) payload.npm_api_email = email;
     if (password) payload.npm_api_password = password;
+
+    // SSL mode
+    const sslMode = document.getElementById('cfg-ssl-mode').value;
+    payload.ssl_mode = sslMode;
+    if (sslMode === 'wildcard') {
+        const certId = document.getElementById('cfg-wildcard-cert-id').value;
+        if (certId) payload.wildcard_cert_id = parseInt(certId);
+    }
     try {
         await api('PUT', '/settings/system', payload);
         showSettingsAlert('success', t('messages.npmSettingsSaved'));
@@ -921,6 +937,42 @@ async function testNpmConnection() {
         resultEl.classList.remove('d-none');
     } finally {
         spinner.classList.add('d-none');
+    }
+}
+
+// SSL mode toggle
+function onSslModeChange() {
+    const mode = document.getElementById('cfg-ssl-mode').value;
+    const section = document.getElementById('wildcard-cert-section');
+    section.style.display = mode === 'wildcard' ? '' : 'none';
+}
+
+// Load NPM wildcard certificates into dropdown
+async function loadNpmCertificates(preselectId) {
+    const select = document.getElementById('cfg-wildcard-cert-id');
+    const statusEl = document.getElementById('wildcard-cert-status');
+    select.innerHTML = `<option value="">${t('settings.selectCertificate')}</option>`;
+    statusEl.textContent = t('common.loading');
+    statusEl.className = 'mt-1 text-muted';
+
+    try {
+        const certs = await api('GET', '/settings/npm-certificates');
+        const wildcards = certs.filter(c => c.is_wildcard || (c.domain_names && c.domain_names.some(d => d.startsWith('*.'))));
+        wildcards.forEach(c => {
+            const domains = (c.domain_names || []).join(', ');
+            const expires = c.expires_on ? ` (${t('settings.expiresOn')}: ${new Date(c.expires_on).toLocaleDateString()})` : '';
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.textContent = `${domains}${expires}`;
+            select.appendChild(opt);
+        });
+        if (preselectId) select.value = preselectId;
+        statusEl.textContent = t('settings.certsLoaded', { count: wildcards.length });
+        statusEl.className = wildcards.length > 0 ? 'mt-1 text-success small' : 'mt-1 text-warning small';
+        if (wildcards.length === 0) statusEl.textContent = t('settings.noWildcardCerts');
+    } catch (err) {
+        statusEl.textContent = t('errors.failed', { error: err.message });
+        statusEl.className = 'mt-1 text-danger small';
     }
 }
 

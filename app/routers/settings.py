@@ -129,6 +129,41 @@ async def test_npm(
     return result
 
 
+@router.get("/npm-certificates")
+async def list_npm_certificates(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """List all SSL certificates configured in NPM.
+
+    Used by the frontend to populate the wildcard certificate dropdown.
+
+    Returns:
+        List of certificate dicts with id, domain_names, provider, expires_on, is_wildcard.
+    """
+    config = get_system_config(db)
+    if not config:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="System configuration not initialized.",
+        )
+    if not config.npm_api_url or not config.npm_api_email or not config.npm_api_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="NPM API URL or credentials not configured.",
+        )
+
+    result = await npm_service.list_certificates(
+        config.npm_api_url, config.npm_api_email, config.npm_api_password
+    )
+    if "error" in result:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=result["error"],
+        )
+    return result["certificates"]
+
+
 @router.get("/branding")
 async def get_branding(db: Session = Depends(get_db)):
     """Public endpoint — returns branding info for the login page (no auth required)."""

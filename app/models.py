@@ -161,6 +161,8 @@ class SystemConfig(Base):
     )
     branding_logo_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     default_language: Mapped[Optional[str]] = mapped_column(String(10), default="en")
+    ssl_mode: Mapped[str] = mapped_column(String(20), default="letsencrypt")
+    wildcard_cert_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     azure_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     azure_tenant_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
@@ -194,6 +196,8 @@ class SystemConfig(Base):
             "branding_subtitle": self.branding_subtitle or "Multi-Tenant Management Platform",
             "branding_logo_path": self.branding_logo_path,
             "default_language": self.default_language or "en",
+            "ssl_mode": self.ssl_mode or "letsencrypt",
+            "wildcard_cert_id": self.wildcard_cert_id,
             "mfa_enabled": bool(self.mfa_enabled),
             "azure_enabled": bool(self.azure_enabled),
             "azure_tenant_id": self.azure_tenant_id or "",

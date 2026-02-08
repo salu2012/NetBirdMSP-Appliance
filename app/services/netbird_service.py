@@ -277,6 +277,8 @@ async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
                 forward_host=forward_host,
                 forward_port=dashboard_port,
                 admin_email=config.admin_email,
+                ssl_mode=config.ssl_mode,
+                wildcard_cert_id=config.wildcard_cert_id,
             )
             npm_proxy_id = npm_result.get("proxy_id")
             if npm_result.get("error"):

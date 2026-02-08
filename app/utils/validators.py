@@ -126,11 +126,24 @@ class SystemConfigUpdate(BaseModel):
     branding_name: Optional[str] = Field(None, max_length=255)
     branding_subtitle: Optional[str] = Field(None, max_length=255)
     default_language: Optional[str] = Field(None, max_length=10)
+    ssl_mode: Optional[str] = Field(None, max_length=20)
+    wildcard_cert_id: Optional[int] = Field(None, ge=0)
     mfa_enabled: Optional[bool] = None
     azure_enabled: Optional[bool] = None
     azure_tenant_id: Optional[str] = Field(None, max_length=255)
     azure_client_id: Optional[str] = Field(None, max_length=255)
     azure_client_secret: Optional[str] = None  # encrypted before storage
+
+    @field_validator("ssl_mode")
+    @classmethod
+    def validate_ssl_mode(cls, v: Optional[str]) -> Optional[str]:
+        """SSL mode must be 'letsencrypt' or 'wildcard'."""
+        if v is None:
+            return v
+        allowed = {"letsencrypt", "wildcard"}
+        if v not in allowed:
+            raise ValueError(f"ssl_mode must be one of: {', '.join(sorted(allowed))}")
+        return v
 
     @field_validator("base_domain")
     @classmethod

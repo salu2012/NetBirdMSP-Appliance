@@ -381,6 +381,32 @@
                                                 <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('cfg-npm-api-password')"><i class="bi bi-eye"></i></button>
                                             </div>
                                         </div>
+                                        <!-- SSL Certificate Mode -->
+                                        <div class="col-12 mt-3">
+                                            <hr class="my-2">
+                                            <h6 class="mb-2" data-i18n="settings.sslModeTitle">SSL Certificate Mode</h6>
+                                        </div>
+                                        <div class="col-md-8">
+                                            <label class="form-label" data-i18n="settings.sslMode">SSL Mode</label>
+                                            <select class="form-select" id="cfg-ssl-mode" onchange="onSslModeChange()">
+                                                <option value="letsencrypt" data-i18n="settings.sslModeLetsencrypt">Per-Customer Let's Encrypt Certificate</option>
+                                                <option value="wildcard" data-i18n="settings.sslModeWildcard">Wildcard Certificate (pre-configured in NPM)</option>
+                                            </select>
+                                            <div class="form-text" data-i18n="settings.sslModeHint">Choose how SSL certificates are assigned to customer proxy hosts.</div>
+                                        </div>
+                                        <div class="col-md-8" id="wildcard-cert-section" style="display:none;">
+                                            <label class="form-label" data-i18n="settings.wildcardCertificate">Wildcard Certificate</label>
+                                            <div class="input-group">
+                                                <select class="form-select" id="cfg-wildcard-cert-id">
+                                                    <option value="" data-i18n="settings.selectCertificate">-- Select a certificate --</option>
+                                                </select>
+                                                <button type="button" class="btn btn-outline-secondary" onclick="loadNpmCertificates()" title="Refresh">
+                                                    <i class="bi bi-arrow-clockwise"></i>
+                                                </button>
+                                            </div>
+                                            <div class="form-text" data-i18n="settings.wildcardCertHint">Select the wildcard certificate (e.g. *.example.com) already uploaded in NPM.</div>
+                                            <div id="wildcard-cert-status" class="mt-1"></div>
+                                        </div>
                                     </div>
                                     <div class="mt-4">
                                         <button type="submit" class="btn btn-primary me-2"><i class="bi bi-save me-1"></i><span data-i18n="settings.saveNpmSettings">Save NPM Settings</span></button>
