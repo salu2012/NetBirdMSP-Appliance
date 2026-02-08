@@ -22,7 +22,7 @@
   },
   "Relay": {
     "Addresses": [
-      "rels://{{ netbird_domain }}:443"
+      "{{ relay_ws_protocol }}://{{ netbird_domain }}:{{ netbird_port }}"
     ],
     "CredentialsTTL": "24h",
     "Secret": "{{ relay_secret }}"

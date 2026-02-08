@@ -127,6 +127,10 @@ async def create_proxy_host(
     Caddy reverse proxy is listening. Caddy handles internal routing to
     management, signal, relay, and dashboard containers.
 
+    Creates the proxy host WITHOUT SSL first (so HTTP works immediately),
+    then requests a Let's Encrypt certificate, and only enables SSL
+    after the cert is successfully assigned.
+
     Args:
         api_url: NPM API base URL.
         npm_email: NPM login email.
@@ -137,16 +141,18 @@ async def create_proxy_host(
         admin_email: Email for Let's Encrypt.
 
     Returns:
-        Dict with ``proxy_id`` on success or ``error`` on failure.
+        Dict with ``proxy_id`` and ``ssl`` (bool) on success, or ``error`` on failure.
     """
+    # Step 1: Create proxy host WITHOUT SSL — so HTTP works immediately
+    # SSL is enabled later only after a cert is successfully obtained.
     payload = {
         "domain_names": [domain],
         "forward_scheme": "http",
         "forward_host": forward_host,
         "forward_port": forward_port,
         "certificate_id": 0,
-        "ssl_forced": True,
-        "hsts_enabled": True,
+        "ssl_forced": False,
+        "hsts_enabled": False,
         "hsts_subdomains": False,
         "http2_support": True,
         "block_exploits": True,
@@ -162,14 +168,12 @@ async def create_proxy_host(
 
     try:
         async with httpx.AsyncClient(timeout=180) as client:  # Long timeout for LE cert
-            # Step 1: Login to NPM
             token = await _npm_login(client, api_url, npm_email, npm_password)
             headers = {
                 "Authorization": f"Bearer {token}",
                 "Content-Type": "application/json",
             }
 
-            # Step 2: Create proxy host
             resp = await client.post(
                 f"{api_url}/nginx/proxy-hosts", json=payload, headers=headers
             )
@@ -179,10 +183,10 @@ async def create_proxy_host(
                 logger.info("Created NPM proxy host %s -> %s:%d (id=%s)",
                             domain, forward_host, forward_port, proxy_id)
 
-                # Step 3: Request SSL certificate
-                await _request_ssl(client, api_url, headers, proxy_id, domain, admin_email)
+                # Step 2: Request SSL certificate and enable HTTPS
+                ssl_ok = await _request_ssl(client, api_url, headers, proxy_id, domain, admin_email)
 
-                return {"proxy_id": proxy_id}
+                return {"proxy_id": proxy_id, "ssl": ssl_ok}
             else:
                 error_msg = f"NPM returned {resp.status_code}: {resp.text[:300]}"
                 logger.error("Failed to create proxy host: %s", error_msg)
@@ -202,11 +206,13 @@ async def _request_ssl(
     proxy_id: int,
     domain: str,
     admin_email: str,
-) -> None:
-    """Request a Let's Encrypt SSL certificate for a proxy host.
+) -> bool:
+    """Request a Let's Encrypt SSL certificate and enable HTTPS on the proxy host.
 
-    Let's Encrypt validation can take up to 120 seconds, so we use
-    a longer timeout for certificate requests.
+    Flow:
+    1. Create LE certificate via NPM API (HTTP-01 validation, up to 120s)
+    2. Assign certificate to the proxy host
+    3. Enable ssl_forced + hsts on the proxy host
 
     Args:
         client: httpx client (already authenticated).
@@ -215,7 +221,14 @@ async def _request_ssl(
         proxy_id: The proxy host ID.
         domain: The domain to certify.
         admin_email: Contact email for LE.
+
+    Returns:
+        True if SSL was successfully enabled, False otherwise.
     """
+    if not admin_email:
+        logger.warning("No admin email set — skipping SSL certificate for %s", domain)
+        return False
+
     ssl_payload = {
         "domain_names": [domain],
         "provider": "letsencrypt",
@@ -227,30 +240,57 @@ async def _request_ssl(
         },
     }
     try:
-        logger.info("Requesting Let's Encrypt certificate for %s ...", domain)
+        logger.info("Requesting Let's Encrypt certificate for %s (email: %s) ...", domain, admin_email)
         resp = await client.post(
             f"{api_url}/nginx/certificates",
             json=ssl_payload,
             headers=headers,
             timeout=120,  # LE validation can be slow
         )
-        if resp.status_code in (200, 201):
-            cert_id = resp.json().get("id")
-            logger.info("Certificate created (id=%s), assigning to proxy host %s", cert_id, proxy_id)
-            assign_resp = await client.put(
-                f"{api_url}/nginx/proxy-hosts/{proxy_id}",
-                json={"certificate_id": cert_id},
-                headers=headers,
+        if resp.status_code not in (200, 201):
+            logger.error(
+                "SSL cert request for %s failed (HTTP %s): %s",
+                domain, resp.status_code, resp.text[:500],
             )
-            if assign_resp.status_code in (200, 201):
-                logger.info("SSL certificate %s assigned to proxy host %s", cert_id, proxy_id)
-            else:
-                logger.warning("Failed to assign cert to proxy host: %s %s",
-                               assign_resp.status_code, assign_resp.text[:200])
+            return False
+
+        cert_id = resp.json().get("id")
+        logger.info("Certificate created (id=%s) for %s", cert_id, domain)
+
+        # Assign cert AND enable SSL + HSTS in one update
+        ssl_update = {
+            "certificate_id": cert_id,
+            "ssl_forced": True,
+            "hsts_enabled": True,
+            "http2_support": True,
+        }
+        assign_resp = await client.put(
+            f"{api_url}/nginx/proxy-hosts/{proxy_id}",
+            json=ssl_update,
+            headers=headers,
+        )
+        if assign_resp.status_code in (200, 201):
+            logger.info("SSL enabled on proxy host %s for %s (cert_id=%s)", proxy_id, domain, cert_id)
+            return True
         else:
-            logger.warning("SSL cert request returned %s: %s", resp.status_code, resp.text[:500])
+            logger.error(
+                "Failed to assign cert %s to proxy host %s: HTTP %s — %s",
+                cert_id, proxy_id, assign_resp.status_code, assign_resp.text[:300],
+            )
+            return False
+
+    except httpx.TimeoutException:
+        logger.error(
+            "SSL cert request for %s timed out after 120s. "
+            "Check: 1) DNS resolves %s to your server, "
+            "2) Port 80 is accessible from the internet, "
+            "3) NPM is listening on port 80.",
+            domain, domain,
+        )
+        return False
     except Exception as exc:
-        logger.warning("SSL certificate request failed: %s", exc)
+        logger.error("SSL certificate request failed for %s: %s", domain, exc)
+        return False
 
 
 async def create_stream(

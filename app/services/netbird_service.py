@@ -119,10 +119,12 @@ async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
             external_url = f"http://localhost:{dashboard_port}"
             netbird_protocol = "http"
             netbird_port = str(dashboard_port)
+            relay_ws_protocol = "rel"
         else:
             external_url = f"https://{netbird_domain}"
             netbird_protocol = "https"
             netbird_port = "443"
+            relay_ws_protocol = "rels"
 
         # Step 4: Create instance directory
         instance_dir = os.path.join(config.data_dir, f"kunde{customer_id}")
@@ -151,6 +153,7 @@ async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
             "netbird_dashboard_image": config.netbird_dashboard_image,
             "docker_network": config.docker_network,
             "datastore_encryption_key": datastore_key,
+            "relay_ws_protocol": relay_ws_protocol,
         }
 
         _render_template(jinja_env, "docker-compose.yml.j2",
@@ -241,9 +244,11 @@ async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
                     f"NPM proxy creation failed: {npm_result['error']}",
                 )
             else:
+                ssl_ok = npm_result.get("ssl", False)
                 _log_action(
                     db, customer_id, "deploy", "info",
-                    f"NPM proxy host created: {netbird_domain} -> {forward_host}:{dashboard_port}",
+                    f"NPM proxy host created: {netbird_domain} -> {forward_host}:{dashboard_port} "
+                    f"(SSL: {'OK' if ssl_ok else 'FAILED — check DNS and port 80 accessibility'})",
                 )
 
             # Create NPM UDP stream for relay STUN port
@@ -265,6 +270,36 @@ async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
                 _log_action(
                     db, customer_id, "deploy", "info",
                     f"NPM UDP stream created: port {allocated_port} -> {forward_host}:{allocated_port}",
+                )
+
+            # Step 9b: If SSL failed, fall back to HTTP so the dashboard works
+            ssl_ok = npm_result.get("ssl", False) if not npm_result.get("error") else False
+            if not ssl_ok:
+                logger.warning("SSL cert failed for %s — switching configs to HTTP", netbird_domain)
+                external_url = f"http://{netbird_domain}"
+                netbird_protocol = "http"
+                netbird_port = "80"
+                relay_ws_protocol = "rel"
+                template_vars["external_url"] = external_url
+                template_vars["netbird_protocol"] = netbird_protocol
+                template_vars["netbird_port"] = netbird_port
+                template_vars["relay_ws_protocol"] = relay_ws_protocol
+
+                # Re-render configs that contain URL/protocol references
+                _render_template(jinja_env, "management.json.j2",
+                                 os.path.join(instance_dir, "management.json"), **template_vars)
+                _render_template(jinja_env, "dashboard.env.j2",
+                                 os.path.join(instance_dir, "dashboard.env"), **template_vars)
+                _render_template(jinja_env, "relay.env.j2",
+                                 os.path.join(instance_dir, "relay.env"), **template_vars)
+
+                # Recreate containers to pick up new config
+                docker_service.compose_up(instance_dir, container_prefix, timeout=120)
+
+                _log_action(
+                    db, customer_id, "deploy", "info",
+                    "SSL not available — switched to HTTP mode. "
+                    "To enable HTTPS: ensure DNS resolves and port 80 is reachable, then re-deploy.",
                 )
 
         # Step 10: Create deployment record
