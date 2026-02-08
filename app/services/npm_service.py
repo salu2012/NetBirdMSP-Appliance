@@ -112,6 +112,32 @@ async def test_npm_connection(api_url: str, email: str, password: str) -> dict[s
         return {"ok": False, "message": f"Unexpected error: {exc}"}
 
 
+async def _find_cert_by_domain(
+    client: httpx.AsyncClient, api_url: str, headers: dict, domain: str
+) -> int | None:
+    """Find an existing SSL certificate by domain name.
+
+    Args:
+        client: httpx client (already authenticated).
+        api_url: NPM API base URL.
+        headers: Auth headers with Bearer token.
+        domain: Domain to search for.
+
+    Returns:
+        Certificate ID if found, None otherwise.
+    """
+    try:
+        resp = await client.get(f"{api_url}/nginx/certificates", headers=headers)
+        if resp.status_code == 200:
+            for cert in resp.json():
+                cert_domains = cert.get("domain_names", [])
+                if domain in cert_domains:
+                    return cert.get("id")
+    except Exception as exc:
+        logger.warning("Could not search certificates: %s", exc)
+    return None
+
+
 async def _find_proxy_host_by_domain(
     client: httpx.AsyncClient, api_url: str, headers: dict, domain: str
 ) -> int | None:
@@ -211,6 +237,17 @@ async def create_proxy_host(
                 if not proxy_id:
                     return {"error": f"Domain {domain} already in use but could not find existing proxy host"}
                 logger.info("Found existing NPM proxy host for %s (id=%s), updating...", domain, proxy_id)
+
+                # Preserve existing certificate_id and ssl settings
+                host_resp = await client.get(f"{api_url}/nginx/proxy-hosts/{proxy_id}", headers=headers)
+                if host_resp.status_code == 200:
+                    existing = host_resp.json()
+                    existing_cert = existing.get("certificate_id", 0)
+                    if existing_cert and existing_cert > 0:
+                        payload["certificate_id"] = existing_cert
+                        payload["ssl_forced"] = existing.get("ssl_forced", True)
+                        payload["hsts_enabled"] = existing.get("hsts_enabled", True)
+
                 update_resp = await client.put(
                     f"{api_url}/nginx/proxy-hosts/{proxy_id}",
                     json=payload,
@@ -275,9 +312,14 @@ async def _request_ssl(
         if host_resp.status_code == 200:
             host_data = host_resp.json()
             existing_cert_id = host_data.get("certificate_id", 0)
+
+            # If no cert on proxy host, search NPM for existing cert matching domain
+            if not existing_cert_id or existing_cert_id == 0:
+                existing_cert_id = await _find_cert_by_domain(client, api_url, headers, domain)
+
             if existing_cert_id and existing_cert_id > 0:
-                logger.info("Proxy host %s already has certificate (id=%s), ensuring SSL is enabled",
-                            proxy_id, existing_cert_id)
+                logger.info("Found certificate (id=%s) for %s, assigning to proxy host %s",
+                            existing_cert_id, domain, proxy_id)
                 ssl_update = {
                     "certificate_id": existing_cert_id,
                     "ssl_forced": True,
@@ -290,19 +332,20 @@ async def _request_ssl(
                     headers=headers,
                 )
                 if update_resp.status_code in (200, 201):
-                    logger.info("SSL enabled on existing proxy host %s (cert_id=%s)", proxy_id, existing_cert_id)
+                    logger.info("SSL enabled on proxy host %s (cert_id=%s)", proxy_id, existing_cert_id)
                     return True
+                else:
+                    logger.warning("Failed to assign cert %s to proxy host %s: HTTP %s",
+                                   existing_cert_id, proxy_id, update_resp.status_code)
     except Exception as exc:
         logger.warning("Could not check existing cert for proxy host %s: %s", proxy_id, exc)
 
     ssl_payload = {
         "domain_names": [domain],
         "provider": "letsencrypt",
-        "nice_name": domain,
         "meta": {
             "letsencrypt_agree": True,
             "letsencrypt_email": admin_email,
-            "dns_challenge": False,
         },
     }
     try:
