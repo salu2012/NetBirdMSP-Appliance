@@ -131,11 +131,18 @@ Per customer instance (5 containers): **~100 MB RAM**
 | Port | Protocol | Purpose |
 |------|----------|---------|
 | 8000 | TCP | NetBird MSP Appliance Web UI |
-| 3478+ | UDP | STUN/TURN relay (one per customer) |
+| 9000+ | TCP | NetBird Web Management per customer (one per customer, increments by 1) |
+| 3478+ | UDP | STUN/TURN relay per customer (one per customer, increments by 1) |
 
-Example: Customer 1 = UDP 3478, Customer 2 = UDP 3479, ..., Customer 100 = UDP 3577.
+Example for 3 customers:
 
-**Your firewall must allow the UDP relay ports for NetBird to function!**
+| Customer | Dashboard (TCP) | Relay (UDP) |
+|----------|----------------|-------------|
+| Kunde 1  | 9001           | 3478        |
+| Kunde 2  | 9002           | 3479        |
+| Kunde 3  | 9003           | 3480        |
+
+**Your firewall must allow both the TCP dashboard ports and the UDP relay ports!**
 
 ---
 

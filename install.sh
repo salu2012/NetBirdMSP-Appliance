@@ -432,24 +432,31 @@ clear
 echo -e "${BLUE}${BOLD}[Step 9/10]${NC} ${BLUE}Firewall Configuration${NC}\n"
 
 echo -e "${CYAN}The following firewall ports need to be opened:${NC}\n"
-echo -e "  ${YELLOW}TCP 8000${NC}      - Web UI"
-echo -e "  ${YELLOW}UDP 3478-3577${NC} - NetBird Relay/STUN (100 ports for 100 customers)\n"
+echo -e "  ${YELLOW}TCP 8000${NC}           - MSP Appliance Web UI"
+echo -e "  ${YELLOW}TCP 9001-9100${NC}      - NetBird Web Management (one per customer, increments by 1)"
+echo -e "  ${YELLOW}UDP 3478-3577${NC}      - NetBird Relay/STUN (one per customer, increments by 1)\n"
+echo -e "  ${CYAN}Example: Customer 1 = TCP 9001 + UDP 3478${NC}"
+echo -e "  ${CYAN}         Customer 2 = TCP 9002 + UDP 3479${NC}"
+echo -e "  ${CYAN}         ...${NC}\n"
 
 if command -v ufw &> /dev/null; then
     read -p "Configure firewall automatically with ufw? (yes/no): " CONFIG_FW
     if [[ "$CONFIG_FW" =~ ^[Yy]([Ee][Ss])?$ ]]; then
         ufw allow 8000/tcp comment "NetBird MSP Web UI"
+        ufw allow 9001:9100/tcp comment "NetBird Dashboard Ports"
         ufw allow 3478:3577/udp comment "NetBird Relay Ports"
         echo -e "${GREEN}✓ Firewall configured${NC}"
     else
         echo -e "${YELLOW}Please configure firewall manually:${NC}"
         echo "  sudo ufw allow 8000/tcp"
+        echo "  sudo ufw allow 9001:9100/tcp"
         echo "  sudo ufw allow 3478:3577/udp"
     fi
 else
     echo -e "${YELLOW}UFW not found. Please configure firewall manually:${NC}"
     echo "  - Allow TCP port 8000"
-    echo "  - Allow UDP ports 3478-3577"
+    echo "  - Allow TCP ports 9001-9100 (dashboard, +1 per customer)"
+    echo "  - Allow UDP ports 3478-3577 (relay, +1 per customer)"
 fi
 
 echo ""
@@ -538,8 +545,9 @@ Network:        $DOCKER_NETWORK
 
 Ports:
 ------
-Web UI:   TCP 8000
-Relay:    UDP 3478-3577
+Web UI:      TCP 8000
+Dashboard:   TCP 9001-9100 (base 9000 + customer ID, one per customer)
+Relay:       UDP 3478-3577 (one per customer)
 
 Images:
 -------
