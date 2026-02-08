@@ -175,6 +175,15 @@ while true; do
     fi
 done
 
+echo -e "\n${CYAN}Optional: You can assign a domain to the MSP Appliance itself.${NC}"
+echo -e "${CYAN}This will create an NPM proxy host with Let's Encrypt SSL.${NC}"
+echo -e "${CYAN}Example: msp.${BASE_DOMAIN}${NC}\n"
+
+read -p "MSP Appliance Domain (leave empty to skip): " MSP_DOMAIN
+if [ -n "$MSP_DOMAIN" ]; then
+    echo -e "${GREEN}✓ MSP Appliance will be accessible at https://${MSP_DOMAIN}${NC}"
+fi
+
 echo -e "${GREEN}✓ Domain configuration saved${NC}"
 sleep 1
 clear
@@ -289,6 +298,10 @@ echo -e "${CYAN}Ready to install with the following configuration:${NC}\n"
 echo -e "  Admin Username:  ${GREEN}$ADMIN_USERNAME${NC}"
 echo -e "  Admin Email:     ${GREEN}$ADMIN_EMAIL${NC}"
 echo -e "  Base Domain:     ${GREEN}$BASE_DOMAIN${NC}"
+if [ -n "$MSP_DOMAIN" ]; then
+    echo -e "  MSP Domain:      ${GREEN}$MSP_DOMAIN${NC}"
+fi
+echo -n ""
 echo -e "  NPM API URL:     ${GREEN}$NPM_API_URL${NC}"
 echo -e "  NPM Login:       ${GREEN}$NPM_EMAIL${NC}"
 echo -e "  Data Directory:  ${GREEN}$DATA_DIR${NC}"
@@ -424,6 +437,96 @@ print('Database seeding complete.')
 "
 echo -e "${GREEN}✓ Configuration stored in database${NC}"
 
+# Create NPM proxy host for MSP Appliance (if domain was specified)
+if [ -n "$MSP_DOMAIN" ]; then
+    echo ""
+    echo -e "${CYAN}Creating NPM proxy host for MSP Appliance (${MSP_DOMAIN})...${NC}"
+
+    # Determine forward host from NPM API URL
+    NPM_HOST=$(echo "$NPM_API_URL" | sed -E 's|https?://([^:/]+).*|\1|')
+
+    # If host looks like a container name (no dots), use Docker gateway
+    if ! echo "$NPM_HOST" | grep -q '\.'; then
+        FORWARD_HOST="172.17.0.1"
+    else
+        FORWARD_HOST="$NPM_HOST"
+    fi
+
+    # Step 1: Login to NPM
+    NPM_TOKEN=$(curl -s -X POST "${NPM_API_URL}/tokens" \
+        -H "Content-Type: application/json" \
+        -d "{\"identity\": \"${NPM_EMAIL}\", \"secret\": \"${NPM_PASSWORD}\"}" \
+        2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('token',''))" 2>/dev/null || echo "")
+
+    if [ -n "$NPM_TOKEN" ] && [ "$NPM_TOKEN" != "None" ]; then
+        # Step 2: Create proxy host
+        PROXY_RESULT=$(curl -s -X POST "${NPM_API_URL}/nginx/proxy-hosts" \
+            -H "Authorization: Bearer ${NPM_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{
+                \"domain_names\": [\"${MSP_DOMAIN}\"],
+                \"forward_scheme\": \"http\",
+                \"forward_host\": \"${FORWARD_HOST}\",
+                \"forward_port\": 8000,
+                \"certificate_id\": 0,
+                \"ssl_forced\": true,
+                \"hsts_enabled\": true,
+                \"hsts_subdomains\": false,
+                \"http2_support\": true,
+                \"block_exploits\": true,
+                \"allow_websocket_upgrade\": true,
+                \"access_list_id\": 0,
+                \"advanced_config\": \"\",
+                \"meta\": {
+                    \"letsencrypt_agree\": true,
+                    \"letsencrypt_email\": \"${ADMIN_EMAIL}\",
+                    \"dns_challenge\": false
+                }
+            }" 2>/dev/null)
+
+        PROXY_ID=$(echo "$PROXY_RESULT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('id',''))" 2>/dev/null || echo "")
+
+        if [ -n "$PROXY_ID" ] && [ "$PROXY_ID" != "None" ] && [ "$PROXY_ID" != "" ]; then
+            echo -e "${GREEN}✓ NPM proxy host created (ID: ${PROXY_ID})${NC}"
+
+            # Step 3: Request Let's Encrypt certificate
+            CERT_RESULT=$(curl -s -X POST "${NPM_API_URL}/nginx/certificates" \
+                -H "Authorization: Bearer ${NPM_TOKEN}" \
+                -H "Content-Type: application/json" \
+                -d "{
+                    \"domain_names\": [\"${MSP_DOMAIN}\"],
+                    \"provider\": \"letsencrypt\",
+                    \"nice_name\": \"${MSP_DOMAIN}\",
+                    \"meta\": {
+                        \"letsencrypt_agree\": true,
+                        \"letsencrypt_email\": \"${ADMIN_EMAIL}\",
+                        \"dns_challenge\": false
+                    }
+                }" 2>/dev/null)
+
+            CERT_ID=$(echo "$CERT_RESULT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('id',''))" 2>/dev/null || echo "")
+
+            if [ -n "$CERT_ID" ] && [ "$CERT_ID" != "None" ] && [ "$CERT_ID" != "" ]; then
+                # Step 4: Assign certificate to proxy host
+                curl -s -X PUT "${NPM_API_URL}/nginx/proxy-hosts/${PROXY_ID}" \
+                    -H "Authorization: Bearer ${NPM_TOKEN}" \
+                    -H "Content-Type: application/json" \
+                    -d "{\"certificate_id\": ${CERT_ID}}" > /dev/null 2>&1
+
+                echo -e "${GREEN}✓ Let's Encrypt SSL certificate created and assigned${NC}"
+            else
+                echo -e "${YELLOW}⚠ SSL certificate request failed. You can add it manually in NPM.${NC}"
+            fi
+        else
+            echo -e "${YELLOW}⚠ NPM proxy host creation failed. You can create it manually in NPM.${NC}"
+            echo -e "${YELLOW}  Forward ${MSP_DOMAIN} → ${FORWARD_HOST}:8000${NC}"
+        fi
+    else
+        echo -e "${YELLOW}⚠ NPM login failed. You can create the proxy host manually in NPM.${NC}"
+        echo -e "${YELLOW}  Forward ${MSP_DOMAIN} → ${FORWARD_HOST}:8000${NC}"
+    fi
+fi
+
 clear
 
 # ============================================================================
@@ -479,7 +582,12 @@ echo -e "${NC}"
 SERVER_IP=$(hostname -I | awk '{print $1}')
 
 echo -e "${BLUE}${BOLD}Access Your NetBird MSP Appliance:${NC}\n"
-echo -e "  Web Interface: ${GREEN}http://${SERVER_IP}:8000${NC}"
+if [ -n "$MSP_DOMAIN" ]; then
+    echo -e "  Web Interface: ${GREEN}https://${MSP_DOMAIN}${NC}"
+    echo -e "  Direct Access: ${CYAN}http://${SERVER_IP}:8000${NC}"
+else
+    echo -e "  Web Interface: ${GREEN}http://${SERVER_IP}:8000${NC}"
+fi
 echo -e "  Username:      ${GREEN}${ADMIN_USERNAME}${NC}"
 echo -e "  Password:      ${CYAN}<the password you entered>${NC}\n"
 
@@ -528,7 +636,8 @@ NOTE: All settings are stored in the database and editable via Web UI.
 
 Access:
 -------
-Web UI: http://${SERVER_IP}:8000
+Web UI: http://${SERVER_IP}:8000$(if [ -n "$MSP_DOMAIN" ]; then echo "
+HTTPS:  https://${MSP_DOMAIN}"; fi)
 
 Directories:
 ------------
