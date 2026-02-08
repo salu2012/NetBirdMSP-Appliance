@@ -30,6 +30,39 @@ def create_access_token(username: str, expires_delta: Optional[timedelta] = None
     return jwt.encode(payload, SECRET_KEY, algorithm=JWT_ALGORITHM)
 
 
+def create_mfa_token(username: str) -> str:
+    """Create a short-lived JWT for the MFA verification step (5 min)."""
+    expire = datetime.utcnow() + timedelta(minutes=5)
+    payload = {"sub": username, "exp": expire, "purpose": "mfa"}
+    return jwt.encode(payload, SECRET_KEY, algorithm=JWT_ALGORITHM)
+
+
+def verify_mfa_token(token: str) -> str:
+    """Verify an MFA-purpose JWT and return the username.
+
+    Raises HTTPException if the token is invalid, expired, or not an MFA token.
+    """
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        if payload.get("purpose") != "mfa":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid MFA token.",
+            )
+        username: Optional[str] = payload.get("sub")
+        if not username:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid MFA token.",
+            )
+        return username
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="MFA token expired or invalid.",
+        )
+
+
 def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_scheme),
     db: Session = Depends(get_db),

@@ -225,6 +225,29 @@
     "cancel": "Abbrechen",
     "createUser": "Benutzer erstellen"
   },
+  "mfa": {
+    "title": "Multi-Faktor-Authentifizierung (MFA)",
+    "enableMfa": "MFA fuer alle lokalen Benutzer aktivieren",
+    "mfaDescription": "Wenn aktiviert, muessen lokale Benutzer sich nach der Passworteingabe mit einer TOTP-Authenticator-App verifizieren. Azure AD Benutzer sind nicht betroffen.",
+    "saveMfaSettings": "MFA Einstellungen speichern",
+    "yourTotpStatus": "Ihr TOTP Status",
+    "totpActive": "Aktiv",
+    "totpNotSetUp": "Nicht eingerichtet",
+    "disableMyTotp": "Mein TOTP deaktivieren",
+    "enterCode": "Geben Sie Ihren 6-stelligen Authenticator-Code ein",
+    "verify": "Verifizieren",
+    "backToLogin": "Zurueck zum Login",
+    "scanQrCode": "Scannen Sie diesen QR-Code mit Ihrer Authenticator-App",
+    "orEnterManually": "Oder geben Sie diesen Schluessel manuell ein:",
+    "verifyAndActivate": "Verifizieren & Aktivieren",
+    "resetMfa": "MFA zuruecksetzen",
+    "confirmResetMfa": "MFA fuer '{username}' zuruecksetzen? Der Benutzer muss seinen Authenticator beim naechsten Login neu einrichten.",
+    "mfaResetSuccess": "MFA fuer '{username}' zurueckgesetzt.",
+    "mfaDisabled": "Ihr TOTP wurde deaktiviert.",
+    "mfaSaved": "MFA Einstellungen gespeichert.",
+    "invalidCode": "Ungueltiger Code. Bitte versuchen Sie es erneut.",
+    "codeExpired": "Verifizierung abgelaufen. Bitte melden Sie sich erneut an."
+  },
   "common": {
     "loading": "Laden...",
     "back": "Zurueck",
@@ -244,7 +267,7 @@
     "disabled": "Deaktiviert"
   },
   "errors": {
-    "networkError": "Netzwerkfehler \u2014 Server nicht erreichbar.",
+    "networkError": "Netzwerkfehler — Server nicht erreichbar.",
     "sessionExpired": "Sitzung abgelaufen.",
     "requestFailed": "Anfrage fehlgeschlagen.",
     "serverError": "Serverfehler (HTTP {status}).",

@@ -36,7 +36,7 @@ async function api(method, path, body = null) {
         console.error(`API network error: ${method} ${path}`, networkErr);
         throw new Error(t('errors.networkError'));
     }
-    if (resp.status === 401) {
+    if (resp.status === 401 && !path.startsWith('/auth/mfa/') && path !== '/auth/login') {
         logout();
         throw new Error(t('errors.sessionExpired'));
     }
@@ -98,6 +98,8 @@ async function initApp() {
 function showLoginPage() {
     document.getElementById('login-page').classList.remove('d-none');
     document.getElementById('app-page').classList.add('d-none');
+    // Reset MFA sections when going back to login
+    resetLoginForm();
 }
 
 function showAppPage() {
@@ -211,6 +213,9 @@ async function handleAzureCallback() {
     }
 }
 
+// Track MFA token between login steps
+let pendingMfaToken = null;
+
 document.getElementById('login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const errorEl = document.getElementById('login-error');
@@ -223,22 +228,133 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
             username: document.getElementById('login-username').value,
             password: document.getElementById('login-password').value,
         });
-        authToken = data.access_token;
-        localStorage.setItem('authToken', authToken);
-        currentUser = data.user;
-        document.getElementById('nav-username').textContent = currentUser.username;
-        // Apply user's language preference
-        if (currentUser.default_language) {
-            await setLanguage(currentUser.default_language);
+
+        // Check if MFA is required
+        if (data.mfa_required) {
+            pendingMfaToken = data.mfa_token;
+            document.getElementById('login-form').classList.add('d-none');
+            document.getElementById('azure-login-divider').classList.add('d-none');
+
+            if (data.totp_setup_needed) {
+                // First-time TOTP setup — get QR code
+                await startMfaSetup();
+            } else {
+                // Existing TOTP — show verify form
+                document.getElementById('mfa-verify-section').classList.remove('d-none');
+                document.getElementById('mfa-code').focus();
+            }
+            return;
         }
-        showAppPage();
-        loadDashboard();
+
+        // Normal login (no MFA)
+        completeLogin(data);
     } catch (err) {
         errorEl.textContent = err.message;
         errorEl.classList.remove('d-none');
     } finally {
         spinner.classList.add('d-none');
     }
+});
+
+async function completeLogin(data) {
+    authToken = data.access_token;
+    localStorage.setItem('authToken', authToken);
+    currentUser = data.user;
+    document.getElementById('nav-username').textContent = currentUser.username;
+    if (currentUser.default_language) {
+        await setLanguage(currentUser.default_language);
+    }
+    pendingMfaToken = null;
+    showAppPage();
+    loadDashboard();
+}
+
+function resetLoginForm() {
+    pendingMfaToken = null;
+    document.getElementById('login-form').classList.remove('d-none');
+    document.getElementById('mfa-verify-section').classList.add('d-none');
+    document.getElementById('mfa-setup-section').classList.add('d-none');
+    document.getElementById('login-error').classList.add('d-none');
+    document.getElementById('login-password').value = '';
+    // Re-check azure config visibility
+    if (azureConfig.azure_enabled) {
+        document.getElementById('azure-login-divider').classList.remove('d-none');
+    }
+}
+
+// MFA Verify form (existing TOTP)
+document.getElementById('mfa-verify-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errorEl = document.getElementById('mfa-verify-error');
+    const spinner = document.getElementById('mfa-verify-spinner');
+    errorEl.classList.add('d-none');
+    spinner.classList.remove('d-none');
+
+    try {
+        const data = await api('POST', '/auth/mfa/verify', {
+            mfa_token: pendingMfaToken,
+            totp_code: document.getElementById('mfa-code').value,
+        });
+        completeLogin(data);
+    } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.classList.remove('d-none');
+        document.getElementById('mfa-code').value = '';
+        document.getElementById('mfa-code').focus();
+    } finally {
+        spinner.classList.add('d-none');
+    }
+});
+
+// MFA Setup — get QR code from server
+async function startMfaSetup() {
+    try {
+        const data = await api('POST', '/auth/mfa/setup', {
+            mfa_token: pendingMfaToken,
+        });
+        document.getElementById('mfa-qr-code').src = data.qr_code;
+        document.getElementById('mfa-secret-manual').textContent = data.secret;
+        document.getElementById('mfa-setup-section').classList.remove('d-none');
+        document.getElementById('mfa-setup-code').focus();
+    } catch (err) {
+        document.getElementById('login-error').textContent = err.message;
+        document.getElementById('login-error').classList.remove('d-none');
+        resetLoginForm();
+    }
+}
+
+// MFA Setup Complete form (first-time TOTP)
+document.getElementById('mfa-setup-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errorEl = document.getElementById('mfa-setup-error');
+    const spinner = document.getElementById('mfa-setup-spinner');
+    errorEl.classList.add('d-none');
+    spinner.classList.remove('d-none');
+
+    try {
+        const data = await api('POST', '/auth/mfa/setup/complete', {
+            mfa_token: pendingMfaToken,
+            totp_code: document.getElementById('mfa-setup-code').value,
+        });
+        completeLogin(data);
+    } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.classList.remove('d-none');
+        document.getElementById('mfa-setup-code').value = '';
+        document.getElementById('mfa-setup-code').focus();
+    } finally {
+        spinner.classList.add('d-none');
+    }
+});
+
+// Back-to-login links
+document.getElementById('mfa-back-to-login').addEventListener('click', (e) => {
+    e.preventDefault();
+    resetLoginForm();
+});
+document.getElementById('mfa-setup-back-to-login').addEventListener('click', (e) => {
+    e.preventDefault();
+    resetLoginForm();
 });
 
 function logout() {
@@ -711,6 +827,10 @@ async function loadSettings() {
         document.getElementById('cfg-default-language').value = cfg.default_language || 'en';
         updateLogoPreview(cfg.branding_logo_path);
 
+        // MFA tab (Security)
+        document.getElementById('cfg-mfa-enabled').checked = cfg.mfa_enabled || false;
+        loadMfaStatus();
+
         // Azure AD tab
         document.getElementById('cfg-azure-enabled').checked = cfg.azure_enabled || false;
         document.getElementById('cfg-azure-tenant').value = cfg.azure_tenant_id || '';
@@ -905,11 +1025,14 @@ async function loadUsers() {
         const users = await api('GET', '/users');
         const tbody = document.getElementById('users-table-body');
         if (!users || users.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">${t('settings.noUsersFound') || t('common.loading')}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-4">${t('settings.noUsersFound') || t('common.loading')}</td></tr>`;
             return;
         }
         tbody.innerHTML = users.map(u => {
             const langDisplay = u.default_language ? u.default_language.toUpperCase() : `<span class="text-muted">${t('settings.systemDefault')}</span>`;
+            const mfaDisplay = u.totp_enabled
+                ? `<span class="badge bg-success">${t('mfa.totpActive')}</span>`
+                : `<span class="text-muted">&mdash;</span>`;
             return `<tr>
             <td>${u.id}</td>
             <td><strong>${esc(u.username)}</strong></td>
@@ -917,6 +1040,7 @@ async function loadUsers() {
             <td><span class="badge bg-info">${esc(u.role || 'admin')}</span></td>
             <td><span class="badge bg-${u.auth_provider === 'azure' ? 'primary' : 'secondary'}">${esc(u.auth_provider || 'local')}</span></td>
             <td>${langDisplay}</td>
+            <td>${mfaDisplay}</td>
             <td>${u.is_active ? `<span class="badge bg-success">${t('common.active')}</span>` : `<span class="badge bg-danger">${t('common.disabled')}</span>`}</td>
             <td>
                 <div class="btn-group btn-group-sm">
@@ -925,13 +1049,14 @@ async function loadUsers() {
                         : `<button class="btn btn-outline-success" title="${t('common.enable')}" onclick="toggleUserActive(${u.id}, true)"><i class="bi bi-play-circle"></i></button>`
                     }
                     ${u.auth_provider === 'local' ? `<button class="btn btn-outline-info" title="${t('common.resetPassword')}" onclick="resetUserPassword(${u.id}, '${esc(u.username)}')"><i class="bi bi-key"></i></button>` : ''}
+                    ${u.totp_enabled ? `<button class="btn btn-outline-secondary" title="${t('mfa.resetMfa')}" onclick="resetUserMfa(${u.id}, '${esc(u.username)}')"><i class="bi bi-shield-x"></i></button>` : ''}
                     <button class="btn btn-outline-danger" title="${t('common.delete')}" onclick="deleteUser(${u.id}, '${esc(u.username)}')"><i class="bi bi-trash"></i></button>
                 </div>
             </td>
         </tr>`;
         }).join('');
     } catch (err) {
-        document.getElementById('users-table-body').innerHTML = `<tr><td colspan="8" class="text-danger">${err.message}</td></tr>`;
+        document.getElementById('users-table-body').innerHTML = `<tr><td colspan="9" class="text-danger">${err.message}</td></tr>`;
     }
 }
 
@@ -1018,6 +1143,61 @@ document.getElementById('settings-azure-form').addEventListener('submit', async 
         showSettingsAlert('danger', t('errors.failed', { error: err.message }));
     }
 });
+
+// ---------------------------------------------------------------------------
+// MFA Settings
+// ---------------------------------------------------------------------------
+async function saveMfaSettings() {
+    try {
+        await api('PUT', '/settings/system', {
+            mfa_enabled: document.getElementById('cfg-mfa-enabled').checked,
+        });
+        showSettingsAlert('success', t('mfa.mfaSaved'));
+    } catch (err) {
+        showSettingsAlert('danger', t('errors.failed', { error: err.message }));
+    }
+}
+
+async function loadMfaStatus() {
+    try {
+        const data = await api('GET', '/auth/mfa/status');
+        document.getElementById('cfg-mfa-enabled').checked = data.mfa_enabled_global;
+
+        const statusEl = document.getElementById('mfa-own-status');
+        const disableBtn = document.getElementById('mfa-disable-own');
+
+        if (data.totp_enabled_user) {
+            statusEl.innerHTML = `<span class="badge bg-success">${t('mfa.totpActive')}</span>`;
+            disableBtn.classList.remove('d-none');
+        } else {
+            statusEl.innerHTML = `<span class="badge bg-warning text-dark">${t('mfa.totpNotSetUp')}</span>`;
+            disableBtn.classList.add('d-none');
+        }
+    } catch (err) {
+        console.error('Failed to load MFA status:', err);
+    }
+}
+
+async function disableOwnTotp() {
+    try {
+        await api('POST', '/auth/mfa/disable');
+        showSettingsAlert('success', t('mfa.mfaDisabled'));
+        loadMfaStatus();
+    } catch (err) {
+        showSettingsAlert('danger', t('errors.failed', { error: err.message }));
+    }
+}
+
+async function resetUserMfa(id, username) {
+    if (!confirm(t('mfa.confirmResetMfa', { username }))) return;
+    try {
+        await api('POST', `/users/${id}/reset-mfa`);
+        showSettingsAlert('success', t('mfa.mfaResetSuccess', { username }));
+        loadUsers();
+    } catch (err) {
+        showSettingsAlert('danger', t('errors.failed', { error: err.message }));
+    }
+}
 
 function togglePasswordVisibility(inputId) {
     const input = document.getElementById(inputId);

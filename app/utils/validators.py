@@ -23,6 +23,19 @@ class ChangePasswordRequest(BaseModel):
     new_password: str = Field(..., min_length=12, max_length=128)
 
 
+class MfaTokenRequest(BaseModel):
+    """Request containing only an MFA token (for setup initiation)."""
+
+    mfa_token: str = Field(..., min_length=1)
+
+
+class MfaVerifyRequest(BaseModel):
+    """MFA TOTP verification payload."""
+
+    mfa_token: str = Field(..., min_length=1)
+    totp_code: str = Field(..., min_length=6, max_length=6)
+
+
 # ---------------------------------------------------------------------------
 # Customer
 # ---------------------------------------------------------------------------
@@ -113,6 +126,7 @@ class SystemConfigUpdate(BaseModel):
     branding_name: Optional[str] = Field(None, max_length=255)
     branding_subtitle: Optional[str] = Field(None, max_length=255)
     default_language: Optional[str] = Field(None, max_length=10)
+    mfa_enabled: Optional[bool] = None
     azure_enabled: Optional[bool] = None
     azure_tenant_id: Optional[str] = Field(None, max_length=255)
     azure_client_id: Optional[str] = Field(None, max_length=255)

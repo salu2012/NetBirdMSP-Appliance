@@ -56,9 +56,10 @@ A management solution for running isolated NetBird instances for your MSP busine
 
 ### Security
 - **JWT Authentication** — Token-based API authentication
-- **Azure AD / OIDC** — Optional single sign-on via Microsoft Entra ID
-- **Encrypted Credentials** — NPM passwords and relay secrets are Fernet-encrypted
-- **User Management** — Create, edit, and delete admin users
+- **Multi-Factor Authentication (MFA)** — Optional TOTP-based MFA for all local users, activatable in Security settings
+- **Azure AD / OIDC** — Optional single sign-on via Microsoft Entra ID (exempt from MFA)
+- **Encrypted Credentials** — NPM passwords, relay secrets, and TOTP secrets are Fernet-encrypted at rest
+- **User Management** — Create, edit, delete admin users, reset passwords and MFA
 
 ---
 
@@ -270,7 +271,9 @@ Available under **Settings** in the web interface:
 |-----|----------|
 | **System** | Base domain, admin email, NPM credentials, Docker images, port ranges, data directory |
 | **Branding** | Platform name, subtitle, logo upload, default language |
-| **Users** | Create/edit/delete admin users, per-user language preference |
+| **Users** | Create/edit/delete admin users, per-user language preference, MFA reset |
+| **Azure AD** | Azure AD / Entra ID SSO configuration |
+| **Security** | Change admin password, enable/disable MFA globally, manage own TOTP |
 | **Monitoring** | System resources, Docker stats |
 
 Changes are applied immediately without restart.
@@ -315,6 +318,30 @@ The dashboard shows:
 - **Per-user default** — Set in Settings > Users during user creation
 - **System default** — Set in Settings > Branding
 
+### Multi-Factor Authentication (MFA)
+
+TOTP-based MFA can be enabled globally for all local users. Azure AD users are not affected (they use their own MFA).
+
+#### Enable MFA
+1. Go to **Settings > Security**
+2. Toggle **"Enable MFA for all local users"**
+3. Click **"Save MFA Settings"**
+
+#### First Login with MFA
+When MFA is enabled and a user logs in for the first time:
+1. Enter username and password as usual
+2. A QR code is displayed — scan it with an authenticator app (Google Authenticator, Microsoft Authenticator, Authy, etc.)
+3. Enter the 6-digit code from the app to complete setup
+
+#### Subsequent Logins
+1. Enter username and password
+2. Enter the 6-digit code from the authenticator app
+
+#### Admin MFA Management
+- **Reset a user's MFA** — In Settings > Users, click "Reset MFA" to force re-enrollment on next login
+- **Disable own TOTP** — In Settings > Security, click "Disable my TOTP" to remove your own MFA setup
+- **Disable MFA globally** — Uncheck the toggle in Settings > Security to allow login without MFA
+
 ---
 
 ## API Documentation
@@ -352,6 +379,13 @@ GET    /api/settings/branding      # Get branding (public, no auth)
 PUT    /api/settings               # Update system settings
 GET    /api/users                  # List users
 POST   /api/users                  # Create user
+POST   /api/users/{id}/reset-mfa   # Reset user's MFA
+
+POST   /api/auth/mfa/setup         # Generate TOTP secret + QR code
+POST   /api/auth/mfa/setup/complete # Verify first TOTP code
+POST   /api/auth/mfa/verify        # Verify TOTP code on login
+GET    /api/auth/mfa/status        # Get MFA status
+POST   /api/auth/mfa/disable       # Disable own TOTP
 ```
 
 ### Example: Create Customer via API
@@ -441,15 +475,16 @@ Via the Web UI:
 
 ## Security Best Practices
 
-1. **Change default credentials** immediately after installation
-2. **Use strong passwords** (12+ characters recommended)
-3. **Keep NPM credentials secure** — they are stored encrypted in the database
-4. **Enable firewall** and only open required ports (TCP 8000, UDP relay range)
-5. **Use HTTPS** — put the MSP appliance behind a reverse proxy with SSL
-6. **Regular updates** — both the appliance and NetBird images
-7. **Backup your database** — `data/netbird_msp.db` contains all configuration
-8. **Monitor logs** — check for suspicious activity
-9. **Restrict access** — use VPN or IP whitelist for the management interface
+1. **Enable MFA** — activate TOTP-based multi-factor authentication in Settings > Security
+2. **Change default credentials** immediately after installation
+3. **Use strong passwords** (12+ characters recommended)
+4. **Keep NPM credentials secure** — they are stored encrypted in the database
+5. **Enable firewall** and only open required ports (TCP 8000, UDP relay range)
+6. **Use HTTPS** — put the MSP appliance behind a reverse proxy with SSL
+7. **Regular updates** — both the appliance and NetBird images
+8. **Backup your database** — `data/netbird_msp.db` contains all configuration
+9. **Monitor logs** — check for suspicious activity
+10. **Restrict access** — use VPN or IP whitelist for the management interface
 
 ---
 

@@ -161,6 +161,7 @@ class SystemConfig(Base):
     )
     branding_logo_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     default_language: Mapped[Optional[str]] = mapped_column(String(10), default="en")
+    mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     azure_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     azure_tenant_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     azure_client_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
@@ -193,6 +194,7 @@ class SystemConfig(Base):
             "branding_subtitle": self.branding_subtitle or "Multi-Tenant Management Platform",
             "branding_logo_path": self.branding_logo_path,
             "default_language": self.default_language or "en",
+            "mfa_enabled": bool(self.mfa_enabled),
             "azure_enabled": bool(self.azure_enabled),
             "azure_tenant_id": self.azure_tenant_id or "",
             "azure_client_id": self.azure_client_id or "",
@@ -252,10 +254,12 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(20), default="admin")
     auth_provider: Mapped[str] = mapped_column(String(20), default="local")
     default_language: Mapped[Optional[str]] = mapped_column(String(10), nullable=True, default=None)
+    totp_secret_encrypted: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     def to_dict(self) -> dict:
-        """Serialize user to dictionary (no password)."""
+        """Serialize user to dictionary (no password, no TOTP secret)."""
         return {
             "id": self.id,
             "username": self.username,
@@ -264,5 +268,6 @@ class User(Base):
             "role": self.role or "admin",
             "auth_provider": self.auth_provider or "local",
             "default_language": self.default_language,
+            "totp_enabled": bool(self.totp_enabled),
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }

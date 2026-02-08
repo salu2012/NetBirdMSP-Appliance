@@ -40,6 +40,43 @@
                             <i class="bi bi-microsoft me-2"></i><span data-i18n="login.signInWithMicrosoft">Sign in with Microsoft</span>
                         </button>
                     </div>
+
+                    <!-- MFA: TOTP Verify (existing setup) -->
+                    <div id="mfa-verify-section" class="d-none">
+                        <div id="mfa-verify-error" class="alert alert-danger d-none"></div>
+                        <p class="text-muted text-center mb-3" data-i18n="mfa.enterCode">Enter your 6-digit authenticator code</p>
+                        <form id="mfa-verify-form">
+                            <input type="text" class="form-control form-control-lg text-center" id="mfa-code"
+                                   maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" required autofocus>
+                            <button type="submit" class="btn btn-primary w-100 mt-3">
+                                <span class="spinner-border spinner-border-sm d-none me-1" id="mfa-verify-spinner"></span>
+                                <span data-i18n="mfa.verify">Verify</span>
+                            </button>
+                        </form>
+                        <a href="#" id="mfa-back-to-login" class="d-block text-center mt-2 small" data-i18n="mfa.backToLogin">Back to login</a>
+                    </div>
+
+                    <!-- MFA: TOTP Setup (first time) -->
+                    <div id="mfa-setup-section" class="d-none">
+                        <div id="mfa-setup-error" class="alert alert-danger d-none"></div>
+                        <p class="text-muted text-center mb-2" data-i18n="mfa.scanQrCode">Scan this QR code with your authenticator app</p>
+                        <div class="text-center mb-3">
+                            <img id="mfa-qr-code" class="img-fluid rounded" style="max-width:200px" alt="TOTP QR Code">
+                        </div>
+                        <p class="text-muted small text-center mb-3">
+                            <span data-i18n="mfa.orEnterManually">Or enter this key manually:</span><br>
+                            <code id="mfa-secret-manual" class="user-select-all"></code>
+                        </p>
+                        <form id="mfa-setup-form">
+                            <input type="text" class="form-control form-control-lg text-center" id="mfa-setup-code"
+                                   maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" required>
+                            <button type="submit" class="btn btn-success w-100 mt-3">
+                                <span class="spinner-border spinner-border-sm d-none me-1" id="mfa-setup-spinner"></span>
+                                <span data-i18n="mfa.verifyAndActivate">Verify & Activate</span>
+                            </button>
+                        </form>
+                        <a href="#" id="mfa-setup-back-to-login" class="d-block text-center mt-2 small" data-i18n="mfa.backToLogin">Back to login</a>
+                    </div>
                 </div>
             </div>
         </div>
@@ -457,12 +494,13 @@
                                             <th data-i18n="settings.thRole">Role</th>
                                             <th data-i18n="settings.thAuth">Auth</th>
                                             <th data-i18n="settings.thLanguage">Language</th>
+                                            <th>MFA</th>
                                             <th data-i18n="settings.thStatus">Status</th>
                                             <th data-i18n="settings.thActions">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody id="users-table-body">
-                                        <tr><td colspan="8" class="text-center text-muted py-4" data-i18n="common.loading">Loading...</td></tr>
+                                        <tr><td colspan="9" class="text-center text-muted py-4" data-i18n="common.loading">Loading...</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -509,6 +547,28 @@
 
                     <!-- Security -->
                     <div class="tab-pane fade" id="settings-security">
+                        <!-- MFA Settings -->
+                        <div class="card shadow-sm mb-4" id="mfa-settings-card">
+                            <div class="card-body">
+                                <h5 class="mb-3" data-i18n="mfa.title">Multi-Factor Authentication (MFA)</h5>
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox" id="cfg-mfa-enabled">
+                                    <label class="form-check-label" for="cfg-mfa-enabled" data-i18n="mfa.enableMfa">Enable MFA for all local users</label>
+                                </div>
+                                <p class="text-muted small" data-i18n="mfa.mfaDescription">When enabled, local users must verify with a TOTP authenticator app after entering their password. Azure AD users are not affected.</p>
+                                <button class="btn btn-primary btn-sm" id="save-mfa-settings" onclick="saveMfaSettings()">
+                                    <i class="bi bi-save me-1"></i><span data-i18n="mfa.saveMfaSettings">Save MFA Settings</span>
+                                </button>
+                                <hr class="my-3" id="mfa-own-status-divider">
+                                <h6 data-i18n="mfa.yourTotpStatus">Your TOTP Status</h6>
+                                <div id="mfa-own-status" class="mb-2"></div>
+                                <button class="btn btn-outline-danger btn-sm d-none" id="mfa-disable-own" onclick="disableOwnTotp()">
+                                    <i class="bi bi-shield-x me-1"></i><span data-i18n="mfa.disableMyTotp">Disable my TOTP</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Change Password -->
                         <div class="card shadow-sm">
                             <div class="card-body">
                                 <h5 class="mb-3" data-i18n="settings.securityTitle">Change Admin Password</h5>

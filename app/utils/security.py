@@ -1,8 +1,9 @@
-"""Security utilities — password hashing (bcrypt) and token encryption (Fernet)."""
+"""Security utilities — password hashing (bcrypt), token encryption (Fernet), TOTP."""
 
 import os
 import secrets
 
+import pyotp
 from cryptography.fernet import Fernet
 from passlib.context import CryptContext
 
@@ -91,6 +92,32 @@ def generate_relay_secret() -> str:
     return secrets.token_hex(16)
 
 
+# ---------------------------------------------------------------------------
+# TOTP (Time-based One-Time Password)
+# ---------------------------------------------------------------------------
+def generate_totp_secret() -> str:
+    """Generate a new random TOTP secret (base32-encoded)."""
+    return pyotp.random_base32()
+
+
+def verify_totp(secret: str, code: str) -> bool:
+    """Verify a 6-digit TOTP code against a secret.
+
+    Allows a window of +/- 1 interval (30s) to account for clock drift.
+    """
+    totp = pyotp.TOTP(secret)
+    return totp.verify(code, valid_window=1)
+
+
+def generate_totp_uri(secret: str, username: str, issuer: str = "NetBird MSP") -> str:
+    """Generate an otpauth:// URI for QR code generation."""
+    totp = pyotp.TOTP(secret)
+    return totp.provisioning_uri(name=username, issuer_name=issuer)
+
+
+# ---------------------------------------------------------------------------
+# Misc key generation
+# ---------------------------------------------------------------------------
 def generate_datastore_encryption_key() -> str:
     """Generate a base64-encoded 32-byte key for NetBird DataStoreEncryptionKey.
 

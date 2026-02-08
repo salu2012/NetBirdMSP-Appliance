@@ -129,3 +129,28 @@ async def reset_password(
 
     logger.info("Password reset for user '%s' by '%s'.", user.username, current_user.username)
     return {"message": "Password reset successfully.", "new_password": new_password}
+
+
+@router.post("/{user_id}/reset-mfa")
+async def reset_mfa(
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Reset MFA (TOTP) for a user. They will need to set up again on next login."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+
+    if user.auth_provider != "local":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot reset MFA for Azure AD users.",
+        )
+
+    user.totp_enabled = False
+    user.totp_secret_encrypted = None
+    db.commit()
+
+    logger.info("MFA reset for user '%s' by '%s'.", user.username, current_user.username)
+    return {"message": f"MFA reset for '{user.username}'."}

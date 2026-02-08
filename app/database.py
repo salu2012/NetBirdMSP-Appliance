@@ -80,6 +80,9 @@ def _run_migrations() -> None:
         ("system_config", "default_language", "TEXT DEFAULT 'en'"),
         ("users", "default_language", "TEXT"),
         ("deployments", "npm_stream_id", "INTEGER"),
+        ("system_config", "mfa_enabled", "BOOLEAN DEFAULT 0"),
+        ("users", "totp_secret_encrypted", "TEXT"),
+        ("users", "totp_enabled", "BOOLEAN DEFAULT 0"),
     ]
     for table, column, col_type in migrations:
         if not _has_column(table, column):
