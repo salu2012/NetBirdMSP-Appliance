@@ -13,8 +13,8 @@ Also manages NPM streams for STUN/TURN relay UDP ports.
 """
 
 import logging
+import socket
 from typing import Any
-from urllib.parse import urlparse
 
 import httpx
 
@@ -24,33 +24,28 @@ logger = logging.getLogger(__name__)
 NPM_TIMEOUT = 30
 
 
-def _get_forward_host(npm_api_url: str) -> str:
-    """Determine the IP/hostname to forward traffic to.
+def _get_forward_host() -> str:
+    """Detect the host machine's real IP address.
 
-    The NPM proxy host must forward to the MSP appliance's host IP,
-    NOT to a Docker container name, because the customer's Caddy
-    container exposes its port on the host via Docker port mapping.
+    NPM proxy hosts must forward to the actual host IP where Docker
+    port mappings are exposed — NOT a container name or Docker gateway.
 
-    We extract the host from the NPM API URL — if the admin configured
-    ``http://10.0.0.5:81/api``, we forward to ``10.0.0.5``.
-    If the admin configured ``http://npm:81/api`` (container name),
-    we fall back to the Docker gateway IP ``172.17.0.1``.
-
-    Args:
-        npm_api_url: The NPM API base URL from system config.
+    Uses a UDP socket to determine the primary outbound IP address
+    of the host (works inside Docker containers).
 
     Returns:
-        IP address or hostname to forward to.
+        The host's primary IP address (e.g. ``192.168.26.191``).
     """
-    parsed = urlparse(npm_api_url)
-    host = parsed.hostname or "172.17.0.1"
-
-    # If the host looks like a container name (no dots, not an IP), use Docker gateway
-    if not any(c == "." for c in host) and not host.startswith("172.") and host != "localhost":
-        logger.info("NPM URL host '%s' looks like a container name, using Docker gateway 172.17.0.1", host)
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        host_ip = s.getsockname()[0]
+        s.close()
+        logger.info("Detected host IP: %s", host_ip)
+        return host_ip
+    except Exception:
+        logger.warning("Could not detect host IP, falling back to 172.17.0.1")
         return "172.17.0.1"
-
-    return host
 
 
 async def _npm_login(client: httpx.AsyncClient, api_url: str, email: str, password: str) -> str:

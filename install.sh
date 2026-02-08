@@ -442,15 +442,8 @@ if [ -n "$MSP_DOMAIN" ]; then
     echo ""
     echo -e "${CYAN}Creating NPM proxy host for MSP Appliance (${MSP_DOMAIN})...${NC}"
 
-    # Determine forward host from NPM API URL
-    NPM_HOST=$(echo "$NPM_API_URL" | sed -E 's|https?://([^:/]+).*|\1|')
-
-    # If host looks like a container name (no dots), use Docker gateway
-    if ! echo "$NPM_HOST" | grep -q '\.'; then
-        FORWARD_HOST="172.17.0.1"
-    else
-        FORWARD_HOST="$NPM_HOST"
-    fi
+    # Use the actual host IP for NPM forwarding (not Docker gateway!)
+    FORWARD_HOST=$(hostname -I | awk '{print $1}')
 
     # Step 1: Login to NPM
     NPM_TOKEN=$(curl -s -X POST "${NPM_API_URL}/tokens" \

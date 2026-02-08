@@ -224,7 +224,7 @@ async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
         npm_proxy_id = None
         npm_stream_id = None
         if not local_mode:
-            forward_host = npm_service._get_forward_host(config.npm_api_url)
+            forward_host = npm_service._get_forward_host()
             npm_result = await npm_service.create_proxy_host(
                 api_url=config.npm_api_url,
                 npm_email=config.npm_api_email,
