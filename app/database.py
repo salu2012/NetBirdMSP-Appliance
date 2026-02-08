@@ -79,6 +79,7 @@ def _run_migrations() -> None:
         ("system_config", "branding_subtitle", "TEXT DEFAULT 'Multi-Tenant Management Platform'"),
         ("system_config", "default_language", "TEXT DEFAULT 'en'"),
         ("users", "default_language", "TEXT"),
+        ("deployments", "npm_stream_id", "INTEGER"),
     ]
     for table, column, col_type in migrations:
         if not _has_column(table, column):

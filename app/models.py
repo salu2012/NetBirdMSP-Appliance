@@ -83,6 +83,7 @@ class Deployment(Base):
     relay_udp_port: Mapped[int] = mapped_column(Integer, unique=True, nullable=False)
     dashboard_port: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     npm_proxy_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    npm_stream_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     relay_secret: Mapped[str] = mapped_column(Text, nullable=False)
     setup_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     netbird_admin_email: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -111,6 +112,7 @@ class Deployment(Base):
             "relay_udp_port": self.relay_udp_port,
             "dashboard_port": self.dashboard_port,
             "npm_proxy_id": self.npm_proxy_id,
+            "npm_stream_id": self.npm_stream_id,
             "relay_secret": "***",  # Never expose secrets
             "setup_url": self.setup_url,
             "has_credentials": bool(self.netbird_admin_email and self.netbird_admin_password),

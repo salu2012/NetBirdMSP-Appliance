@@ -131,7 +131,7 @@ Per customer instance (5 containers): **~100 MB RAM**
 | Port | Protocol | Purpose |
 |------|----------|---------|
 | 8000 | TCP | NetBird MSP Appliance Web UI |
-| 9000+ | TCP | NetBird Web Management per customer (one per customer, increments by 1) |
+| 9000+ | TCP | NetBird Web Management per customer (only internal, one per customer, increments by 1) |
 | 3478+ | UDP | STUN/TURN relay per customer (one per customer, increments by 1) |
 
 Example for 3 customers:
@@ -330,7 +330,7 @@ curl -X POST http://localhost:8000/api/auth/token \
 
 Full interactive documentation available at:
 ```
-http://your-server:8000/docs
+http://your-server:8000/api/docs
 ```
 
 **Common Endpoints:**
