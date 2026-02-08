@@ -77,6 +77,25 @@ def _render_template(jinja_env: Environment, template_name: str, output_path: st
         f.write(content)
 
 
+def _get_existing_datastore_key(management_json_path: str) -> str | None:
+    """Read DataStoreEncryptionKey from an existing management.json.
+
+    When redeploying a customer whose data directory still exists, we MUST
+    reuse the same encryption key — otherwise the management server will
+    crash with a FATAL error trying to decrypt the old database.
+    """
+    try:
+        if os.path.isfile(management_json_path):
+            with open(management_json_path, "r") as f:
+                data = json.load(f)
+            key = data.get("DataStoreEncryptionKey")
+            if key:
+                return key
+    except Exception as exc:
+        logger.warning("Could not read existing datastore key from %s: %s", management_json_path, exc)
+    return None
+
+
 async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
     """Execute the full deployment workflow for a customer.
 
@@ -101,15 +120,28 @@ async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
     instance_dir = None
     container_prefix = f"netbird-kunde{customer_id}"
     local_mode = _is_local_domain(config.base_domain)
+    existing_deployment = db.query(Deployment).filter(Deployment.customer_id == customer_id).first()
 
     try:
-        # Step 1: Allocate relay UDP port
-        allocated_port = port_manager.allocate_port(db, config.relay_base_port)
-        _log_action(db, customer_id, "deploy", "info", f"Allocated UDP port {allocated_port}.")
+        # Step 1: Allocate relay UDP port (reuse existing if re-deploying)
+        if existing_deployment and existing_deployment.relay_udp_port:
+            allocated_port = existing_deployment.relay_udp_port
+            _log_action(db, customer_id, "deploy", "info",
+                        f"Reusing existing UDP port {allocated_port}.")
+        else:
+            allocated_port = port_manager.allocate_port(db, config.relay_base_port)
+            _log_action(db, customer_id, "deploy", "info", f"Allocated UDP port {allocated_port}.")
 
-        # Step 2: Generate secrets
+        # Step 2: Generate secrets (reuse existing key if instance data exists)
         relay_secret = generate_relay_secret()
-        datastore_key = generate_datastore_encryption_key()
+        datastore_key = _get_existing_datastore_key(
+            os.path.join(config.data_dir, f"kunde{customer_id}", "management.json")
+        )
+        if datastore_key:
+            _log_action(db, customer_id, "deploy", "info",
+                        "Reusing existing DataStoreEncryptionKey (data directory present).")
+        else:
+            datastore_key = generate_datastore_encryption_key()
 
         # Step 3: Compute dashboard port and URLs
         dashboard_port = config.dashboard_base_port + customer_id
@@ -168,6 +200,15 @@ async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
                          os.path.join(instance_dir, "dashboard.env"), **template_vars)
 
         _log_action(db, customer_id, "deploy", "info", "Configuration files generated.")
+
+        # Step 5b: Stop existing containers if re-deploying
+        if existing_deployment:
+            try:
+                docker_service.compose_down(instance_dir, container_prefix, remove_volumes=False)
+                _log_action(db, customer_id, "deploy", "info",
+                            "Stopped existing containers for re-deployment.")
+            except Exception as exc:
+                logger.warning("Could not stop existing containers: %s", exc)
 
         # Step 6: Start all Docker containers
         docker_service.compose_up(instance_dir, container_prefix, timeout=120)
@@ -302,24 +343,39 @@ async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
                     "To enable HTTPS: ensure DNS resolves and port 80 is reachable, then re-deploy.",
                 )
 
-        # Step 10: Create deployment record
+        # Step 10: Create or update deployment record
         setup_url = external_url
 
-        deployment = Deployment(
-            customer_id=customer_id,
-            container_prefix=container_prefix,
-            relay_udp_port=allocated_port,
-            dashboard_port=dashboard_port,
-            npm_proxy_id=npm_proxy_id,
-            npm_stream_id=npm_stream_id,
-            relay_secret=encrypt_value(relay_secret),
-            setup_url=setup_url,
-            netbird_admin_email=encrypt_value(admin_email) if setup_ok else None,
-            netbird_admin_password=encrypt_value(admin_password) if setup_ok else None,
-            deployment_status="running",
-            deployed_at=datetime.utcnow(),
-        )
-        db.add(deployment)
+        deployment = db.query(Deployment).filter(Deployment.customer_id == customer_id).first()
+        if deployment:
+            # Re-deployment: update existing record
+            deployment.container_prefix = container_prefix
+            deployment.relay_udp_port = allocated_port
+            deployment.dashboard_port = dashboard_port
+            deployment.npm_proxy_id = npm_proxy_id
+            deployment.npm_stream_id = npm_stream_id
+            deployment.relay_secret = encrypt_value(relay_secret)
+            deployment.setup_url = setup_url
+            deployment.netbird_admin_email = encrypt_value(admin_email) if setup_ok else deployment.netbird_admin_email
+            deployment.netbird_admin_password = encrypt_value(admin_password) if setup_ok else deployment.netbird_admin_password
+            deployment.deployment_status = "running"
+            deployment.deployed_at = datetime.utcnow()
+        else:
+            deployment = Deployment(
+                customer_id=customer_id,
+                container_prefix=container_prefix,
+                relay_udp_port=allocated_port,
+                dashboard_port=dashboard_port,
+                npm_proxy_id=npm_proxy_id,
+                npm_stream_id=npm_stream_id,
+                relay_secret=encrypt_value(relay_secret),
+                setup_url=setup_url,
+                netbird_admin_email=encrypt_value(admin_email) if setup_ok else None,
+                netbird_admin_password=encrypt_value(admin_password) if setup_ok else None,
+                deployment_status="running",
+                deployed_at=datetime.utcnow(),
+            )
+            db.add(deployment)
 
         customer.status = "active"
         db.commit()
