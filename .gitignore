@@ -58,6 +58,7 @@ docker-compose.override.yml
 *.zip
 
 # Test
+tests/
 .pytest_cache/
 .coverage
 htmlcov/
