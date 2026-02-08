@@ -343,10 +343,7 @@ async def _request_ssl(
     ssl_payload = {
         "domain_names": [domain],
         "provider": "letsencrypt",
-        "meta": {
-            "letsencrypt_agree": True,
-            "letsencrypt_email": admin_email,
-        },
+        "meta": {},
     }
     try:
         logger.info("Requesting Let's Encrypt certificate for %s (email: %s) ...", domain, admin_email)
