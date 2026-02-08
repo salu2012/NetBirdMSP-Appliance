@@ -313,34 +313,15 @@ async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
                     f"NPM UDP stream created: port {allocated_port} -> {forward_host}:{allocated_port}",
                 )
 
-            # Step 9b: If SSL failed, fall back to HTTP so the dashboard works
+            # Note: Keep HTTPS configs even if SSL cert creation failed.
+            # SSL can be set up manually in NPM later. Switching to HTTP
+            # would break the dashboard when the user accesses via HTTPS.
             ssl_ok = npm_result.get("ssl", False) if not npm_result.get("error") else False
             if not ssl_ok:
-                logger.warning("SSL cert failed for %s — switching configs to HTTP", netbird_domain)
-                external_url = f"http://{netbird_domain}"
-                netbird_protocol = "http"
-                netbird_port = "80"
-                relay_ws_protocol = "rel"
-                template_vars["external_url"] = external_url
-                template_vars["netbird_protocol"] = netbird_protocol
-                template_vars["netbird_port"] = netbird_port
-                template_vars["relay_ws_protocol"] = relay_ws_protocol
-
-                # Re-render configs that contain URL/protocol references
-                _render_template(jinja_env, "management.json.j2",
-                                 os.path.join(instance_dir, "management.json"), **template_vars)
-                _render_template(jinja_env, "dashboard.env.j2",
-                                 os.path.join(instance_dir, "dashboard.env"), **template_vars)
-                _render_template(jinja_env, "relay.env.j2",
-                                 os.path.join(instance_dir, "relay.env"), **template_vars)
-
-                # Recreate containers to pick up new config
-                docker_service.compose_up(instance_dir, container_prefix, timeout=120)
-
                 _log_action(
-                    db, customer_id, "deploy", "info",
-                    "SSL not available — switched to HTTP mode. "
-                    "To enable HTTPS: ensure DNS resolves and port 80 is reachable, then re-deploy.",
+                    db, customer_id, "deploy", "warning",
+                    "SSL certificate not created automatically. "
+                    "Please create it manually in NPM or ensure DNS resolves and port 80 is reachable, then re-deploy.",
                 )
 
         # Step 10: Create or update deployment record
