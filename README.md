@@ -478,8 +478,13 @@ MIT License — see [LICENSE](LICENSE) file for details.
 
 ---
 
+## Built With AI
+
+This software was developed with [Claude Code](https://claude.ai/claude-code) (Anthropic Claude Opus 4.6) — from architecture and backend logic to frontend UI and deployment scripts.
+
 ## Acknowledgments
 
+- [Claude Code](https://claude.ai/claude-code) — AI-powered software development by Anthropic
 - [NetBird](https://netbird.io/) — Open-source VPN solution
 - [FastAPI](https://fastapi.tiangolo.com/) — High-performance Python framework
 - [Nginx Proxy Manager](https://nginxproxymanager.com/) — Reverse proxy management
