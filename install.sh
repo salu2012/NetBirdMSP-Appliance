@@ -355,9 +355,9 @@ ENVEOF
 chmod 600 "$INSTALL_DIR/.env"
 echo -e "${GREEN}✓ Container environment created${NC}"
 
-# Copy application files
+# Copy application files (including .git for updates via git pull)
 echo "Copying application files..."
-cp -r ./* "$INSTALL_DIR/" 2>/dev/null || true
+cp -a . "$INSTALL_DIR/" 2>/dev/null || true
 cd "$INSTALL_DIR"
 echo -e "${GREEN}✓ Files copied to $INSTALL_DIR${NC}"
 
