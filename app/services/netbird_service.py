@@ -319,7 +319,7 @@ async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
             ssl_ok = npm_result.get("ssl", False) if not npm_result.get("error") else False
             if not ssl_ok:
                 _log_action(
-                    db, customer_id, "deploy", "warning",
+                    db, customer_id, "deploy", "info",
                     "SSL certificate not created automatically. "
                     "Please create it manually in NPM or ensure DNS resolves and port 80 is reachable, then re-deploy.",
                 )
