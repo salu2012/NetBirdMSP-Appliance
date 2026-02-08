@@ -109,6 +109,14 @@ class SystemConfigUpdate(BaseModel):
     data_dir: Optional[str] = Field(None, max_length=500)
     docker_network: Optional[str] = Field(None, max_length=100)
     relay_base_port: Optional[int] = Field(None, ge=1024, le=65535)
+    dashboard_base_port: Optional[int] = Field(None, ge=1024, le=65535)
+    branding_name: Optional[str] = Field(None, max_length=255)
+    branding_subtitle: Optional[str] = Field(None, max_length=255)
+    default_language: Optional[str] = Field(None, max_length=10)
+    azure_enabled: Optional[bool] = None
+    azure_tenant_id: Optional[str] = Field(None, max_length=255)
+    azure_client_id: Optional[str] = Field(None, max_length=255)
+    azure_client_secret: Optional[str] = None  # encrypted before storage
 
     @field_validator("base_domain")
     @classmethod
@@ -135,6 +143,54 @@ class SystemConfigUpdate(BaseModel):
     @classmethod
     def validate_email(cls, v: Optional[str]) -> Optional[str]:
         """Validate admin email."""
+        if v is None:
+            return v
+        pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+        if not re.match(pattern, v):
+            raise ValueError("Invalid email address.")
+        return v.lower().strip()
+
+
+# ---------------------------------------------------------------------------
+# Users
+# ---------------------------------------------------------------------------
+class UserCreate(BaseModel):
+    """Payload to create a new local user."""
+
+    username: str = Field(..., min_length=3, max_length=100)
+    password: str = Field(..., min_length=8, max_length=128)
+    email: Optional[str] = Field(None, max_length=255)
+    default_language: Optional[str] = Field(None, max_length=10)
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, v: str) -> str:
+        if not re.match(r"^[a-zA-Z0-9_.-]+$", v):
+            raise ValueError("Username may only contain letters, digits, dots, hyphens, and underscores.")
+        return v.strip()
+
+    @field_validator("email")
+    @classmethod
+    def validate_user_email(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+        if not re.match(pattern, v):
+            raise ValueError("Invalid email address.")
+        return v.lower().strip()
+
+
+class UserUpdate(BaseModel):
+    """Payload to update an existing user."""
+
+    email: Optional[str] = Field(None, max_length=255)
+    is_active: Optional[bool] = None
+    role: Optional[str] = Field(None, max_length=20)
+    default_language: Optional[str] = Field(None, max_length=10)
+
+    @field_validator("email")
+    @classmethod
+    def validate_user_email(cls, v: Optional[str]) -> Optional[str]:
         if v is None:
             return v
         pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"

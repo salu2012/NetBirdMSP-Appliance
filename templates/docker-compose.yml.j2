@@ -1,10 +1,21 @@
-version: '3.8'
-
 networks:
   {{ docker_network }}:
     external: true
 
 services:
+  # --- Caddy Reverse Proxy (entry point) ---
+  netbird-caddy:
+    image: caddy:2-alpine
+    container_name: netbird-kunde{{ customer_id }}-caddy
+    restart: unless-stopped
+    networks:
+      - {{ docker_network }}
+    ports:
+      - "{{ dashboard_port }}:80"
+    volumes:
+      - {{ instance_dir }}/Caddyfile:/etc/caddy/Caddyfile:ro
+
+  # --- NetBird Management (with embedded IdP) ---
   netbird-management:
     image: {{ netbird_management_image }}
     container_name: netbird-kunde{{ customer_id }}-management
@@ -21,15 +32,11 @@ services:
       - "console"
       - "--log-level"
       - "info"
-      - "--single-account-mode-domain={{ subdomain }}.{{ base_domain }}"
-      - "--dns-domain={{ subdomain }}.{{ base_domain }}"
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:80/api/accounts"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 15s
+      - "--single-account-mode-domain={{ netbird_domain }}"
+      - "--dns-domain={{ netbird_domain }}"
+      - "--idp-sign-key-refresh-enabled"
 
+  # --- NetBird Signal ---
   netbird-signal:
     image: {{ netbird_signal_image }}
     container_name: netbird-kunde{{ customer_id }}-signal
@@ -39,6 +46,7 @@ services:
     volumes:
       - {{ instance_dir }}/data/signal:/var/lib/netbird
 
+  # --- NetBird Relay ---
   netbird-relay:
     image: {{ netbird_relay_image }}
     container_name: netbird-kunde{{ customer_id }}-relay
@@ -49,19 +57,13 @@ services:
       - "{{ relay_udp_port }}:3478/udp"
     env_file:
       - {{ instance_dir }}/relay.env
-    environment:
-      - NB_ENABLE_STUN=true
-      - NB_STUN_PORTS=3478
-      - NB_LISTEN_ADDRESS=:80
-      - NB_EXPOSED_ADDRESS=rels://{{ subdomain }}.{{ base_domain }}:443
-      - NB_AUTH_SECRET={{ relay_secret }}
 
+  # --- NetBird Dashboard ---
   netbird-dashboard:
     image: {{ netbird_dashboard_image }}
     container_name: netbird-kunde{{ customer_id }}-dashboard
     restart: unless-stopped
     networks:
       - {{ docker_network }}
-    environment:
-      - NETBIRD_MGMT_API_ENDPOINT=https://{{ subdomain }}.{{ base_domain }}
-      - NETBIRD_MGMT_GRPC_API_ENDPOINT=https://{{ subdomain }}.{{ base_domain }}
+    env_file:
+      - {{ instance_dir }}/dashboard.env

@@ -71,6 +71,7 @@ async def all_customers_status(
             entry["deployment_status"] = c.deployment.deployment_status
             entry["containers"] = containers
             entry["relay_udp_port"] = c.deployment.relay_udp_port
+            entry["dashboard_port"] = c.deployment.dashboard_port
             entry["setup_url"] = c.deployment.setup_url
         else:
             entry["deployment_status"] = None

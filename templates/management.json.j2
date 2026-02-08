@@ -2,7 +2,7 @@
   "Stuns": [
     {
       "Proto": "udp",
-      "URI": "stun:{{ subdomain }}.{{ base_domain }}:{{ relay_udp_port }}",
+      "URI": "stun:{{ netbird_domain }}:{{ relay_udp_port }}",
       "Username": "",
       "Password": null
     }
@@ -11,7 +11,7 @@
     "Turns": [
       {
         "Proto": "udp",
-        "URI": "turn:{{ subdomain }}.{{ base_domain }}:{{ relay_udp_port }}",
+        "URI": "turn:{{ netbird_domain }}:{{ relay_udp_port }}",
         "Username": "netbird",
         "Password": "{{ relay_secret }}"
       }
@@ -22,42 +22,35 @@
   },
   "Relay": {
     "Addresses": [
-      "rels://{{ subdomain }}.{{ base_domain }}:443"
+      "rels://{{ netbird_domain }}:443"
     ],
-    "CredentialsTTL": "12h",
+    "CredentialsTTL": "24h",
     "Secret": "{{ relay_secret }}"
   },
   "Signal": {
-    "Proto": "https",
-    "URI": "{{ subdomain }}.{{ base_domain }}:443",
+    "Proto": "{{ netbird_protocol }}",
+    "URI": "{{ netbird_domain }}:{{ netbird_port }}",
     "Username": "",
     "Password": null
   },
   "HttpConfig": {
-    "AuthIssuer": "https://{{ subdomain }}.{{ base_domain }}",
-    "AuthAudience": "{{ subdomain }}.{{ base_domain }}",
-    "OIDCConfigEndpoint": ""
+    "AuthIssuer": "{{ external_url }}/oauth2",
+    "AuthAudience": "netbird-dashboard",
+    "OIDCConfigEndpoint": "{{ external_url }}/oauth2/.well-known/openid-configuration"
   },
-  "IdpManagerConfig": {
-    "ManagerType": "none"
+  "EmbeddedIdP": {
+    "Enabled": true,
+    "Issuer": "{{ external_url }}/oauth2",
+    "LocalAddress": "http://127.0.0.1:80",
+    "DashboardRedirectURIs": [
+      "{{ external_url }}/nb-auth",
+      "{{ external_url }}/nb-silent-auth"
+    ],
+    "CLIRedirectURIs": [
+      "http://localhost:53000/",
+      "http://localhost:54000/"
+    ],
+    "SignKeyRefreshEnabled": true
   },
-  "DeviceAuthorizationFlow": {
-    "Provider": "none"
-  },
-  "PKCEAuthorizationFlow": {
-    "ProviderConfig": {
-      "Audience": "{{ subdomain }}.{{ base_domain }}",
-      "ClientID": "",
-      "ClientSecret": "",
-      "Domain": "",
-      "AuthorizationEndpoint": "",
-      "TokenEndpoint": "",
-      "Scope": "openid profile email",
-      "RedirectURLs": [
-        "https://{{ subdomain }}.{{ base_domain }}/auth/callback"
-      ],
-      "UseIDToken": false
-    }
-  },
-  "DataStoreEncryptionKey": "{{ relay_secret }}"
+  "DataStoreEncryptionKey": "{{ datastore_encryption_key }}"
 }

@@ -89,3 +89,16 @@ def generate_relay_secret() -> str:
         A 32-character hex string.
     """
     return secrets.token_hex(16)
+
+
+def generate_datastore_encryption_key() -> str:
+    """Generate a base64-encoded 32-byte key for NetBird DataStoreEncryptionKey.
+
+    NetBird management (Go) expects standard base64 decoding to exactly 32 bytes.
+
+    Returns:
+        A standard base64-encoded string representing 32 random bytes.
+    """
+    import base64
+
+    return base64.b64encode(secrets.token_bytes(32)).decode()

@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.database import init_db
-from app.routers import auth, customers, deployments, monitoring, settings
+from app.routers import auth, customers, deployments, monitoring, settings, users
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -50,6 +50,7 @@ app.include_router(settings.router, prefix="/api/settings", tags=["Settings"])
 app.include_router(customers.router, prefix="/api/customers", tags=["Customers"])
 app.include_router(deployments.router, prefix="/api/customers", tags=["Deployments"])
 app.include_router(monitoring.router, prefix="/api/monitoring", tags=["Monitoring"])
+app.include_router(users.router, prefix="/api/users", tags=["Users"])
 
 # ---------------------------------------------------------------------------
 # Static files — serve the frontend SPA

@@ -9,6 +9,7 @@ from app.database import SessionLocal, get_db
 from app.dependencies import get_current_user
 from app.models import Customer, Deployment, User
 from app.services import docker_service, netbird_service
+from app.utils.security import decrypt_value
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -172,6 +173,38 @@ async def check_customer_health(
     """
     _require_customer(db, customer_id)
     return netbird_service.get_customer_health(db, customer_id)
+
+
+@router.get("/{customer_id}/credentials")
+async def get_customer_credentials(
+    customer_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get the NetBird admin credentials for a customer's deployment.
+
+    Args:
+        customer_id: Customer ID.
+
+    Returns:
+        Dict with email and password.
+    """
+    _require_customer(db, customer_id)
+    deployment = db.query(Deployment).filter(Deployment.customer_id == customer_id).first()
+    if not deployment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No deployment found for this customer.",
+        )
+    if not deployment.netbird_admin_email or not deployment.netbird_admin_password:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No credentials available. Admin must complete setup manually.",
+        )
+    return {
+        "email": decrypt_value(deployment.netbird_admin_email),
+        "password": decrypt_value(deployment.netbird_admin_password),
+    }
 
 
 def _require_customer(db: Session, customer_id: int) -> Customer:

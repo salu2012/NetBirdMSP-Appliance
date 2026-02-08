@@ -12,6 +12,8 @@ let currentPage = 'dashboard';
 let currentCustomerId = null;
 let currentCustomerData = null;
 let customersPage = 1;
+let brandingData = { branding_name: 'NetBird MSP Appliance', branding_logo_path: null };
+let azureConfig = { azure_enabled: false };
 
 // ---------------------------------------------------------------------------
 // API helper
@@ -32,21 +34,32 @@ async function api(method, path, body = null) {
         resp = await fetch(`/api${path}`, opts);
     } catch (networkErr) {
         console.error(`API network error: ${method} ${path}`, networkErr);
-        throw new Error('Network error — server not reachable.');
+        throw new Error(t('errors.networkError'));
     }
     if (resp.status === 401) {
         logout();
-        throw new Error('Session expired.');
+        throw new Error(t('errors.sessionExpired'));
     }
     let data;
     try {
         data = await resp.json();
     } catch (jsonErr) {
         console.error(`API JSON parse error: ${method} ${path} (status ${resp.status})`, jsonErr);
-        throw new Error(`Server error (HTTP ${resp.status}).`);
+        throw new Error(t('errors.serverError', { status: resp.status }));
     }
     if (!resp.ok) {
-        const msg = data.detail || data.message || 'Request failed.';
+        let msg = t('errors.requestFailed');
+        if (Array.isArray(data.detail)) {
+            msg = data.detail.map(e => {
+                const field = e.loc ? e.loc[e.loc.length - 1] : '';
+                const text = (e.msg || '').replace(/^Value error, ?/, '');
+                return field ? `${field}: ${text}` : text;
+            }).join('\n');
+        } else if (typeof data.detail === 'string') {
+            msg = data.detail;
+        } else if (data.message) {
+            msg = data.message;
+        }
         console.error(`API error: ${method} ${path} (status ${resp.status})`, msg);
         throw new Error(msg);
     }
@@ -56,20 +69,27 @@ async function api(method, path, body = null) {
 // ---------------------------------------------------------------------------
 // Auth
 // ---------------------------------------------------------------------------
-function initApp() {
+async function initApp() {
+    await initI18n();
+    await loadBranding();
+    await loadAzureLoginConfig();
+
     if (authToken) {
-        api('GET', '/auth/me')
-            .then(user => {
-                currentUser = user;
-                document.getElementById('nav-username').textContent = user.username;
-                showAppPage();
-                loadDashboard();
-            })
-            .catch(() => {
-                authToken = null;
-                localStorage.removeItem('authToken');
-                showLoginPage();
-            });
+        try {
+            const user = await api('GET', '/auth/me');
+            currentUser = user;
+            document.getElementById('nav-username').textContent = user.username;
+            // Apply user's language preference if set
+            if (user.default_language && !localStorage.getItem('language')) {
+                await setLanguage(user.default_language);
+            }
+            showAppPage();
+            loadDashboard();
+        } catch {
+            authToken = null;
+            localStorage.removeItem('authToken');
+            showLoginPage();
+        }
     } else {
         showLoginPage();
     }
@@ -83,6 +103,112 @@ function showLoginPage() {
 function showAppPage() {
     document.getElementById('login-page').classList.add('d-none');
     document.getElementById('app-page').classList.remove('d-none');
+}
+
+async function loadBranding() {
+    try {
+        const resp = await fetch('/api/settings/branding');
+        if (resp.ok) {
+            brandingData = await resp.json();
+            // Set system default language from server config
+            if (brandingData.default_language) {
+                setSystemDefault(brandingData.default_language);
+            }
+            applyBranding();
+        }
+    } catch {
+        // Use defaults
+    }
+}
+
+function applyBranding() {
+    const name = brandingData.branding_name || 'NetBird MSP Appliance';
+    const subtitle = brandingData.branding_subtitle || t('login.subtitle');
+    const logoPath = brandingData.branding_logo_path;
+
+    // Login page
+    document.getElementById('login-title').textContent = name;
+    const subtitleEl = document.getElementById('login-subtitle');
+    if (subtitleEl) subtitleEl.textContent = subtitle;
+    document.title = name;
+    if (logoPath) {
+        document.getElementById('login-logo').innerHTML = `<img src="${logoPath}" alt="Logo" style="max-height:64px;max-width:200px;" class="mb-1">`;
+    } else {
+        document.getElementById('login-logo').innerHTML = '<i class="bi bi-hdd-network fs-1 text-primary"></i>';
+    }
+
+    // Navbar — use short form for the nav bar
+    const shortName = name.length > 30 ? name.substring(0, 30) + '\u2026' : name;
+    document.getElementById('nav-brand-name').textContent = shortName;
+    if (logoPath) {
+        document.getElementById('nav-logo').innerHTML = `<img src="${logoPath}" alt="Logo" style="height:28px;max-width:120px;" class="me-2">`;
+    } else {
+        document.getElementById('nav-logo').innerHTML = '<i class="bi bi-hdd-network me-2"></i>';
+    }
+}
+
+async function loadAzureLoginConfig() {
+    try {
+        const resp = await fetch('/api/auth/azure/config');
+        if (resp.ok) {
+            azureConfig = await resp.json();
+            if (azureConfig.azure_enabled) {
+                document.getElementById('azure-login-divider').classList.remove('d-none');
+            } else {
+                document.getElementById('azure-login-divider').classList.add('d-none');
+            }
+        }
+    } catch {
+        // Azure not configured
+    }
+}
+
+function loginWithAzure() {
+    if (!azureConfig.azure_enabled || !azureConfig.azure_tenant_id || !azureConfig.azure_client_id) {
+        alert(t('errors.azureNotConfigured'));
+        return;
+    }
+    const redirectUri = window.location.origin + '/';
+    const authUrl = `https://login.microsoftonline.com/${azureConfig.azure_tenant_id}/oauth2/v2.0/authorize`
+        + `?client_id=${azureConfig.azure_client_id}`
+        + `&response_type=code`
+        + `&redirect_uri=${encodeURIComponent(redirectUri)}`
+        + `&scope=${encodeURIComponent('openid profile email User.Read')}`
+        + `&response_mode=query`;
+    window.location.href = authUrl;
+}
+
+async function handleAzureCallback() {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    if (!code) return false;
+
+    // Clear URL params
+    window.history.replaceState({}, document.title, '/');
+
+    try {
+        const data = await api('POST', '/auth/azure/callback', {
+            code: code,
+            redirect_uri: window.location.origin + '/',
+        });
+        authToken = data.access_token;
+        localStorage.setItem('authToken', authToken);
+        currentUser = data.user;
+        document.getElementById('nav-username').textContent = currentUser.username;
+        // Apply user's language preference
+        if (currentUser.default_language) {
+            await setLanguage(currentUser.default_language);
+        }
+        showAppPage();
+        loadDashboard();
+        return true;
+    } catch (err) {
+        const errorEl = document.getElementById('login-error');
+        errorEl.textContent = t('errors.azureLoginFailed', { error: err.message });
+        errorEl.classList.remove('d-none');
+        showLoginPage();
+        return true;
+    }
 }
 
 document.getElementById('login-form').addEventListener('submit', async (e) => {
@@ -101,6 +227,10 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
         localStorage.setItem('authToken', authToken);
         currentUser = data.user;
         document.getElementById('nav-username').textContent = currentUser.username;
+        // Apply user's language preference
+        if (currentUser.default_language) {
+            await setLanguage(currentUser.default_language);
+        }
         showAppPage();
         loadDashboard();
     } catch (err) {
@@ -126,6 +256,23 @@ function logout() {
     currentUser = null;
     localStorage.removeItem('authToken');
     showLoginPage();
+}
+
+// ---------------------------------------------------------------------------
+// Language switching (saves preference to server for logged-in users)
+// ---------------------------------------------------------------------------
+async function switchLanguage(lang) {
+    await setLanguage(lang);
+    applyBranding();
+    // Save preference to server if user is logged in
+    if (currentUser && currentUser.id) {
+        try {
+            await api('PUT', `/users/${currentUser.id}`, { default_language: lang });
+            currentUser.default_language = lang;
+        } catch {
+            // Silently fail — localStorage already saved
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -178,39 +325,44 @@ async function loadCustomers() {
 function renderCustomersTable(data) {
     const tbody = document.getElementById('customers-table-body');
     if (!data.items || data.items.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">No customers found. Click "New Customer" to create one.</td></tr>';
-        document.getElementById('pagination-info').textContent = 'Showing 0 of 0';
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">${t('dashboard.noCustomers')}</td></tr>`;
+        document.getElementById('pagination-info').textContent = t('dashboard.showingEmpty');
         document.getElementById('pagination-controls').innerHTML = '';
         return;
     }
 
-    tbody.innerHTML = data.items.map(c => `
-        <tr>
+    tbody.innerHTML = data.items.map(c => {
+        const dPort = c.deployment && c.deployment.dashboard_port;
+        const dashUrl = c.deployment && c.deployment.setup_url;
+        const dashLink = dPort
+            ? `<a href="${esc(dashUrl || 'http://localhost:' + dPort)}" target="_blank" class="text-decoration-none" title="${t('customer.openDashboard')}">:${dPort} <i class="bi bi-box-arrow-up-right"></i></a>`
+            : '-';
+        return `<tr>
             <td>${c.id}</td>
             <td><a href="#" onclick="viewCustomer(${c.id})" class="text-decoration-none fw-semibold">${esc(c.name)}</a></td>
-            <td>${esc(c.company || '-')}</td>
             <td><code>${esc(c.subdomain)}</code></td>
             <td>${statusBadge(c.status)}</td>
+            <td>${dashLink}</td>
             <td>${c.max_devices}</td>
             <td>${formatDate(c.created_at)}</td>
             <td>
                 <div class="btn-group btn-group-sm">
-                    <button class="btn btn-outline-primary" title="View" onclick="viewCustomer(${c.id})"><i class="bi bi-eye"></i></button>
+                    <button class="btn btn-outline-primary" title="${t('common.view')}" onclick="viewCustomer(${c.id})"><i class="bi bi-eye"></i></button>
                     ${c.deployment && c.deployment.deployment_status === 'running'
-                        ? `<button class="btn btn-outline-warning" title="Stop" onclick="customerAction(${c.id},'stop')"><i class="bi bi-stop-circle"></i></button>`
-                        : `<button class="btn btn-outline-success" title="Start" onclick="customerAction(${c.id},'start')"><i class="bi bi-play-circle"></i></button>`
+                        ? `<button class="btn btn-outline-warning" title="${t('common.stop')}" onclick="customerAction(${c.id},'stop')"><i class="bi bi-stop-circle"></i></button>`
+                        : `<button class="btn btn-outline-success" title="${t('common.start')}" onclick="customerAction(${c.id},'start')"><i class="bi bi-play-circle"></i></button>`
                     }
-                    <button class="btn btn-outline-info" title="Restart" onclick="customerAction(${c.id},'restart')"><i class="bi bi-arrow-repeat"></i></button>
-                    <button class="btn btn-outline-danger" title="Delete" onclick="showDeleteModal(${c.id},'${esc(c.name)}')"><i class="bi bi-trash"></i></button>
+                    <button class="btn btn-outline-info" title="${t('common.restart')}" onclick="customerAction(${c.id},'restart')"><i class="bi bi-arrow-repeat"></i></button>
+                    <button class="btn btn-outline-danger" title="${t('common.delete')}" onclick="showDeleteModal(${c.id},'${esc(c.name)}')"><i class="bi bi-trash"></i></button>
                 </div>
             </td>
-        </tr>
-    `).join('');
+        </tr>`;
+    }).join('');
 
     // Pagination
     const start = (data.page - 1) * data.per_page + 1;
     const end = Math.min(data.page * data.per_page, data.total);
-    document.getElementById('pagination-info').textContent = `Showing ${start}-${end} of ${data.total}`;
+    document.getElementById('pagination-info').textContent = t('dashboard.showing', { start, end, total: data.total });
 
     let paginationHtml = '';
     for (let i = 1; i <= data.pages; i++) {
@@ -232,12 +384,13 @@ document.getElementById('status-filter').addEventListener('change', () => { cust
 // Customer CRUD
 // ---------------------------------------------------------------------------
 function showNewCustomerModal() {
-    document.getElementById('customer-modal-title').textContent = 'New Customer';
+    document.getElementById('customer-modal-title').textContent = t('customerModal.newCustomer');
     document.getElementById('customer-edit-id').value = '';
     document.getElementById('customer-form').reset();
     document.getElementById('cust-max-devices').value = '20';
     document.getElementById('customer-modal-error').classList.add('d-none');
-    document.getElementById('customer-save-btn').innerHTML = '<span class="spinner-border spinner-border-sm d-none me-1" id="customer-save-spinner"></span> Save &amp; Deploy';
+    const saveBtnSpan = document.getElementById('customer-save-btn').querySelector('span[data-i18n]');
+    if (saveBtnSpan) saveBtnSpan.textContent = t('customerModal.saveAndDeploy');
 
     // Update subdomain suffix
     api('GET', '/settings/system').then(cfg => {
@@ -254,7 +407,7 @@ function showNewCustomerModal() {
 function editCurrentCustomer() {
     if (!currentCustomerData) return;
     const c = currentCustomerData;
-    document.getElementById('customer-modal-title').textContent = 'Edit Customer';
+    document.getElementById('customer-modal-title').textContent = t('customerModal.editCustomer');
     document.getElementById('customer-edit-id').value = c.id;
     document.getElementById('cust-name').value = c.name;
     document.getElementById('cust-company').value = c.company || '';
@@ -264,7 +417,8 @@ function editCurrentCustomer() {
     document.getElementById('cust-max-devices').value = c.max_devices;
     document.getElementById('cust-notes').value = c.notes || '';
     document.getElementById('customer-modal-error').classList.add('d-none');
-    document.getElementById('customer-save-btn').innerHTML = '<span class="spinner-border spinner-border-sm d-none me-1" id="customer-save-spinner"></span> Save Changes';
+    const saveBtnSpan = document.getElementById('customer-save-btn').querySelector('span[data-i18n]');
+    if (saveBtnSpan) saveBtnSpan.textContent = t('customerModal.saveChanges');
 
     const modalEl = document.getElementById('customer-modal');
     const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
@@ -309,7 +463,7 @@ async function saveCustomer() {
         }
     } catch (err) {
         console.error('saveCustomer error:', err);
-        errorEl.textContent = err.message || 'An unknown error occurred.';
+        errorEl.textContent = err.message || t('errors.unknownError');
         errorEl.classList.remove('d-none');
         errorEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     } finally {
@@ -338,7 +492,7 @@ async function confirmDeleteCustomer() {
         bootstrap.Modal.getInstance(document.getElementById('delete-modal')).hide();
         showPage('dashboard');
     } catch (err) {
-        alert('Delete failed: ' + err.message);
+        alert(t('errors.deleteFailed', { error: err.message }));
     } finally {
         spinner.classList.add('d-none');
     }
@@ -353,7 +507,7 @@ async function customerAction(id, action) {
         if (currentPage === 'dashboard') loadCustomers();
         if (currentCustomerId == id) viewCustomer(id);
     } catch (err) {
-        alert(`${action} failed: ${err.message}`);
+        alert(t('errors.actionFailed', { action, error: err.message }));
     }
 }
 
@@ -374,15 +528,15 @@ async function viewCustomer(id) {
         // Info tab
         document.getElementById('detail-info-content').innerHTML = `
             <div class="row g-3">
-                <div class="col-md-6"><strong>Name:</strong> ${esc(data.name)}</div>
-                <div class="col-md-6"><strong>Company:</strong> ${esc(data.company || '-')}</div>
-                <div class="col-md-6"><strong>Subdomain:</strong> <code>${esc(data.subdomain)}</code></div>
-                <div class="col-md-6"><strong>Email:</strong> ${esc(data.email)}</div>
-                <div class="col-md-6"><strong>Max Devices:</strong> ${data.max_devices}</div>
-                <div class="col-md-6"><strong>Status:</strong> ${statusBadge(data.status)}</div>
-                <div class="col-md-6"><strong>Created:</strong> ${formatDate(data.created_at)}</div>
-                <div class="col-md-6"><strong>Updated:</strong> ${formatDate(data.updated_at)}</div>
-                ${data.notes ? `<div class="col-12"><strong>Notes:</strong> ${esc(data.notes)}</div>` : ''}
+                <div class="col-md-6"><strong>${t('customer.name')}</strong> ${esc(data.name)}</div>
+                <div class="col-md-6"><strong>${t('customer.company')}</strong> ${esc(data.company || '-')}</div>
+                <div class="col-md-6"><strong>${t('customer.subdomain')}</strong> <code>${esc(data.subdomain)}</code></div>
+                <div class="col-md-6"><strong>${t('customer.email')}</strong> ${esc(data.email)}</div>
+                <div class="col-md-6"><strong>${t('customer.maxDevices')}</strong> ${data.max_devices}</div>
+                <div class="col-md-6"><strong>${t('customer.status')}</strong> ${statusBadge(data.status)}</div>
+                <div class="col-md-6"><strong>${t('customer.created')}</strong> ${formatDate(data.created_at)}</div>
+                <div class="col-md-6"><strong>${t('customer.updated')}</strong> ${formatDate(data.updated_at)}</div>
+                ${data.notes ? `<div class="col-12"><strong>${t('customer.notes')}</strong> ${esc(data.notes)}</div>` : ''}
             </div>
         `;
 
@@ -391,29 +545,62 @@ async function viewCustomer(id) {
             const d = data.deployment;
             document.getElementById('detail-deployment-content').innerHTML = `
                 <div class="row g-3">
-                    <div class="col-md-6"><strong>Status:</strong> ${statusBadge(d.deployment_status)}</div>
-                    <div class="col-md-6"><strong>Relay UDP Port:</strong> ${d.relay_udp_port}</div>
-                    <div class="col-md-6"><strong>Container Prefix:</strong> <code>${esc(d.container_prefix)}</code></div>
-                    <div class="col-md-6"><strong>Deployed:</strong> ${formatDate(d.deployed_at)}</div>
+                    <div class="col-md-6"><strong>${t('customer.deploymentStatus')}</strong> ${statusBadge(d.deployment_status)}</div>
+                    <div class="col-md-6"><strong>${t('customer.relayUdpPort')}</strong> ${d.relay_udp_port}</div>
+                    <div class="col-md-6"><strong>${t('customer.dashboardPort')}</strong> ${d.dashboard_port || '-'}${d.dashboard_port ? ` <a href="${esc(d.setup_url || 'http://localhost:' + d.dashboard_port)}" target="_blank" class="ms-2"><i class="bi bi-box-arrow-up-right"></i> ${t('customer.open')}</a>` : ''}</div>
+                    <div class="col-md-6"><strong>${t('customer.containerPrefix')}</strong> <code>${esc(d.container_prefix)}</code></div>
+                    <div class="col-md-6"><strong>${t('customer.deployed')}</strong> ${formatDate(d.deployed_at)}</div>
                     <div class="col-12">
-                        <strong>Setup URL:</strong>
+                        <strong>${t('customer.setupUrl')}</strong>
                         <div class="input-group mt-1">
                             <input type="text" class="form-control" value="${esc(d.setup_url || '')}" readonly id="setup-url-input">
-                            <button class="btn btn-outline-secondary" onclick="copySetupUrl()"><i class="bi bi-clipboard"></i> Copy</button>
+                            <button class="btn btn-outline-secondary" onclick="copySetupUrl()"><i class="bi bi-clipboard"></i> ${t('customer.copy')}</button>
                         </div>
                     </div>
                 </div>
+                <div class="card mt-3">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <strong><i class="bi bi-key me-1"></i>${t('customer.netbirdLogin')}</strong>
+                        ${d.has_credentials ? '' : `<span class="badge bg-secondary">${t('customer.notAvailable')}</span>`}
+                    </div>
+                    <div class="card-body" id="credentials-container">
+                        ${d.has_credentials ? `
+                        <div id="credentials-placeholder">
+                            <button class="btn btn-outline-primary btn-sm" onclick="loadCredentials(${id})">
+                                <i class="bi bi-shield-lock me-1"></i>${t('customer.showCredentials')}
+                            </button>
+                        </div>
+                        <div id="credentials-content" style="display:none">
+                            <div class="mb-2">
+                                <label class="form-label mb-1"><small>${t('customer.credEmail')}</small></label>
+                                <div class="input-group input-group-sm">
+                                    <input type="text" class="form-control" id="cred-email" readonly>
+                                    <button class="btn btn-outline-secondary" onclick="copyCredential('cred-email')" title="${t('customer.copy')}"><i class="bi bi-clipboard"></i></button>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="form-label mb-1"><small>${t('customer.credPassword')}</small></label>
+                                <div class="input-group input-group-sm">
+                                    <input type="password" class="form-control" id="cred-password" readonly>
+                                    <button class="btn btn-outline-secondary" data-toggle-pw onclick="togglePasswordVisibility('cred-password')" title="${t('customer.showHide')}"><i class="bi bi-eye"></i></button>
+                                    <button class="btn btn-outline-secondary" onclick="copyCredential('cred-password')" title="${t('customer.copy')}"><i class="bi bi-clipboard"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                        ` : `<p class="text-muted mb-0">${t('customer.credentialsNotAvailable')}</p>`}
+                    </div>
+                </div>
                 <div class="mt-3">
-                    <button class="btn btn-success btn-sm me-1" onclick="customerAction(${id},'start')"><i class="bi bi-play-circle me-1"></i>Start</button>
-                    <button class="btn btn-warning btn-sm me-1" onclick="customerAction(${id},'stop')"><i class="bi bi-stop-circle me-1"></i>Stop</button>
-                    <button class="btn btn-info btn-sm me-1" onclick="customerAction(${id},'restart')"><i class="bi bi-arrow-repeat me-1"></i>Restart</button>
-                    <button class="btn btn-outline-primary btn-sm" onclick="customerAction(${id},'deploy')"><i class="bi bi-rocket me-1"></i>Re-Deploy</button>
+                    <button class="btn btn-success btn-sm me-1" onclick="customerAction(${id},'start')"><i class="bi bi-play-circle me-1"></i>${t('customer.start')}</button>
+                    <button class="btn btn-warning btn-sm me-1" onclick="customerAction(${id},'stop')"><i class="bi bi-stop-circle me-1"></i>${t('customer.stop')}</button>
+                    <button class="btn btn-info btn-sm me-1" onclick="customerAction(${id},'restart')"><i class="bi bi-arrow-repeat me-1"></i>${t('customer.restart')}</button>
+                    <button class="btn btn-outline-primary btn-sm" onclick="customerAction(${id},'deploy')"><i class="bi bi-rocket me-1"></i>${t('customer.reDeploy')}</button>
                 </div>
             `;
         } else {
             document.getElementById('detail-deployment-content').innerHTML = `
-                <p class="text-muted">No deployment found.</p>
-                <button class="btn btn-primary" onclick="customerAction(${id},'deploy')"><i class="bi bi-rocket me-1"></i>Deploy Now</button>
+                <p class="text-muted">${t('customer.noDeployment')}</p>
+                <button class="btn btn-primary" onclick="customerAction(${id},'deploy')"><i class="bi bi-rocket me-1"></i>${t('customer.deployNow')}</button>
             `;
         }
 
@@ -434,7 +621,7 @@ async function loadCustomerLogs() {
         const data = await api('GET', `/customers/${currentCustomerId}/logs`);
         const content = document.getElementById('detail-logs-content');
         if (!data.logs || Object.keys(data.logs).length === 0) {
-            content.innerHTML = '<p class="text-muted">No container logs available.</p>';
+            content.innerHTML = `<p class="text-muted">${t('customer.noContainerLogs')}</p>`;
             return;
         }
         let html = '';
@@ -452,16 +639,18 @@ async function loadCustomerHealth() {
     try {
         const data = await api('GET', `/customers/${currentCustomerId}/health`);
         const content = document.getElementById('detail-health-content');
-        let html = `<div class="mb-3"><strong>Overall:</strong> ${data.healthy ? '<span class="text-success">Healthy</span>' : '<span class="text-danger">Unhealthy</span>'}</div>`;
+        let html = `<div class="mb-3"><strong>${t('customer.overall')}</strong> ${data.healthy ? `<span class="text-success">${t('customer.healthy')}</span>` : `<span class="text-danger">${t('customer.unhealthy')}</span>`}</div>`;
         if (data.containers && data.containers.length > 0) {
-            html += '<table class="table table-sm"><thead><tr><th>Container</th><th>Status</th><th>Health</th><th>Image</th></tr></thead><tbody>';
+            html += `<table class="table table-sm"><thead><tr><th>${t('customer.thContainer')}</th><th>${t('customer.thContainerStatus')}</th><th>${t('customer.thHealth')}</th><th>${t('customer.thImage')}</th></tr></thead><tbody>`;
             data.containers.forEach(c => {
                 const statusClass = c.status === 'running' ? 'text-success' : 'text-danger';
-                html += `<tr><td>${esc(c.name)}</td><td class="${statusClass}">${c.status}</td><td>${c.health}</td><td><code>${esc(c.image)}</code></td></tr>`;
+                const healthClass = c.health === 'healthy' ? 'text-success' : 'text-danger';
+                const healthLabel = c.health === 'healthy' ? t('customer.healthy') : t('customer.unhealthy');
+                html += `<tr><td>${esc(c.name)}</td><td class="${statusClass}">${c.status}</td><td class="${healthClass}">${healthLabel}</td><td><code>${esc(c.image)}</code></td></tr>`;
             });
             html += '</tbody></table>';
         }
-        html += `<div class="text-muted small">Last check: ${formatDate(data.last_check)}</div>`;
+        html += `<div class="text-muted small">${t('customer.lastCheck', { time: formatDate(data.last_check) })}</div>`;
         content.innerHTML = html;
     } catch (err) {
         document.getElementById('detail-health-content').innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
@@ -471,7 +660,29 @@ async function loadCustomerHealth() {
 function copySetupUrl() {
     const input = document.getElementById('setup-url-input');
     navigator.clipboard.writeText(input.value).then(() => {
-        showToast('Setup URL copied to clipboard.');
+        showToast(t('messages.setupUrlCopied'));
+    });
+}
+
+async function loadCredentials(customerId) {
+    try {
+        const data = await api('GET', `/customers/${customerId}/credentials`);
+        document.getElementById('cred-email').value = data.email;
+        document.getElementById('cred-password').value = data.password;
+        document.getElementById('credentials-placeholder').style.display = 'none';
+        document.getElementById('credentials-content').style.display = 'block';
+    } catch (err) {
+        showToast(t('errors.failedToLoadCredentials', { error: err.message }), 'danger');
+    }
+}
+
+function copyCredential(fieldId) {
+    const input = document.getElementById(fieldId);
+    const origType = input.type;
+    input.type = 'text';
+    navigator.clipboard.writeText(input.value).then(() => {
+        input.type = origType;
+        showToast(t('messages.copiedToClipboard'));
     });
 }
 
@@ -486,14 +697,36 @@ async function loadSettings() {
         document.getElementById('cfg-data-dir').value = cfg.data_dir || '';
         document.getElementById('cfg-docker-network').value = cfg.docker_network || '';
         document.getElementById('cfg-relay-base-port').value = cfg.relay_base_port || 3478;
+        document.getElementById('cfg-dashboard-base-port').value = cfg.dashboard_base_port || 9000;
         document.getElementById('cfg-npm-api-url').value = cfg.npm_api_url || '';
-        document.getElementById('npm-credentials-status').textContent = cfg.npm_credentials_set ? 'Credentials are set (leave empty to keep current)' : 'No NPM credentials configured';
+        document.getElementById('npm-credentials-status').textContent = cfg.npm_credentials_set ? t('settings.credentialsSet') : t('settings.noCredentials');
         document.getElementById('cfg-mgmt-image').value = cfg.netbird_management_image || '';
         document.getElementById('cfg-signal-image').value = cfg.netbird_signal_image || '';
         document.getElementById('cfg-relay-image').value = cfg.netbird_relay_image || '';
         document.getElementById('cfg-dashboard-image').value = cfg.netbird_dashboard_image || '';
+
+        // Branding tab
+        document.getElementById('cfg-branding-name').value = cfg.branding_name || '';
+        document.getElementById('cfg-branding-subtitle').value = cfg.branding_subtitle || '';
+        document.getElementById('cfg-default-language').value = cfg.default_language || 'en';
+        updateLogoPreview(cfg.branding_logo_path);
+
+        // Azure AD tab
+        document.getElementById('cfg-azure-enabled').checked = cfg.azure_enabled || false;
+        document.getElementById('cfg-azure-tenant').value = cfg.azure_tenant_id || '';
+        document.getElementById('cfg-azure-client-id').value = cfg.azure_client_id || '';
+        document.getElementById('azure-secret-status').textContent = cfg.azure_client_secret_set ? t('settings.secretSet') : t('settings.noSecret');
     } catch (err) {
-        showSettingsAlert('danger', 'Failed to load settings: ' + err.message);
+        showSettingsAlert('danger', t('errors.failedToLoadSettings', { error: err.message }));
+    }
+}
+
+function updateLogoPreview(logoPath) {
+    const preview = document.getElementById('branding-logo-preview');
+    if (logoPath) {
+        preview.innerHTML = `<img src="${logoPath}" alt="Logo" style="max-height:64px;max-width:200px;"><div class="text-muted small mt-1">${logoPath}</div>`;
+    } else {
+        preview.innerHTML = `<i class="bi bi-hdd-network fs-1 text-primary"></i><div class="text-muted small mt-1">${t('settings.defaultIcon')}</div>`;
     }
 }
 
@@ -507,10 +740,11 @@ document.getElementById('settings-system-form').addEventListener('submit', async
             data_dir: document.getElementById('cfg-data-dir').value,
             docker_network: document.getElementById('cfg-docker-network').value,
             relay_base_port: parseInt(document.getElementById('cfg-relay-base-port').value),
+            dashboard_base_port: parseInt(document.getElementById('cfg-dashboard-base-port').value),
         });
-        showSettingsAlert('success', 'System settings saved.');
+        showSettingsAlert('success', t('messages.systemSettingsSaved'));
     } catch (err) {
-        showSettingsAlert('danger', 'Failed: ' + err.message);
+        showSettingsAlert('danger', t('errors.failed', { error: err.message }));
     }
 });
 
@@ -524,12 +758,12 @@ document.getElementById('settings-npm-form').addEventListener('submit', async (e
     if (password) payload.npm_api_password = password;
     try {
         await api('PUT', '/settings/system', payload);
-        showSettingsAlert('success', 'NPM settings saved.');
+        showSettingsAlert('success', t('messages.npmSettingsSaved'));
         document.getElementById('cfg-npm-api-email').value = '';
         document.getElementById('cfg-npm-api-password').value = '';
         loadSettings();
     } catch (err) {
-        showSettingsAlert('danger', 'Failed: ' + err.message);
+        showSettingsAlert('danger', t('errors.failed', { error: err.message }));
     }
 });
 
@@ -543,9 +777,9 @@ document.getElementById('settings-images-form').addEventListener('submit', async
             netbird_relay_image: document.getElementById('cfg-relay-image').value,
             netbird_dashboard_image: document.getElementById('cfg-dashboard-image').value,
         });
-        showSettingsAlert('success', 'Image settings saved.');
+        showSettingsAlert('success', t('messages.imageSettingsSaved'));
     } catch (err) {
-        showSettingsAlert('danger', 'Failed: ' + err.message);
+        showSettingsAlert('danger', t('errors.failed', { error: err.message }));
     }
 });
 
@@ -579,7 +813,7 @@ document.getElementById('change-password-form').addEventListener('submit', async
 
     if (newPw !== confirmPw) {
         resultEl.className = 'mt-3 alert alert-danger';
-        resultEl.textContent = 'Passwords do not match.';
+        resultEl.textContent = t('errors.passwordsDoNotMatch');
         resultEl.classList.remove('d-none');
         return;
     }
@@ -590,7 +824,7 @@ document.getElementById('change-password-form').addEventListener('submit', async
             new_password: newPw,
         });
         resultEl.className = 'mt-3 alert alert-success';
-        resultEl.textContent = 'Password changed successfully.';
+        resultEl.textContent = t('messages.passwordChanged');
         resultEl.classList.remove('d-none');
         document.getElementById('change-password-form').reset();
     } catch (err) {
@@ -608,9 +842,193 @@ function showSettingsAlert(type, msg) {
     setTimeout(() => el.classList.add('d-none'), 5000);
 }
 
+// Branding form
+document.getElementById('settings-branding-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+        await api('PUT', '/settings/system', {
+            branding_name: document.getElementById('cfg-branding-name').value || 'NetBird MSP Appliance',
+            branding_subtitle: document.getElementById('cfg-branding-subtitle').value || 'Multi-Tenant Management Platform',
+            default_language: document.getElementById('cfg-default-language').value || 'en',
+        });
+        showSettingsAlert('success', t('messages.brandingNameSaved'));
+        await loadBranding();
+    } catch (err) {
+        showSettingsAlert('danger', t('errors.failed', { error: err.message }));
+    }
+});
+
+async function uploadLogo() {
+    const fileInput = document.getElementById('branding-logo-file');
+    if (!fileInput.files.length) {
+        showSettingsAlert('danger', t('errors.selectFileFirst'));
+        return;
+    }
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+
+    try {
+        const resp = await fetch('/api/settings/branding/logo', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${authToken}` },
+            body: formData,
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+            throw new Error(data.detail || t('errors.uploadFailed'));
+        }
+        updateLogoPreview(data.branding_logo_path);
+        showSettingsAlert('success', t('messages.logoUploaded'));
+        fileInput.value = '';
+        await loadBranding();
+    } catch (err) {
+        showSettingsAlert('danger', t('errors.logoUploadFailed', { error: err.message }));
+    }
+}
+
+async function deleteLogo() {
+    try {
+        await api('DELETE', '/settings/branding/logo');
+        updateLogoPreview(null);
+        showSettingsAlert('success', t('messages.logoRemoved'));
+        await loadBranding();
+    } catch (err) {
+        showSettingsAlert('danger', t('errors.failedToRemoveLogo', { error: err.message }));
+    }
+}
+
+// ---------------------------------------------------------------------------
+// User Management
+// ---------------------------------------------------------------------------
+async function loadUsers() {
+    try {
+        const users = await api('GET', '/users');
+        const tbody = document.getElementById('users-table-body');
+        if (!users || users.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">${t('settings.noUsersFound') || t('common.loading')}</td></tr>`;
+            return;
+        }
+        tbody.innerHTML = users.map(u => {
+            const langDisplay = u.default_language ? u.default_language.toUpperCase() : `<span class="text-muted">${t('settings.systemDefault')}</span>`;
+            return `<tr>
+            <td>${u.id}</td>
+            <td><strong>${esc(u.username)}</strong></td>
+            <td>${esc(u.email || '-')}</td>
+            <td><span class="badge bg-info">${esc(u.role || 'admin')}</span></td>
+            <td><span class="badge bg-${u.auth_provider === 'azure' ? 'primary' : 'secondary'}">${esc(u.auth_provider || 'local')}</span></td>
+            <td>${langDisplay}</td>
+            <td>${u.is_active ? `<span class="badge bg-success">${t('common.active')}</span>` : `<span class="badge bg-danger">${t('common.disabled')}</span>`}</td>
+            <td>
+                <div class="btn-group btn-group-sm">
+                    ${u.is_active
+                        ? `<button class="btn btn-outline-warning" title="${t('common.disable')}" onclick="toggleUserActive(${u.id}, false)"><i class="bi bi-pause-circle"></i></button>`
+                        : `<button class="btn btn-outline-success" title="${t('common.enable')}" onclick="toggleUserActive(${u.id}, true)"><i class="bi bi-play-circle"></i></button>`
+                    }
+                    ${u.auth_provider === 'local' ? `<button class="btn btn-outline-info" title="${t('common.resetPassword')}" onclick="resetUserPassword(${u.id}, '${esc(u.username)}')"><i class="bi bi-key"></i></button>` : ''}
+                    <button class="btn btn-outline-danger" title="${t('common.delete')}" onclick="deleteUser(${u.id}, '${esc(u.username)}')"><i class="bi bi-trash"></i></button>
+                </div>
+            </td>
+        </tr>`;
+        }).join('');
+    } catch (err) {
+        document.getElementById('users-table-body').innerHTML = `<tr><td colspan="8" class="text-danger">${err.message}</td></tr>`;
+    }
+}
+
+function showNewUserModal() {
+    document.getElementById('user-form').reset();
+    document.getElementById('user-modal-error').classList.add('d-none');
+    new bootstrap.Modal(document.getElementById('user-modal')).show();
+}
+
+async function saveNewUser() {
+    const errorEl = document.getElementById('user-modal-error');
+    errorEl.classList.add('d-none');
+
+    const langValue = document.getElementById('new-user-language').value;
+    const payload = {
+        username: document.getElementById('new-user-username').value,
+        password: document.getElementById('new-user-password').value,
+        email: document.getElementById('new-user-email').value || null,
+        default_language: langValue || null,
+    };
+
+    try {
+        await api('POST', '/users', payload);
+        bootstrap.Modal.getInstance(document.getElementById('user-modal')).hide();
+        showSettingsAlert('success', t('messages.userCreated', { username: payload.username }));
+        loadUsers();
+    } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.classList.remove('d-none');
+    }
+}
+
+async function deleteUser(id, username) {
+    if (!confirm(t('messages.confirmDeleteUser', { username }))) return;
+    try {
+        await api('DELETE', `/users/${id}`);
+        showSettingsAlert('success', t('messages.userDeleted', { username }));
+        loadUsers();
+    } catch (err) {
+        showSettingsAlert('danger', t('errors.deleteFailed', { error: err.message }));
+    }
+}
+
+async function toggleUserActive(id, active) {
+    try {
+        await api('PUT', `/users/${id}`, { is_active: active });
+        loadUsers();
+    } catch (err) {
+        showSettingsAlert('danger', t('errors.updateFailed', { error: err.message }));
+    }
+}
+
+async function resetUserPassword(id, username) {
+    if (!confirm(t('messages.confirmResetPassword', { username }))) return;
+    try {
+        const data = await api('POST', `/users/${id}/reset-password`);
+        alert(t('messages.newPasswordAlert', { username, password: data.new_password }));
+        showSettingsAlert('success', t('messages.passwordResetFor', { username }));
+    } catch (err) {
+        showSettingsAlert('danger', t('errors.passwordResetFailed', { error: err.message }));
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Azure AD Settings
+// ---------------------------------------------------------------------------
+document.getElementById('settings-azure-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const payload = {
+        azure_enabled: document.getElementById('cfg-azure-enabled').checked,
+        azure_tenant_id: document.getElementById('cfg-azure-tenant').value || null,
+        azure_client_id: document.getElementById('cfg-azure-client-id').value || null,
+    };
+    const secret = document.getElementById('cfg-azure-client-secret').value;
+    if (secret) payload.azure_client_secret = secret;
+
+    try {
+        await api('PUT', '/settings/system', payload);
+        showSettingsAlert('success', t('messages.azureSettingsSaved'));
+        document.getElementById('cfg-azure-client-secret').value = '';
+        loadSettings();
+        await loadAzureLoginConfig();
+    } catch (err) {
+        showSettingsAlert('danger', t('errors.failed', { error: err.message }));
+    }
+});
+
 function togglePasswordVisibility(inputId) {
     const input = document.getElementById(inputId);
-    input.type = input.type === 'password' ? 'text' : 'password';
+    if (!input) return;
+    const isHidden = input.type === 'password';
+    input.type = isHidden ? 'text' : 'password';
+    const btn = input.parentElement.querySelector('[data-toggle-pw]');
+    if (btn) {
+        const icon = btn.querySelector('i');
+        if (icon) icon.className = isHidden ? 'bi bi-eye-slash' : 'bi bi-eye';
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -626,26 +1044,26 @@ async function loadResources() {
         document.getElementById('monitoring-resources').innerHTML = `
             <div class="row g-3">
                 <div class="col-md-3">
-                    <div class="text-muted small">Hostname</div>
+                    <div class="text-muted small">${t('monitoring.hostname')}</div>
                     <div class="fw-bold">${esc(data.hostname)}</div>
                     <div class="text-muted small">${esc(data.os)}</div>
                 </div>
                 <div class="col-md-3">
-                    <div class="text-muted small">CPU (${data.cpu.count} cores)</div>
+                    <div class="text-muted small">${t('monitoring.cpu', { count: data.cpu.count })}</div>
                     <div class="progress mt-1" style="height: 20px;">
                         <div class="progress-bar ${data.cpu.percent > 80 ? 'bg-danger' : data.cpu.percent > 50 ? 'bg-warning' : 'bg-success'}"
                              style="width: ${data.cpu.percent}%">${data.cpu.percent}%</div>
                     </div>
                 </div>
                 <div class="col-md-3">
-                    <div class="text-muted small">Memory (${data.memory.used_gb}/${data.memory.total_gb} GB)</div>
+                    <div class="text-muted small">${t('monitoring.memory', { used: data.memory.used_gb, total: data.memory.total_gb })}</div>
                     <div class="progress mt-1" style="height: 20px;">
                         <div class="progress-bar ${data.memory.percent > 80 ? 'bg-danger' : data.memory.percent > 50 ? 'bg-warning' : 'bg-success'}"
                              style="width: ${data.memory.percent}%">${data.memory.percent}%</div>
                     </div>
                 </div>
                 <div class="col-md-3">
-                    <div class="text-muted small">Disk (${data.disk.used_gb}/${data.disk.total_gb} GB)</div>
+                    <div class="text-muted small">${t('monitoring.disk', { used: data.disk.used_gb, total: data.disk.total_gb })}</div>
                     <div class="progress mt-1" style="height: 20px;">
                         <div class="progress-bar ${data.disk.percent > 80 ? 'bg-danger' : data.disk.percent > 50 ? 'bg-warning' : 'bg-success'}"
                              style="width: ${data.disk.percent}%">${data.disk.percent}%</div>
@@ -663,23 +1081,28 @@ async function loadAllCustomerStatuses() {
         const data = await api('GET', '/monitoring/customers');
         const tbody = document.getElementById('monitoring-customers-body');
         if (!data || data.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">No customers.</td></tr>';
+            tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">${t('monitoring.noCustomers')}</td></tr>`;
             return;
         }
         tbody.innerHTML = data.map(c => {
             const containerInfo = c.containers.map(ct => `${ct.name}: ${ct.status}`).join(', ') || '-';
+            const dashPort = c.dashboard_port;
+            const dashLink = dashPort
+                ? `<a href="${esc(c.setup_url || 'http://localhost:' + dashPort)}" target="_blank">:${dashPort}</a>`
+                : '-';
             return `<tr>
                 <td>${c.id}</td>
                 <td>${esc(c.name)}</td>
                 <td><code>${esc(c.subdomain)}</code></td>
                 <td>${statusBadge(c.status)}</td>
                 <td>${c.deployment_status ? statusBadge(c.deployment_status) : '-'}</td>
+                <td>${dashLink}</td>
                 <td>${c.relay_udp_port || '-'}</td>
                 <td class="small">${esc(containerInfo)}</td>
             </tr>`;
         }).join('');
     } catch (err) {
-        document.getElementById('monitoring-customers-body').innerHTML = `<tr><td colspan="7" class="text-danger">${err.message}</td></tr>`;
+        document.getElementById('monitoring-customers-body').innerHTML = `<tr><td colspan="8" class="text-danger">${err.message}</td></tr>`;
     }
 }
 
@@ -699,8 +1122,9 @@ function statusBadge(status) {
 
 function formatDate(isoStr) {
     if (!isoStr) return '-';
+    const locale = getCurrentLanguage() === 'de' ? 'de-DE' : 'en-US';
     const d = new Date(isoStr);
-    return d.toLocaleDateString('de-DE') + ' ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleDateString(locale) + ' ' + d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
 }
 
 function esc(str) {
@@ -730,4 +1154,14 @@ function showToast(message) {
 // ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
-document.addEventListener('DOMContentLoaded', initApp);
+document.addEventListener('DOMContentLoaded', async () => {
+    // Check for Azure AD callback first
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('code')) {
+        await initI18n();
+        await loadBranding();
+        const handled = await handleAzureCallback();
+        if (handled) return;
+    }
+    initApp();
+});

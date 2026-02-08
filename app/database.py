@@ -39,7 +39,7 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def init_db() -> None:
-    """Create all database tables."""
+    """Create all database tables and run lightweight migrations."""
     from app.models import (  # noqa: F401
         Customer,
         Deployment,
@@ -49,6 +49,43 @@ def init_db() -> None:
     )
 
     Base.metadata.create_all(bind=engine)
+    _run_migrations()
+
+
+def _run_migrations() -> None:
+    """Add columns that may be missing from older database versions."""
+    import sqlite3
+
+    conn = sqlite3.connect(DATABASE_PATH)
+    cursor = conn.cursor()
+
+    def _has_column(table: str, column: str) -> bool:
+        cursor.execute(f"PRAGMA table_info({table})")
+        return any(row[1] == column for row in cursor.fetchall())
+
+    migrations = [
+        ("deployments", "dashboard_port", "INTEGER"),
+        ("system_config", "dashboard_base_port", "INTEGER DEFAULT 9000"),
+        ("deployments", "netbird_admin_email", "TEXT"),
+        ("deployments", "netbird_admin_password", "TEXT"),
+        ("system_config", "branding_name", "TEXT DEFAULT 'NetBird MSP Appliance'"),
+        ("system_config", "branding_logo_path", "TEXT"),
+        ("users", "role", "TEXT DEFAULT 'admin'"),
+        ("users", "auth_provider", "TEXT DEFAULT 'local'"),
+        ("system_config", "azure_enabled", "BOOLEAN DEFAULT 0"),
+        ("system_config", "azure_tenant_id", "TEXT"),
+        ("system_config", "azure_client_id", "TEXT"),
+        ("system_config", "azure_client_secret_encrypted", "TEXT"),
+        ("system_config", "branding_subtitle", "TEXT DEFAULT 'Multi-Tenant Management Platform'"),
+        ("system_config", "default_language", "TEXT DEFAULT 'en'"),
+        ("users", "default_language", "TEXT"),
+    ]
+    for table, column, col_type in migrations:
+        if not _has_column(table, column):
+            cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
+
+    conn.commit()
+    conn.close()
 
 
 if __name__ == "__main__":

@@ -26,12 +26,20 @@ def _get_client() -> docker.DockerClient:
     return docker.from_env()
 
 
-def compose_up(instance_dir: str, project_name: str) -> bool:
+def compose_up(
+    instance_dir: str,
+    project_name: str,
+    services: Optional[list[str]] = None,
+    timeout: int = 300,
+) -> bool:
     """Run ``docker compose up -d`` for a customer instance.
 
     Args:
         instance_dir: Absolute path to the customer's instance directory.
         project_name: Docker Compose project name (e.g. ``netbird-kunde5``).
+        services: Optional list of service names to start.
+                  If None, all services are started.
+        timeout: Subprocess timeout in seconds (default 300).
 
     Returns:
         True on success.
@@ -47,16 +55,22 @@ def compose_up(instance_dir: str, project_name: str) -> bool:
         "docker", "compose",
         "-f", compose_file,
         "-p", project_name,
-        "up", "-d", "--remove-orphans",
+        "up", "-d",
     ]
+    if not services:
+        cmd.append("--remove-orphans")
+    if services:
+        cmd.extend(services)
+
     logger.info("Running: %s", " ".join(cmd))
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
 
     if result.returncode != 0:
         logger.error("docker compose up failed: %s", result.stderr)
         raise RuntimeError(f"docker compose up failed: {result.stderr}")
 
-    logger.info("docker compose up succeeded for %s", project_name)
+    svc_info = f" (services: {', '.join(services)})" if services else ""
+    logger.info("docker compose up succeeded for %s%s", project_name, svc_info)
     return True
 
 
@@ -169,9 +183,13 @@ def get_container_status(container_prefix: str) -> list[dict[str, Any]]:
     try:
         containers = client.containers.list(all=True, filters={"name": container_prefix})
         for c in containers:
-            health = "N/A"
-            if c.attrs.get("State", {}).get("Health"):
-                health = c.attrs["State"]["Health"].get("Status", "N/A")
+            # Derive health from container status.
+            # Docker HEALTHCHECK is unreliable (e.g. netbirdio/management
+            # defines a wget-based check but wget is not installed).
+            if c.status == "running":
+                health = "healthy"
+            else:
+                health = "unhealthy"
             results.append({
                 "name": c.name,
                 "status": c.status,

@@ -30,6 +30,7 @@ class AppConfig:
     data_dir: str
     docker_network: str
     relay_base_port: int
+    dashboard_base_port: int
 
 
 # Environment-level settings (not stored in DB)
@@ -77,4 +78,5 @@ def get_system_config(db: Session) -> Optional[AppConfig]:
         data_dir=row.data_dir,
         docker_network=row.docker_network,
         relay_base_port=row.relay_base_port,
+        dashboard_base_port=getattr(row, "dashboard_base_port", 9000) or 9000,
     )

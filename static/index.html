@@ -8,32 +8,38 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="/static/css/styles.css" rel="stylesheet">
 </head>
-<body>
+<body class="i18n-loading">
     <!-- Login Page -->
     <div id="login-page" class="d-none">
         <div class="login-container">
             <div class="card login-card shadow">
                 <div class="card-body p-5">
                     <div class="text-center mb-4">
-                        <i class="bi bi-hdd-network fs-1 text-primary"></i>
-                        <h3 class="mt-2">NetBird MSP Appliance</h3>
-                        <p class="text-muted">Multi-Tenant Management Platform</p>
+                        <div id="login-logo"><i class="bi bi-hdd-network fs-1 text-primary"></i></div>
+                        <h3 class="mt-2" id="login-title">NetBird MSP Appliance</h3>
+                        <p class="text-muted" id="login-subtitle" data-i18n="login.subtitle">Multi-Tenant Management Platform</p>
                     </div>
                     <div id="login-error" class="alert alert-danger d-none"></div>
                     <form id="login-form">
                         <div class="mb-3">
-                            <label class="form-label">Username</label>
+                            <label class="form-label" data-i18n="login.username">Username</label>
                             <input type="text" class="form-control" id="login-username" required autofocus>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Password</label>
+                            <label class="form-label" data-i18n="login.password">Password</label>
                             <input type="password" class="form-control" id="login-password" required>
                         </div>
                         <button type="submit" class="btn btn-primary w-100" id="login-btn">
                             <span class="spinner-border spinner-border-sm d-none me-1" id="login-spinner"></span>
-                            Sign In
+                            <span data-i18n="login.signIn">Sign In</span>
                         </button>
                     </form>
+                    <div id="azure-login-divider" class="d-none">
+                        <hr class="my-3">
+                        <button type="button" class="btn btn-outline-dark w-100" id="azure-login-btn" onclick="loginWithAzure()">
+                            <i class="bi bi-microsoft me-2"></i><span data-i18n="login.signInWithMicrosoft">Sign in with Microsoft</span>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -44,20 +50,31 @@
         <!-- Navbar -->
         <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
             <div class="container-fluid">
-                <a class="navbar-brand" href="#"><i class="bi bi-hdd-network me-2"></i>NetBird MSP</a>
+                <a class="navbar-brand d-flex align-items-center" href="#" onclick="showPage('dashboard'); return false;">
+                    <span id="nav-logo"><i class="bi bi-hdd-network me-2"></i></span>
+                    <span id="nav-brand-name">NetBird MSP</span>
+                </a>
                 <div class="d-flex align-items-center">
+                    <!-- Language Switcher -->
+                    <div class="dropdown me-2">
+                        <button class="btn btn-outline-light btn-sm dropdown-toggle" id="language-switcher-btn" data-bs-toggle="dropdown" aria-expanded="false">EN</button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="#" data-lang="en" onclick="switchLanguage('en'); return false;">English</a></li>
+                            <li><a class="dropdown-item" href="#" data-lang="de" onclick="switchLanguage('de'); return false;">Deutsch</a></li>
+                        </ul>
+                    </div>
                     <button class="btn btn-success btn-sm me-3" onclick="showNewCustomerModal()">
-                        <i class="bi bi-plus-lg me-1"></i>New Customer
+                        <i class="bi bi-plus-lg me-1"></i><span data-i18n="nav.newCustomer">New Customer</span>
                     </button>
                     <div class="dropdown">
                         <button class="btn btn-outline-light btn-sm dropdown-toggle" data-bs-toggle="dropdown">
                             <i class="bi bi-person-circle me-1"></i><span id="nav-username">Admin</span>
                         </button>
                         <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item" href="#" onclick="showPage('settings')"><i class="bi bi-gear me-2"></i>Settings</a></li>
-                            <li><a class="dropdown-item" href="#" onclick="showPage('monitoring')"><i class="bi bi-activity me-2"></i>Monitoring</a></li>
+                            <li><a class="dropdown-item" href="#" onclick="showPage('settings')"><i class="bi bi-gear me-2"></i><span data-i18n="nav.settings">Settings</span></a></li>
+                            <li><a class="dropdown-item" href="#" onclick="showPage('monitoring')"><i class="bi bi-activity me-2"></i><span data-i18n="nav.monitoring">Monitoring</span></a></li>
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item text-danger" href="#" onclick="logout()"><i class="bi bi-box-arrow-right me-2"></i>Logout</a></li>
+                            <li><a class="dropdown-item text-danger" href="#" onclick="logout()"><i class="bi bi-box-arrow-right me-2"></i><span data-i18n="nav.logout">Logout</span></a></li>
                         </ul>
                     </div>
                 </div>
@@ -74,7 +91,7 @@
                             <div class="card-body">
                                 <div class="d-flex justify-content-between">
                                     <div>
-                                        <div class="text-muted small">Total Customers</div>
+                                        <div class="text-muted small" data-i18n="dashboard.totalCustomers">Total Customers</div>
                                         <div class="fs-3 fw-bold" id="stat-total">0</div>
                                     </div>
                                     <div class="stat-icon bg-primary bg-opacity-10 text-primary"><i class="bi bi-people"></i></div>
@@ -87,7 +104,7 @@
                             <div class="card-body">
                                 <div class="d-flex justify-content-between">
                                     <div>
-                                        <div class="text-muted small">Active</div>
+                                        <div class="text-muted small" data-i18n="dashboard.active">Active</div>
                                         <div class="fs-3 fw-bold text-success" id="stat-active">0</div>
                                     </div>
                                     <div class="stat-icon bg-success bg-opacity-10 text-success"><i class="bi bi-check-circle"></i></div>
@@ -100,7 +117,7 @@
                             <div class="card-body">
                                 <div class="d-flex justify-content-between">
                                     <div>
-                                        <div class="text-muted small">Inactive</div>
+                                        <div class="text-muted small" data-i18n="dashboard.inactive">Inactive</div>
                                         <div class="fs-3 fw-bold text-warning" id="stat-inactive">0</div>
                                     </div>
                                     <div class="stat-icon bg-warning bg-opacity-10 text-warning"><i class="bi bi-pause-circle"></i></div>
@@ -113,7 +130,7 @@
                             <div class="card-body">
                                 <div class="d-flex justify-content-between">
                                     <div>
-                                        <div class="text-muted small">Errors</div>
+                                        <div class="text-muted small" data-i18n="dashboard.errors">Errors</div>
                                         <div class="fs-3 fw-bold text-danger" id="stat-error">0</div>
                                     </div>
                                     <div class="stat-icon bg-danger bg-opacity-10 text-danger"><i class="bi bi-exclamation-triangle"></i></div>
@@ -128,19 +145,19 @@
                     <div class="card-body">
                         <div class="row g-2">
                             <div class="col-md-6">
-                                <input type="text" class="form-control" id="search-input" placeholder="Search by name, subdomain, email...">
+                                <input type="text" class="form-control" id="search-input" data-i18n-placeholder="dashboard.searchPlaceholder" placeholder="Search by name, subdomain, email...">
                             </div>
                             <div class="col-md-3">
                                 <select class="form-select" id="status-filter">
-                                    <option value="">All Statuses</option>
-                                    <option value="active">Active</option>
-                                    <option value="inactive">Inactive</option>
-                                    <option value="deploying">Deploying</option>
-                                    <option value="error">Error</option>
+                                    <option value="" data-i18n="dashboard.allStatuses">All Statuses</option>
+                                    <option value="active" data-i18n="dashboard.statusActive">Active</option>
+                                    <option value="inactive" data-i18n="dashboard.statusInactive">Inactive</option>
+                                    <option value="deploying" data-i18n="dashboard.statusDeploying">Deploying</option>
+                                    <option value="error" data-i18n="dashboard.statusError">Error</option>
                                 </select>
                             </div>
                             <div class="col-md-3 text-end">
-                                <button class="btn btn-outline-secondary" onclick="loadCustomers()"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
+                                <button class="btn btn-outline-secondary" onclick="loadCustomers()"><i class="bi bi-arrow-clockwise me-1"></i><span data-i18n="dashboard.refresh">Refresh</span></button>
                             </div>
                         </div>
                     </div>
@@ -152,24 +169,24 @@
                         <table class="table table-hover mb-0">
                             <thead class="table-light">
                                 <tr>
-                                    <th>ID</th>
-                                    <th>Name</th>
-                                    <th>Company</th>
-                                    <th>Subdomain</th>
-                                    <th>Status</th>
-                                    <th>Devices</th>
-                                    <th>Created</th>
-                                    <th>Actions</th>
+                                    <th data-i18n="dashboard.thId">ID</th>
+                                    <th data-i18n="dashboard.thName">Name</th>
+                                    <th data-i18n="dashboard.thSubdomain">Subdomain</th>
+                                    <th data-i18n="dashboard.thStatus">Status</th>
+                                    <th data-i18n="dashboard.thDashboard">Dashboard</th>
+                                    <th data-i18n="dashboard.thDevices">Devices</th>
+                                    <th data-i18n="dashboard.thCreated">Created</th>
+                                    <th data-i18n="dashboard.thActions">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="customers-table-body">
-                                <tr><td colspan="8" class="text-center text-muted py-4">Loading...</td></tr>
+                                <tr><td colspan="8" class="text-center text-muted py-4" data-i18n="common.loading">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
                     <!-- Pagination -->
                     <div class="card-footer d-flex justify-content-between align-items-center">
-                        <div class="text-muted small" id="pagination-info">Showing 0 of 0</div>
+                        <div class="text-muted small" id="pagination-info" data-i18n="dashboard.showingEmpty">Showing 0 of 0</div>
                         <nav>
                             <ul class="pagination pagination-sm mb-0" id="pagination-controls"></ul>
                         </nav>
@@ -183,45 +200,45 @@
             <div class="container-fluid p-4">
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <div>
-                        <button class="btn btn-outline-secondary btn-sm me-2" onclick="showPage('dashboard')"><i class="bi bi-arrow-left me-1"></i>Back</button>
+                        <button class="btn btn-outline-secondary btn-sm me-2" onclick="showPage('dashboard')"><i class="bi bi-arrow-left me-1"></i><span data-i18n="common.back">Back</span></button>
                         <span class="fs-4 fw-bold" id="detail-customer-name">Customer</span>
                         <span class="badge ms-2" id="detail-customer-status">active</span>
                     </div>
                     <div>
-                        <button class="btn btn-outline-primary btn-sm me-1" onclick="editCurrentCustomer()"><i class="bi bi-pencil me-1"></i>Edit</button>
-                        <button class="btn btn-outline-danger btn-sm" onclick="deleteCurrentCustomer()"><i class="bi bi-trash me-1"></i>Delete</button>
+                        <button class="btn btn-outline-primary btn-sm me-1" onclick="editCurrentCustomer()"><i class="bi bi-pencil me-1"></i><span data-i18n="customer.edit">Edit</span></button>
+                        <button class="btn btn-outline-danger btn-sm" onclick="deleteCurrentCustomer()"><i class="bi bi-trash me-1"></i><span data-i18n="customer.delete">Delete</span></button>
                     </div>
                 </div>
 
                 <ul class="nav nav-tabs mb-3" id="detail-tabs">
-                    <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-info">Info</a></li>
-                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-deployment">Deployment</a></li>
-                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-logs">Logs</a></li>
-                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-health">Health</a></li>
+                    <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-info" data-i18n="customer.tabInfo">Info</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-deployment" data-i18n="customer.tabDeployment">Deployment</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-logs" data-i18n="customer.tabLogs">Logs</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-health" data-i18n="customer.tabHealth">Health</a></li>
                 </ul>
 
                 <div class="tab-content">
                     <!-- Tab: Info -->
                     <div class="tab-pane fade show active" id="tab-info">
                         <div class="card shadow-sm">
-                            <div class="card-body" id="detail-info-content">Loading...</div>
+                            <div class="card-body" id="detail-info-content" data-i18n="common.loading">Loading...</div>
                         </div>
                     </div>
                     <!-- Tab: Deployment -->
                     <div class="tab-pane fade" id="tab-deployment">
                         <div class="card shadow-sm">
-                            <div class="card-body" id="detail-deployment-content">Loading...</div>
+                            <div class="card-body" id="detail-deployment-content" data-i18n="common.loading">Loading...</div>
                         </div>
                     </div>
                     <!-- Tab: Logs -->
                     <div class="tab-pane fade" id="tab-logs">
                         <div class="card shadow-sm">
                             <div class="card-header d-flex justify-content-between">
-                                <span>Container Logs</span>
-                                <button class="btn btn-sm btn-outline-secondary" onclick="loadCustomerLogs()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+                                <span data-i18n="customer.containerLogs">Container Logs</span>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="loadCustomerLogs()"><i class="bi bi-arrow-clockwise"></i> <span data-i18n="dashboard.refresh">Refresh</span></button>
                             </div>
                             <div class="card-body">
-                                <div id="detail-logs-content" class="log-viewer">No logs loaded.</div>
+                                <div id="detail-logs-content" class="log-viewer" data-i18n="customer.noLogsLoaded">No logs loaded.</div>
                             </div>
                         </div>
                     </div>
@@ -229,10 +246,10 @@
                     <div class="tab-pane fade" id="tab-health">
                         <div class="card shadow-sm">
                             <div class="card-header d-flex justify-content-between">
-                                <span>Health Check</span>
-                                <button class="btn btn-sm btn-outline-secondary" onclick="loadCustomerHealth()"><i class="bi bi-arrow-clockwise"></i> Check</button>
+                                <span data-i18n="customer.healthCheck">Health Check</span>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="loadCustomerHealth()"><i class="bi bi-arrow-clockwise"></i> <span data-i18n="customer.check">Check</span></button>
                             </div>
-                            <div class="card-body" id="detail-health-content">Click "Check" to run a health check.</div>
+                            <div class="card-body" id="detail-health-content" data-i18n="customer.clickCheck">Click "Check" to run a health check.</div>
                         </div>
                     </div>
                 </div>
@@ -242,14 +259,22 @@
         <!-- Page: Settings -->
         <div id="page-settings" class="page-content d-none">
             <div class="container-fluid p-4">
-                <h4 class="mb-4"><i class="bi bi-gear me-2"></i>System Settings</h4>
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h4 class="mb-0">
+                        <button class="btn btn-outline-secondary btn-sm me-2" onclick="showPage('dashboard')"><i class="bi bi-arrow-left me-1"></i><span data-i18n="common.back">Back</span></button>
+                        <i class="bi bi-gear me-2"></i><span data-i18n="settings.title">System Settings</span>
+                    </h4>
+                </div>
                 <div id="settings-alert" class="d-none"></div>
 
                 <ul class="nav nav-tabs mb-3">
-                    <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#settings-system">System Configuration</a></li>
-                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#settings-npm">NPM Integration</a></li>
-                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#settings-images">Docker Images</a></li>
-                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#settings-security">Security</a></li>
+                    <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#settings-system" data-i18n="settings.tabSystem">System Configuration</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#settings-npm" data-i18n="settings.tabNpm">NPM Integration</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#settings-images" data-i18n="settings.tabImages">Docker Images</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#settings-branding" data-i18n="settings.tabBranding">Branding</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#settings-users" onclick="loadUsers()" data-i18n="settings.tabUsers">Users</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#settings-azure" data-i18n="settings.tabAzure">Azure AD</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#settings-security" data-i18n="settings.tabSecurity">Security</a></li>
                 </ul>
 
                 <div class="tab-content">
@@ -260,30 +285,35 @@
                                 <form id="settings-system-form">
                                     <div class="row g-3">
                                         <div class="col-md-6">
-                                            <label class="form-label">Base Domain</label>
-                                            <input type="text" class="form-control" id="cfg-base-domain" placeholder="yourdomain.com">
-                                            <div class="form-text">Customers get subdomains: kunde.yourdomain.com</div>
+                                            <label class="form-label" data-i18n="settings.baseDomain">Base Domain</label>
+                                            <input type="text" class="form-control" id="cfg-base-domain" data-i18n-placeholder="settings.baseDomainPlaceholder" placeholder="yourdomain.com">
+                                            <div class="form-text" data-i18n="settings.baseDomainHint">Customers get subdomains: customer.yourdomain.com</div>
                                         </div>
                                         <div class="col-md-6">
-                                            <label class="form-label">Admin Email</label>
-                                            <input type="email" class="form-control" id="cfg-admin-email" placeholder="admin@yourdomain.com">
+                                            <label class="form-label" data-i18n="settings.adminEmail">Admin Email</label>
+                                            <input type="email" class="form-control" id="cfg-admin-email" data-i18n-placeholder="settings.adminEmailPlaceholder" placeholder="admin@yourdomain.com">
                                         </div>
                                         <div class="col-md-6">
-                                            <label class="form-label">Data Directory</label>
-                                            <input type="text" class="form-control" id="cfg-data-dir" placeholder="/opt/netbird-instances">
+                                            <label class="form-label" data-i18n="settings.dataDir">Data Directory</label>
+                                            <input type="text" class="form-control" id="cfg-data-dir" data-i18n-placeholder="settings.dataDirPlaceholder" placeholder="/opt/netbird-instances">
                                         </div>
                                         <div class="col-md-6">
-                                            <label class="form-label">Docker Network</label>
-                                            <input type="text" class="form-control" id="cfg-docker-network" placeholder="npm-network">
+                                            <label class="form-label" data-i18n="settings.dockerNetwork">Docker Network</label>
+                                            <input type="text" class="form-control" id="cfg-docker-network" data-i18n-placeholder="settings.dockerNetworkPlaceholder" placeholder="npm-network">
                                         </div>
                                         <div class="col-md-6">
-                                            <label class="form-label">Relay Base Port</label>
+                                            <label class="form-label" data-i18n="settings.relayBasePort">Relay Base Port</label>
                                             <input type="number" class="form-control" id="cfg-relay-base-port" min="1024" max="65535">
-                                            <div class="form-text">First UDP port for relay. Range: base to base+99</div>
+                                            <div class="form-text" data-i18n="settings.relayBasePortHint">First UDP port for relay. Range: base to base+99</div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label" data-i18n="settings.dashboardBasePort">Dashboard Base Port</label>
+                                            <input type="number" class="form-control" id="cfg-dashboard-base-port" min="1024" max="65535">
+                                            <div class="form-text" data-i18n="settings.dashboardBasePortHint">Base port for customer dashboards. Customer N gets base+N</div>
                                         </div>
                                     </div>
                                     <div class="mt-4">
-                                        <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i>Save System Settings</button>
+                                        <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i><span data-i18n="settings.saveSystemSettings">Save System Settings</span></button>
                                     </div>
                                 </form>
                             </div>
@@ -295,31 +325,31 @@
                         <div class="card shadow-sm">
                             <div class="card-body">
                                 <form id="settings-npm-form">
-                                    <p class="text-muted mb-3">NPM uses JWT authentication. Enter your NPM login credentials (email + password). The system will automatically log in and obtain tokens for API calls.</p>
+                                    <p class="text-muted mb-3" data-i18n="settings.npmDescription">NPM uses JWT authentication. Enter your NPM login credentials (email + password). The system will automatically log in and obtain tokens for API calls.</p>
                                     <div class="row g-3">
                                         <div class="col-md-8">
-                                            <label class="form-label">NPM API URL</label>
-                                            <input type="text" class="form-control" id="cfg-npm-api-url" placeholder="http://nginx-proxy-manager:81/api">
-                                            <div class="form-text">http:// or https:// - must include /api at the end</div>
+                                            <label class="form-label" data-i18n="settings.npmApiUrl">NPM API URL</label>
+                                            <input type="text" class="form-control" id="cfg-npm-api-url" data-i18n-placeholder="settings.npmApiUrlPlaceholder" placeholder="http://nginx-proxy-manager:81/api">
+                                            <div class="form-text" data-i18n="settings.npmApiUrlHint">http:// or https:// - must include /api at the end</div>
                                         </div>
                                         <div class="col-md-8">
-                                            <label class="form-label">NPM Login Email</label>
-                                            <input type="text" class="form-control" id="cfg-npm-api-email" placeholder="Leave empty to keep current">
+                                            <label class="form-label" data-i18n="settings.npmLoginEmail">NPM Login Email</label>
+                                            <input type="text" class="form-control" id="cfg-npm-api-email" data-i18n-placeholder="settings.npmLoginEmailPlaceholder" placeholder="Leave empty to keep current">
                                             <div class="form-text" id="npm-credentials-status"></div>
                                         </div>
                                         <div class="col-md-8">
-                                            <label class="form-label">NPM Login Password</label>
+                                            <label class="form-label" data-i18n="settings.npmLoginPassword">NPM Login Password</label>
                                             <div class="input-group">
-                                                <input type="password" class="form-control" id="cfg-npm-api-password" placeholder="Leave empty to keep current">
+                                                <input type="password" class="form-control" id="cfg-npm-api-password" data-i18n-placeholder="settings.npmLoginPasswordPlaceholder" placeholder="Leave empty to keep current">
                                                 <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('cfg-npm-api-password')"><i class="bi bi-eye"></i></button>
                                             </div>
                                         </div>
                                     </div>
                                     <div class="mt-4">
-                                        <button type="submit" class="btn btn-primary me-2"><i class="bi bi-save me-1"></i>Save NPM Settings</button>
+                                        <button type="submit" class="btn btn-primary me-2"><i class="bi bi-save me-1"></i><span data-i18n="settings.saveNpmSettings">Save NPM Settings</span></button>
                                         <button type="button" class="btn btn-outline-info" id="test-npm-btn" onclick="testNpmConnection()">
                                             <span class="spinner-border spinner-border-sm d-none me-1" id="npm-test-spinner"></span>
-                                            <i class="bi bi-plug me-1"></i>Test Connection
+                                            <i class="bi bi-plug me-1"></i><span data-i18n="settings.testConnection">Test Connection</span>
                                         </button>
                                     </div>
                                 </form>
@@ -335,24 +365,142 @@
                                 <form id="settings-images-form">
                                     <div class="row g-3">
                                         <div class="col-md-6">
-                                            <label class="form-label">Management Image</label>
-                                            <input type="text" class="form-control" id="cfg-mgmt-image" placeholder="netbirdio/management:latest">
+                                            <label class="form-label" data-i18n="settings.managementImage">Management Image</label>
+                                            <input type="text" class="form-control" id="cfg-mgmt-image" data-i18n-placeholder="settings.managementImagePlaceholder" placeholder="netbirdio/management:latest">
                                         </div>
                                         <div class="col-md-6">
-                                            <label class="form-label">Signal Image</label>
-                                            <input type="text" class="form-control" id="cfg-signal-image" placeholder="netbirdio/signal:latest">
+                                            <label class="form-label" data-i18n="settings.signalImage">Signal Image</label>
+                                            <input type="text" class="form-control" id="cfg-signal-image" data-i18n-placeholder="settings.signalImagePlaceholder" placeholder="netbirdio/signal:latest">
                                         </div>
                                         <div class="col-md-6">
-                                            <label class="form-label">Relay Image</label>
-                                            <input type="text" class="form-control" id="cfg-relay-image" placeholder="netbirdio/relay:latest">
+                                            <label class="form-label" data-i18n="settings.relayImage">Relay Image</label>
+                                            <input type="text" class="form-control" id="cfg-relay-image" data-i18n-placeholder="settings.relayImagePlaceholder" placeholder="netbirdio/relay:latest">
                                         </div>
                                         <div class="col-md-6">
-                                            <label class="form-label">Dashboard Image</label>
-                                            <input type="text" class="form-control" id="cfg-dashboard-image" placeholder="netbirdio/dashboard:latest">
+                                            <label class="form-label" data-i18n="settings.dashboardImage">Dashboard Image</label>
+                                            <input type="text" class="form-control" id="cfg-dashboard-image" data-i18n-placeholder="settings.dashboardImagePlaceholder" placeholder="netbirdio/dashboard:latest">
                                         </div>
                                     </div>
                                     <div class="mt-4">
-                                        <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i>Save Image Settings</button>
+                                        <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i><span data-i18n="settings.saveImageSettings">Save Image Settings</span></button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Branding -->
+                    <div class="tab-pane fade" id="settings-branding">
+                        <div class="card shadow-sm">
+                            <div class="card-body">
+                                <h5 class="mb-3" data-i18n="settings.brandingTitle">Branding Settings</h5>
+                                <form id="settings-branding-form">
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label" data-i18n="settings.companyName">Company / Application Name</label>
+                                            <input type="text" class="form-control" id="cfg-branding-name" data-i18n-placeholder="settings.companyNamePlaceholder" placeholder="NetBird MSP Appliance" maxlength="255">
+                                            <div class="form-text" data-i18n="settings.companyNameHint">Displayed on login page and navbar</div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label" data-i18n="settings.brandingSubtitle">Subtitle</label>
+                                            <input type="text" class="form-control" id="cfg-branding-subtitle" data-i18n-placeholder="settings.brandingSubtitlePlaceholder" placeholder="Multi-Tenant Management Platform" maxlength="255">
+                                            <div class="form-text" data-i18n="settings.brandingSubtitleHint">Shown below the title on the login page</div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label" data-i18n="settings.defaultLanguage">Default Language</label>
+                                            <select class="form-select" id="cfg-default-language">
+                                                <option value="en">English</option>
+                                                <option value="de">Deutsch</option>
+                                            </select>
+                                            <div class="form-text" data-i18n="settings.defaultLanguageHint">Default language for users without a preference</div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label" data-i18n="settings.logoPreview">Logo Preview</label>
+                                            <div class="border rounded p-3 text-center" id="branding-logo-preview" style="min-height:80px;">
+                                                <i class="bi bi-hdd-network fs-1 text-primary"></i>
+                                                <div class="text-muted small mt-1" data-i18n="settings.defaultIcon">Default icon (no logo uploaded)</div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label" data-i18n="settings.uploadLogo">Upload Logo (PNG, JPG, SVG, max 500KB)</label>
+                                            <div class="input-group">
+                                                <input type="file" class="form-control" id="branding-logo-file" accept=".png,.jpg,.jpeg,.svg">
+                                                <button type="button" class="btn btn-outline-primary" onclick="uploadLogo()"><i class="bi bi-upload me-1"></i><span data-i18n="settings.uploadBtn">Upload</span></button>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6 d-flex align-items-end">
+                                            <button type="button" class="btn btn-outline-danger" onclick="deleteLogo()"><i class="bi bi-trash me-1"></i><span data-i18n="settings.removeLogo">Remove Logo</span></button>
+                                        </div>
+                                    </div>
+                                    <div class="mt-4">
+                                        <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i><span data-i18n="settings.saveBranding">Save Branding</span></button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Users -->
+                    <div class="tab-pane fade" id="settings-users">
+                        <div class="card shadow-sm">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <span data-i18n="settings.userManagement">User Management</span>
+                                <button class="btn btn-sm btn-success" onclick="showNewUserModal()"><i class="bi bi-plus-lg me-1"></i><span data-i18n="settings.newUser">New User</span></button>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th data-i18n="settings.thId">ID</th>
+                                            <th data-i18n="settings.thUsername">Username</th>
+                                            <th data-i18n="settings.thEmail">Email</th>
+                                            <th data-i18n="settings.thRole">Role</th>
+                                            <th data-i18n="settings.thAuth">Auth</th>
+                                            <th data-i18n="settings.thLanguage">Language</th>
+                                            <th data-i18n="settings.thStatus">Status</th>
+                                            <th data-i18n="settings.thActions">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="users-table-body">
+                                        <tr><td colspan="8" class="text-center text-muted py-4" data-i18n="common.loading">Loading...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Azure AD -->
+                    <div class="tab-pane fade" id="settings-azure">
+                        <div class="card shadow-sm">
+                            <div class="card-body">
+                                <h5 class="mb-3" data-i18n="settings.azureTitle">Azure AD / Entra ID Integration</h5>
+                                <form id="settings-azure-form">
+                                    <div class="row g-3">
+                                        <div class="col-12">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="cfg-azure-enabled">
+                                                <label class="form-check-label" for="cfg-azure-enabled" data-i18n="settings.enableAzureSso">Enable Azure AD SSO</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label" data-i18n="settings.tenantId">Tenant ID</label>
+                                            <input type="text" class="form-control" id="cfg-azure-tenant" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label" data-i18n="settings.clientId">Client ID (Application ID)</label>
+                                            <input type="text" class="form-control" id="cfg-azure-client-id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label" data-i18n="settings.clientSecret">Client Secret</label>
+                                            <div class="input-group">
+                                                <input type="password" class="form-control" id="cfg-azure-client-secret" data-i18n-placeholder="settings.clientSecretPlaceholder" placeholder="Leave empty to keep current">
+                                                <button class="btn btn-outline-secondary" type="button" data-toggle-pw onclick="togglePasswordVisibility('cfg-azure-client-secret')"><i class="bi bi-eye"></i></button>
+                                            </div>
+                                            <div class="form-text" id="azure-secret-status"></div>
+                                        </div>
+                                    </div>
+                                    <div class="mt-4">
+                                        <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i><span data-i18n="settings.saveAzureSettings">Save Azure AD Settings</span></button>
                                     </div>
                                 </form>
                             </div>
@@ -363,25 +511,25 @@
                     <div class="tab-pane fade" id="settings-security">
                         <div class="card shadow-sm">
                             <div class="card-body">
-                                <h5 class="mb-3">Change Admin Password</h5>
+                                <h5 class="mb-3" data-i18n="settings.securityTitle">Change Admin Password</h5>
                                 <form id="change-password-form">
                                     <div class="row g-3">
                                         <div class="col-md-6">
-                                            <label class="form-label">Current Password</label>
+                                            <label class="form-label" data-i18n="settings.currentPassword">Current Password</label>
                                             <input type="password" class="form-control" id="pw-current" required>
                                         </div>
                                         <div class="col-md-6"></div>
                                         <div class="col-md-6">
-                                            <label class="form-label">New Password (min 12 chars)</label>
+                                            <label class="form-label" data-i18n="settings.newPassword">New Password (min 12 chars)</label>
                                             <input type="password" class="form-control" id="pw-new" required minlength="12">
                                         </div>
                                         <div class="col-md-6">
-                                            <label class="form-label">Confirm New Password</label>
+                                            <label class="form-label" data-i18n="settings.confirmPassword">Confirm New Password</label>
                                             <input type="password" class="form-control" id="pw-confirm" required minlength="12">
                                         </div>
                                     </div>
                                     <div class="mt-4">
-                                        <button type="submit" class="btn btn-warning"><i class="bi bi-shield-lock me-1"></i>Change Password</button>
+                                        <button type="submit" class="btn btn-warning"><i class="bi bi-shield-lock me-1"></i><span data-i18n="settings.changePassword">Change Password</span></button>
                                     </div>
                                 </form>
                                 <div id="password-result" class="mt-3 d-none"></div>
@@ -396,34 +544,38 @@
         <div id="page-monitoring" class="page-content d-none">
             <div class="container-fluid p-4">
                 <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h4 class="mb-0"><i class="bi bi-activity me-2"></i>System Monitoring</h4>
-                    <button class="btn btn-outline-secondary btn-sm" onclick="loadMonitoring()"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
+                    <h4 class="mb-0">
+                        <button class="btn btn-outline-secondary btn-sm me-2" onclick="showPage('dashboard')"><i class="bi bi-arrow-left me-1"></i><span data-i18n="common.back">Back</span></button>
+                        <i class="bi bi-activity me-2"></i><span data-i18n="monitoring.title">System Monitoring</span>
+                    </h4>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="loadMonitoring()"><i class="bi bi-arrow-clockwise me-1"></i><span data-i18n="monitoring.refresh">Refresh</span></button>
                 </div>
 
                 <!-- Host Resources -->
                 <div class="card shadow-sm mb-4">
-                    <div class="card-header">Host Resources</div>
-                    <div class="card-body" id="monitoring-resources">Loading...</div>
+                    <div class="card-header" data-i18n="monitoring.hostResources">Host Resources</div>
+                    <div class="card-body" id="monitoring-resources" data-i18n="common.loading">Loading...</div>
                 </div>
 
                 <!-- Customer Statuses -->
                 <div class="card shadow-sm">
-                    <div class="card-header">All Customer Deployments</div>
+                    <div class="card-header" data-i18n="monitoring.allCustomerDeployments">All Customer Deployments</div>
                     <div class="table-responsive">
                         <table class="table table-sm mb-0">
                             <thead class="table-light">
                                 <tr>
-                                    <th>ID</th>
-                                    <th>Name</th>
-                                    <th>Subdomain</th>
-                                    <th>Status</th>
-                                    <th>Deployment</th>
-                                    <th>Relay Port</th>
-                                    <th>Containers</th>
+                                    <th data-i18n="monitoring.thId">ID</th>
+                                    <th data-i18n="monitoring.thName">Name</th>
+                                    <th data-i18n="monitoring.thSubdomain">Subdomain</th>
+                                    <th data-i18n="monitoring.thStatus">Status</th>
+                                    <th data-i18n="monitoring.thDeployment">Deployment</th>
+                                    <th data-i18n="monitoring.thDashboard">Dashboard</th>
+                                    <th data-i18n="monitoring.thRelayPort">Relay Port</th>
+                                    <th data-i18n="monitoring.thContainers">Containers</th>
                                 </tr>
                             </thead>
                             <tbody id="monitoring-customers-body">
-                                <tr><td colspan="7" class="text-center text-muted py-4">Loading...</td></tr>
+                                <tr><td colspan="8" class="text-center text-muted py-4" data-i18n="common.loading">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -437,7 +589,7 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="customer-modal-title">New Customer</h5>
+                    <h5 class="modal-title" id="customer-modal-title" data-i18n="customerModal.newCustomer">New Customer</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
@@ -445,40 +597,40 @@
                     <form id="customer-form">
                         <input type="hidden" id="customer-edit-id">
                         <div class="mb-3">
-                            <label class="form-label">Name *</label>
+                            <label class="form-label" data-i18n="customerModal.nameLabel">Name *</label>
                             <input type="text" class="form-control" id="cust-name" required>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Company</label>
+                            <label class="form-label" data-i18n="customerModal.companyLabel">Company</label>
                             <input type="text" class="form-control" id="cust-company">
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Subdomain *</label>
+                            <label class="form-label" data-i18n="customerModal.subdomainLabel">Subdomain *</label>
                             <div class="input-group">
                                 <input type="text" class="form-control" id="cust-subdomain" required pattern="[a-z0-9][-a-z0-9]*[a-z0-9]">
                                 <span class="input-group-text" id="cust-subdomain-suffix">.domain.com</span>
                             </div>
-                            <div class="form-text">Lowercase, alphanumeric + hyphens</div>
+                            <div class="form-text" data-i18n="customerModal.subdomainHint">Lowercase, alphanumeric + hyphens</div>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Email *</label>
+                            <label class="form-label" data-i18n="customerModal.emailLabel">Email *</label>
                             <input type="email" class="form-control" id="cust-email" required>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Max Devices</label>
+                            <label class="form-label" data-i18n="customerModal.maxDevicesLabel">Max Devices</label>
                             <input type="number" class="form-control" id="cust-max-devices" value="20" min="1">
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Notes</label>
+                            <label class="form-label" data-i18n="customerModal.notesLabel">Notes</label>
                             <textarea class="form-control" id="cust-notes" rows="2"></textarea>
                         </div>
                     </form>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="common.cancel">Cancel</button>
                     <button type="button" class="btn btn-primary" id="customer-save-btn" onclick="saveCustomer()">
                         <span class="spinner-border spinner-border-sm d-none me-1" id="customer-save-spinner"></span>
-                        Save & Deploy
+                        <span data-i18n="customerModal.saveAndDeploy">Save & Deploy</span>
                     </button>
                 </div>
             </div>
@@ -490,26 +642,68 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header bg-danger text-white">
-                    <h5 class="modal-title">Confirm Deletion</h5>
+                    <h5 class="modal-title" data-i18n="deleteModal.title">Confirm Deletion</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <p>Are you sure you want to delete customer <strong id="delete-customer-name"></strong>?</p>
-                    <p class="text-danger">This will remove all containers, NPM entries, and data. This action cannot be undone.</p>
+                    <p><span data-i18n="deleteModal.confirmText">Are you sure you want to delete customer</span> <strong id="delete-customer-name"></strong>?</p>
+                    <p class="text-danger" data-i18n="deleteModal.warning">This will remove all containers, NPM entries, and data. This action cannot be undone.</p>
                     <input type="hidden" id="delete-customer-id">
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="common.cancel">Cancel</button>
                     <button type="button" class="btn btn-danger" onclick="confirmDeleteCustomer()">
                         <span class="spinner-border spinner-border-sm d-none me-1" id="delete-spinner"></span>
-                        Delete
+                        <span data-i18n="common.delete">Delete</span>
                     </button>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Modal: New User -->
+    <div class="modal fade" id="user-modal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" data-i18n="userModal.title">New User</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="user-modal-error" class="alert alert-danger d-none"></div>
+                    <form id="user-form">
+                        <div class="mb-3">
+                            <label class="form-label" data-i18n="userModal.usernameLabel">Username *</label>
+                            <input type="text" class="form-control" id="new-user-username" required minlength="3">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" data-i18n="userModal.passwordLabel">Password * (min 8 chars)</label>
+                            <input type="password" class="form-control" id="new-user-password" required minlength="8">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" data-i18n="userModal.emailLabel">Email</label>
+                            <input type="email" class="form-control" id="new-user-email">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" data-i18n="userModal.languageLabel">Default Language</label>
+                            <select class="form-select" id="new-user-language">
+                                <option value="" data-i18n="settings.systemDefault">System Default</option>
+                                <option value="en">English</option>
+                                <option value="de">Deutsch</option>
+                            </select>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="common.cancel">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveNewUser()" data-i18n="userModal.createUser">Create User</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/js/i18n.js"></script>
     <script src="/static/js/app.js"></script>
 </body>
 </html>

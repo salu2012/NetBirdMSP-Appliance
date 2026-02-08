@@ -81,9 +81,12 @@ class Deployment(Base):
     )
     container_prefix: Mapped[str] = mapped_column(String(100), nullable=False)
     relay_udp_port: Mapped[int] = mapped_column(Integer, unique=True, nullable=False)
+    dashboard_port: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     npm_proxy_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     relay_secret: Mapped[str] = mapped_column(Text, nullable=False)
     setup_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    netbird_admin_email: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    netbird_admin_password: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     deployment_status: Mapped[str] = mapped_column(
         String(20), default="pending", nullable=False
     )
@@ -106,9 +109,11 @@ class Deployment(Base):
             "customer_id": self.customer_id,
             "container_prefix": self.container_prefix,
             "relay_udp_port": self.relay_udp_port,
+            "dashboard_port": self.dashboard_port,
             "npm_proxy_id": self.npm_proxy_id,
             "relay_secret": "***",  # Never expose secrets
             "setup_url": self.setup_url,
+            "has_credentials": bool(self.netbird_admin_email and self.netbird_admin_password),
             "deployment_status": self.deployment_status,
             "deployed_at": self.deployed_at.isoformat() if self.deployed_at else None,
             "last_health_check": (
@@ -145,6 +150,19 @@ class SystemConfig(Base):
     data_dir: Mapped[str] = mapped_column(String(500), default="/opt/netbird-instances")
     docker_network: Mapped[str] = mapped_column(String(100), default="npm-network")
     relay_base_port: Mapped[int] = mapped_column(Integer, default=3478)
+    dashboard_base_port: Mapped[int] = mapped_column(Integer, default=9000)
+    branding_name: Mapped[Optional[str]] = mapped_column(
+        String(255), default="NetBird MSP Appliance"
+    )
+    branding_subtitle: Mapped[Optional[str]] = mapped_column(
+        String(255), default="Multi-Tenant Management Platform"
+    )
+    branding_logo_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    default_language: Mapped[Optional[str]] = mapped_column(String(10), default="en")
+    azure_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    azure_tenant_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    azure_client_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    azure_client_secret_encrypted: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
@@ -168,6 +186,15 @@ class SystemConfig(Base):
             "data_dir": self.data_dir,
             "docker_network": self.docker_network,
             "relay_base_port": self.relay_base_port,
+            "dashboard_base_port": self.dashboard_base_port,
+            "branding_name": self.branding_name or "NetBird MSP Appliance",
+            "branding_subtitle": self.branding_subtitle or "Multi-Tenant Management Platform",
+            "branding_logo_path": self.branding_logo_path,
+            "default_language": self.default_language or "en",
+            "azure_enabled": bool(self.azure_enabled),
+            "azure_tenant_id": self.azure_tenant_id or "",
+            "azure_client_id": self.azure_client_id or "",
+            "azure_client_secret_set": bool(self.azure_client_secret_encrypted),
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
@@ -220,6 +247,9 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(Text, nullable=False)
     email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    role: Mapped[str] = mapped_column(String(20), default="admin")
+    auth_provider: Mapped[str] = mapped_column(String(20), default="local")
+    default_language: Mapped[Optional[str]] = mapped_column(String(10), nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     def to_dict(self) -> dict:
@@ -229,5 +259,8 @@ class User(Base):
             "username": self.username,
             "email": self.email,
             "is_active": self.is_active,
+            "role": self.role or "admin",
+            "auth_provider": self.auth_provider or "local",
+            "default_language": self.default_language,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
