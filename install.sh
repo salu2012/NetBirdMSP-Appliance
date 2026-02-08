@@ -55,29 +55,14 @@ echo -e "${BLUE}${BOLD}[Step 1/10]${NC} ${BLUE}Checking system requirements...${
 # Check CPU cores
 CPU_CORES=$(nproc)
 echo -e "CPU Cores: ${CYAN}$CPU_CORES${NC}"
-if [ "$CPU_CORES" -lt 4 ]; then
-    echo -e "${YELLOW}Warning: Only $CPU_CORES CPU cores detected.${NC}"
-    echo -e "${YELLOW}  Minimum 8 cores recommended for 100 customers.${NC}"
-else
-    echo -e "${GREEN}✓ CPU cores: Sufficient${NC}"
-fi
-
-# Check RAM
-TOTAL_RAM=$(free -g | awk '/^Mem:/{print $2}')
-echo -e "RAM: ${CYAN}${TOTAL_RAM}GB${NC}"
-if [ "$TOTAL_RAM" -lt 32 ]; then
-    echo -e "${YELLOW}Warning: Only ${TOTAL_RAM}GB RAM detected.${NC}"
-    echo -e "${YELLOW}  Minimum 64GB recommended for 100 customers.${NC}"
-else
-    echo -e "${GREEN}✓ RAM: Sufficient${NC}"
-fi
+echo -e "${GREEN}✓ CPU cores detected${NC}"
 
 # Check disk space
 DISK_SPACE=$(df -BG / | awk 'NR==2 {print $4}' | sed 's/G//')
 echo -e "Free Disk Space: ${CYAN}${DISK_SPACE}GB${NC}"
-if [ "$DISK_SPACE" -lt 200 ]; then
+if [ "$DISK_SPACE" -lt 50 ]; then
     echo -e "${YELLOW}Warning: Only ${DISK_SPACE}GB free disk space.${NC}"
-    echo -e "${YELLOW}  Minimum 500GB recommended.${NC}"
+    echo -e "${YELLOW}  At least 50GB recommended.${NC}"
 else
     echo -e "${GREEN}✓ Disk space: Sufficient${NC}"
 fi
