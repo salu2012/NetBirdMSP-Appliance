@@ -6,7 +6,7 @@ import logging
 import secrets
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -27,10 +27,17 @@ from app.utils.validators import ChangePasswordRequest, LoginRequest, MfaTokenRe
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+# Import the shared rate limiter from main
+from app.main import limiter
+
 
 @router.post("/login")
-async def login(payload: LoginRequest, db: Session = Depends(get_db)):
-    """Authenticate with username/password. May require MFA as a second step."""
+@limiter.limit("10/minute")
+async def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)):
+    """Authenticate with username/password. May require MFA as a second step.
+
+    Rate-limited to 10 attempts per minute per IP address.
+    """
     user = db.query(User).filter(User.username == payload.username).first()
     if not user or not verify_password(payload.password, user.password_hash):
         raise HTTPException(
@@ -129,8 +136,12 @@ async def mfa_setup_complete(payload: MfaVerifyRequest, db: Session = Depends(ge
 
 
 @router.post("/mfa/verify")
-async def mfa_verify(payload: MfaVerifyRequest, db: Session = Depends(get_db)):
-    """Verify a TOTP code for users who already have MFA set up."""
+@limiter.limit("10/minute")
+async def mfa_verify(request: Request, payload: MfaVerifyRequest, db: Session = Depends(get_db)):
+    """Verify a TOTP code for users who already have MFA set up.
+
+    Rate-limited to 10 attempts per minute per IP address.
+    """
     username = verify_mfa_token(payload.mfa_token)
     user = db.query(User).filter(User.username == username).first()
     if not user:
@@ -262,17 +273,18 @@ async def azure_callback(
 
     try:
         import msal
+        import httpx as _httpx
 
         client_secret = decrypt_value(config.azure_client_secret_encrypted)
         authority = f"https://login.microsoftonline.com/{config.azure_tenant_id}"
 
-        app = msal.ConfidentialClientApplication(
+        msal_app = msal.ConfidentialClientApplication(
             config.azure_client_id,
             authority=authority,
             client_credential=client_secret,
         )
 
-        result = app.acquire_token_by_authorization_code(
+        result = msal_app.acquire_token_by_authorization_code(
             payload.code,
             scopes=["User.Read"],
             redirect_uri=payload.redirect_uri,
@@ -287,12 +299,61 @@ async def azure_callback(
 
         id_token_claims = result.get("id_token_claims", {})
         email = id_token_claims.get("preferred_username") or id_token_claims.get("email", "")
-        display_name = id_token_claims.get("name", email)
+        display_name = id_token_claims.get("name", email)  # noqa: F841
+        user_access_token = result.get("access_token", "")
 
         if not email:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Could not determine email from Azure AD token.",
+            )
+
+        # -----------------------------------------------------------------
+        # Group membership check (Fix #3 – Azure AD group whitelist)
+        # -----------------------------------------------------------------
+        allowed_group_id = getattr(config, "azure_allowed_group_id", None)
+        if allowed_group_id:
+            # Use the user's own access token to check their group membership
+            # via the Microsoft Graph API (requires GroupMember.Read.All or
+            # the user's own memberOf delegated permission).
+            graph_url = "https://graph.microsoft.com/v1.0/me/memberOf"
+            is_member = False
+            try:
+                async with _httpx.AsyncClient(timeout=10) as http:
+                    resp = await http.get(
+                        graph_url,
+                        headers={"Authorization": f"Bearer {user_access_token}"},
+                    )
+                    if resp.status_code == 200:
+                        groups = resp.json().get("value", [])
+                        is_member = any(
+                            g.get("id") == allowed_group_id for g in groups
+                        )
+                    else:
+                        logger.warning(
+                            "Graph API group check returned %s for user '%s'.",
+                            resp.status_code, email,
+                        )
+            except Exception as graph_exc:
+                logger.error("Graph API group check failed: %s", graph_exc)
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Could not verify Azure AD group membership. Please try again.",
+                )
+
+            if not is_member:
+                logger.warning(
+                    "Azure AD login denied for '%s': not a member of required group '%s'.",
+                    email, allowed_group_id,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Access denied: you are not a member of the required Azure AD group.",
+                )
+        else:
+            logger.warning(
+                "azure_allowed_group_id is not configured. All Azure AD tenant users can log in. "
+                "Set azure_allowed_group_id in Settings to restrict access."
             )
 
         # Find or create user
@@ -303,13 +364,13 @@ async def azure_callback(
                 password_hash=hash_password(secrets.token_urlsafe(32)),
                 email=email,
                 is_active=True,
-                role="admin",
+                role="viewer",  # New Azure users start as viewer; promote manually
                 auth_provider="azure",
             )
             db.add(user)
             db.commit()
             db.refresh(user)
-            logger.info("Azure AD user '%s' auto-created.", email)
+            logger.info("Azure AD user '%s' auto-created with role 'viewer'.", email)
         elif not user.is_active:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

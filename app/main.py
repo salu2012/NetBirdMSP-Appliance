@@ -3,10 +3,13 @@
 import logging
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 from app.database import init_db
 from app.routers import auth, customers, deployments, monitoring, settings, users
@@ -24,6 +27,14 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Application
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Rate limiter (SlowAPI)
+# ---------------------------------------------------------------------------
+limiter = Limiter(key_func=get_remote_address)
+
+# ---------------------------------------------------------------------------
+# Application
+# ---------------------------------------------------------------------------
 app = FastAPI(
     title="NetBird MSP Appliance",
     description="Multi-tenant NetBird management platform for MSPs",
@@ -32,6 +43,10 @@ app = FastAPI(
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
 )
+
+# Attach limiter to app state and register the 429 exception handler
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS — allow same-origin; adjust if needed
 app.add_middleware(

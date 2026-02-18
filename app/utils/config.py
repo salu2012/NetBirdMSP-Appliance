@@ -35,8 +35,34 @@ class AppConfig:
     wildcard_cert_id: int | None
 
 
+# ---------------------------------------------------------------------------
 # Environment-level settings (not stored in DB)
-SECRET_KEY: str = os.environ.get("SECRET_KEY", "change-me-in-production")
+# ---------------------------------------------------------------------------
+
+# Known insecure default values that must never be used in production.
+_INSECURE_KEY_VALUES: set[str] = {
+    "change-me-in-production",
+    "local-test-secret-key-not-for-production-1234",
+    "secret",
+    "changeme",
+    "",
+}
+
+SECRET_KEY: str = os.environ.get("SECRET_KEY", "")
+
+# --- Startup security gate ---
+# Abort immediately if the key is missing, too short, or a known default.
+_MIN_KEY_LENGTH = 32
+if SECRET_KEY in _INSECURE_KEY_VALUES or len(SECRET_KEY) < _MIN_KEY_LENGTH:
+    raise RuntimeError(
+        "FATAL: SECRET_KEY is insecure, missing, or too short.\n"
+        f"  Current length : {len(SECRET_KEY)} characters (minimum: {_MIN_KEY_LENGTH})\n"
+        "  The key must be at least 32 random characters and must not be a known default value.\n"
+        "  Generate a secure key with:\n"
+        "    python3 -c \"import secrets; print(secrets.token_hex(32))\"\n"
+        "  Then set it in your .env file as: SECRET_KEY=<generated-value>"
+    )
+
 DATABASE_PATH: str = os.environ.get("DATABASE_PATH", "/app/data/netbird_msp.db")
 LOG_LEVEL: str = os.environ.get("LOG_LEVEL", "INFO")
 JWT_ALGORITHM: str = "HS256"

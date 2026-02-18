@@ -168,6 +168,10 @@ class SystemConfig(Base):
     azure_tenant_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     azure_client_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     azure_client_secret_encrypted: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    azure_allowed_group_id: Mapped[Optional[str]] = mapped_column(
+        String(255), nullable=True,
+        comment="If set, only Azure AD users in this group (object ID) are allowed to log in."
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
@@ -203,6 +207,7 @@ class SystemConfig(Base):
             "azure_tenant_id": self.azure_tenant_id or "",
             "azure_client_id": self.azure_client_id or "",
             "azure_client_secret_set": bool(self.azure_client_secret_encrypted),
+            "azure_allowed_group_id": self.azure_allowed_group_id or "",
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

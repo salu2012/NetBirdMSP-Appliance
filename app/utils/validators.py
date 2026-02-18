@@ -133,6 +133,10 @@ class SystemConfigUpdate(BaseModel):
     azure_tenant_id: Optional[str] = Field(None, max_length=255)
     azure_client_id: Optional[str] = Field(None, max_length=255)
     azure_client_secret: Optional[str] = None  # encrypted before storage
+    azure_allowed_group_id: Optional[str] = Field(
+        None, max_length=255,
+        description="Azure AD group object ID. If set, only members of this group can log in."
+    )
 
     @field_validator("ssl_mode")
     @classmethod

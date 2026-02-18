@@ -1,15 +1,54 @@
 services:
+  # ---------------------------------------------------------------------------
+  # Docker Socket Proxy — limits Docker API access to only what is needed.
+  # The main app container no longer has direct access to /var/run/docker.sock.
+  # ---------------------------------------------------------------------------
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:latest
+    container_name: docker-socket-proxy
+    restart: unless-stopped
+    environment:
+      # Read-only endpoints
+      CONTAINERS: 1
+      IMAGES: 1
+      NETWORKS: 1
+      INFO: 1
+      # Write endpoints (needed for compose up/down/start/stop)
+      POST: 1
+      # Explicitly deny dangerous endpoints
+      AUTH: 0
+      SECRETS: 0
+      SWARM: 0
+      NODES: 0
+      SERVICES: 0
+      TASKS: 0
+      CONFIGS: 0
+      PLUGINS: 0
+      VOLUMES: 0
+      BUILD: 0
+      COMMIT: 0
+      DISTRIBUTION: 0
+      EXEC: 1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - npm-network
+    # Only accessible from within the Docker network — never expose port externally
+
   netbird-msp-appliance:
     build: .
     container_name: netbird-msp-appliance
     restart: unless-stopped
+    depends_on:
+      - docker-socket-proxy
     ports:
       - "${WEB_UI_PORT:-8000}:8000"
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
       - ./backups:/app/backups
-      - /var/run/docker.sock:/var/run/docker.sock
+      # NOTE: /var/run/docker.sock is intentionally NOT mounted here.
+      # Docker access goes through the docker-socket-proxy sidecar.
       - ${DATA_DIR:-/opt/netbird-instances}:${DATA_DIR:-/opt/netbird-instances}
     environment:
       - SECRET_KEY=${SECRET_KEY}
@@ -18,6 +57,8 @@ services:
       - DATA_DIR=${DATA_DIR:-/opt/netbird-instances}
       - DOCKER_NETWORK=${DOCKER_NETWORK:-npm-network}
       - HOST_IP=${HOST_IP:-}
+      # Route Docker API calls through the socket proxy instead of the raw socket
+      - DOCKER_HOST=tcp://docker-socket-proxy:2375
     networks:
       - npm-network
     healthcheck:
