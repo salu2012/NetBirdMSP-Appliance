@@ -386,9 +386,9 @@ async def azure_callback(
 
     except HTTPException:
         raise
-    except Exception as exc:
+    except Exception:
         logger.exception("Azure AD authentication error")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Azure AD authentication error: {exc}",
+            detail="Azure AD authentication failed. Please try again or contact support.",
         )

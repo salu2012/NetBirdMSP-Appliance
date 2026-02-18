@@ -33,6 +33,12 @@ async def create_user(
     db: Session = Depends(get_db),
 ):
     """Create a new local user."""
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can create new users.",
+        )
+
     existing = db.query(User).filter(User.username == payload.username).first()
     if existing:
         raise HTTPException(
