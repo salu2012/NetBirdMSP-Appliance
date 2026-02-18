@@ -14,6 +14,7 @@ Also manages NPM streams for STUN/TURN relay UDP ports.
 
 import logging
 import os
+import socket
 from typing import Any
 
 import httpx
@@ -41,7 +42,17 @@ def _get_forward_host() -> str:
         logger.info("Using HOST_IP from environment: %s", host_ip)
         return host_ip
 
-    logger.warning("HOST_IP not set in environment — please add HOST_IP=<your-server-ip> to .env")
+    # Auto-detect: connect to external address to find the outbound interface IP
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("8.8.8.8", 80))
+            detected = s.getsockname()[0]
+        logger.info("Auto-detected host IP: %s (set HOST_IP in .env to override)", detected)
+        return detected
+    except Exception:
+        pass
+
+    logger.warning("Could not detect host IP — falling back to 127.0.0.1. Set HOST_IP in .env!")
     return "127.0.0.1"
 
 

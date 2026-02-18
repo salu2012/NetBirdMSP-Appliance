@@ -5,6 +5,7 @@ per-customer Docker Compose stacks. Also provides log retrieval and
 container health/status information.
 """
 
+import asyncio
 import logging
 import os
 import subprocess
@@ -17,6 +18,15 @@ from docker.errors import DockerException, NotFound
 logger = logging.getLogger(__name__)
 
 
+async def _run_cmd(cmd: list[str], timeout: int = 120) -> subprocess.CompletedProcess:
+    """Run a subprocess command in a thread pool to avoid blocking the event loop."""
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(  # type: ignore[arg-type]
+        None,
+        lambda: subprocess.run(cmd, capture_output=True, text=True, timeout=timeout),
+    )
+
+
 def _get_client() -> docker.DockerClient:
     """Return a Docker client connected via the Unix socket.
 
@@ -26,7 +36,7 @@ def _get_client() -> docker.DockerClient:
     return docker.from_env()
 
 
-def compose_up(
+async def compose_up(
     instance_dir: str,
     project_name: str,
     services: Optional[list[str]] = None,
@@ -63,7 +73,7 @@ def compose_up(
         cmd.extend(services)
 
     logger.info("Running: %s", " ".join(cmd))
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    result = await _run_cmd(cmd, timeout=timeout)
 
     if result.returncode != 0:
         logger.error("docker compose up failed: %s", result.stderr)
@@ -74,7 +84,7 @@ def compose_up(
     return True
 
 
-def compose_down(instance_dir: str, project_name: str, remove_volumes: bool = False) -> bool:
+async def compose_down(instance_dir: str, project_name: str, remove_volumes: bool = False) -> bool:
     """Run ``docker compose down`` for a customer instance.
 
     Args:
@@ -96,14 +106,14 @@ def compose_down(instance_dir: str, project_name: str, remove_volumes: bool = Fa
         cmd.append("-v")
 
     logger.info("Running: %s", " ".join(cmd))
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+    result = await _run_cmd(cmd)
 
     if result.returncode != 0:
         logger.warning("docker compose down returned non-zero: %s", result.stderr)
     return True
 
 
-def compose_stop(instance_dir: str, project_name: str) -> bool:
+async def compose_stop(instance_dir: str, project_name: str) -> bool:
     """Run ``docker compose stop`` for a customer instance.
 
     Args:
@@ -121,11 +131,11 @@ def compose_stop(instance_dir: str, project_name: str) -> bool:
         "stop",
     ]
     logger.info("Running: %s", " ".join(cmd))
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+    result = await _run_cmd(cmd)
     return result.returncode == 0
 
 
-def compose_start(instance_dir: str, project_name: str) -> bool:
+async def compose_start(instance_dir: str, project_name: str) -> bool:
     """Run ``docker compose start`` for a customer instance.
 
     Args:
@@ -143,11 +153,11 @@ def compose_start(instance_dir: str, project_name: str) -> bool:
         "start",
     ]
     logger.info("Running: %s", " ".join(cmd))
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+    result = await _run_cmd(cmd)
     return result.returncode == 0
 
 
-def compose_restart(instance_dir: str, project_name: str) -> bool:
+async def compose_restart(instance_dir: str, project_name: str) -> bool:
     """Run ``docker compose restart`` for a customer instance.
 
     Args:
@@ -165,7 +175,7 @@ def compose_restart(instance_dir: str, project_name: str) -> bool:
         "restart",
     ]
     logger.info("Running: %s", " ".join(cmd))
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+    result = await _run_cmd(cmd)
     return result.returncode == 0
 
 

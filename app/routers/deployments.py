@@ -72,7 +72,7 @@ async def start_customer(
         Result dict.
     """
     _require_customer(db, customer_id)
-    result = netbird_service.start_customer(db, customer_id)
+    result = await netbird_service.start_customer(db, customer_id)
     if not result.get("success"):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -96,7 +96,7 @@ async def stop_customer(
         Result dict.
     """
     _require_customer(db, customer_id)
-    result = netbird_service.stop_customer(db, customer_id)
+    result = await netbird_service.stop_customer(db, customer_id)
     if not result.get("success"):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -120,7 +120,7 @@ async def restart_customer(
         Result dict.
     """
     _require_customer(db, customer_id)
-    result = netbird_service.restart_customer(db, customer_id)
+    result = await netbird_service.restart_customer(db, customer_id)
     if not result.get("success"):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

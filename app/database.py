@@ -51,6 +51,22 @@ def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     _run_migrations()
 
+    # Insert default SystemConfig row (id=1) if it doesn't exist yet
+    db = SessionLocal()
+    try:
+        if not db.query(SystemConfig).filter(SystemConfig.id == 1).first():
+            db.add(SystemConfig(
+                id=1,
+                base_domain="example.com",
+                admin_email="admin@example.com",
+                npm_api_url="http://localhost:81",
+                npm_api_email_encrypted="",
+                npm_api_password_encrypted="",
+            ))
+            db.commit()
+    finally:
+        db.close()
+
 
 def _run_migrations() -> None:
     """Add columns that may be missing from older database versions."""

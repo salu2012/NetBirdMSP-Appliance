@@ -27,8 +27,7 @@ from app.utils.validators import ChangePasswordRequest, LoginRequest, MfaTokenRe
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# Import the shared rate limiter from main
-from app.main import limiter
+from app.limiter import limiter
 
 
 @router.post("/login")

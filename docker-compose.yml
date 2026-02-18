@@ -15,6 +15,9 @@ services:
       INFO: 1
       # Write endpoints (needed for compose up/down/start/stop)
       POST: 1
+      DELETE: 1
+      # Volumes needed for docker compose (creates/removes volumes per customer)
+      VOLUMES: 1
       # Explicitly deny dangerous endpoints
       AUTH: 0
       SECRETS: 0
@@ -24,13 +27,12 @@ services:
       TASKS: 0
       CONFIGS: 0
       PLUGINS: 0
-      VOLUMES: 0
       BUILD: 0
       COMMIT: 0
       DISTRIBUTION: 0
       EXEC: 1
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro,z
     networks:
       - npm-network
     # Only accessible from within the Docker network — never expose port externally
@@ -39,17 +41,20 @@ services:
     build: .
     container_name: netbird-msp-appliance
     restart: unless-stopped
+    security_opt:
+      - label:disable
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - docker-socket-proxy
     ports:
       - "${WEB_UI_PORT:-8000}:8000"
     volumes:
-      - ./data:/app/data
-      - ./logs:/app/logs
-      - ./backups:/app/backups
-      # NOTE: /var/run/docker.sock is intentionally NOT mounted here.
-      # Docker access goes through the docker-socket-proxy sidecar.
-      - ${DATA_DIR:-/opt/netbird-instances}:${DATA_DIR:-/opt/netbird-instances}
+      - ./data:/app/data:z
+      - ./logs:/app/logs:z
+      - ./backups:/app/backups:z
+      - /var/run/docker.sock:/var/run/docker.sock:z
+      - ${DATA_DIR:-/opt/netbird-instances}:${DATA_DIR:-/opt/netbird-instances}:z
     environment:
       - SECRET_KEY=${SECRET_KEY}
       - DATABASE_PATH=/app/data/netbird_msp.db
@@ -57,8 +62,6 @@ services:
       - DATA_DIR=${DATA_DIR:-/opt/netbird-instances}
       - DOCKER_NETWORK=${DOCKER_NETWORK:-npm-network}
       - HOST_IP=${HOST_IP:-}
-      # Route Docker API calls through the socket proxy instead of the raw socket
-      - DOCKER_HOST=tcp://docker-socket-proxy:2375
     networks:
       - npm-network
     healthcheck:
