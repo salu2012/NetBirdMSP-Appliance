@@ -15,8 +15,8 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models import SystemConfig, User
-from app.services import dns_service, ldap_service, npm_service
-from app.utils.config import get_system_config
+from app.services import dns_service, ldap_service, npm_service, update_service
+from app.utils.config import DATABASE_PATH, get_system_config
 from app.utils.security import encrypt_value
 from app.utils.validators import SystemConfigUpdate
 
@@ -93,6 +93,10 @@ async def update_settings(
     # Handle LDAP bind password encryption
     if "ldap_bind_password" in update_data:
         row.ldap_bind_password_encrypted = encrypt_value(update_data.pop("ldap_bind_password"))
+
+    # Handle git token encryption
+    if "git_token" in update_data:
+        row.git_token_encrypted = encrypt_value(update_data.pop("git_token"))
 
     for field, value in update_data.items():
         if hasattr(row, field):
@@ -310,3 +314,61 @@ async def delete_logo(
         db.commit()
 
     return {"branding_logo_path": None}
+
+
+@router.get("/version")
+async def get_version(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return current installed version and latest available from the git remote.
+
+    Returns:
+        Dict with current version, latest version, and needs_update flag.
+    """
+    config = get_system_config(db)
+    current = update_service.get_current_version()
+    if not config or not config.git_repo_url:
+        return {"current": current, "latest": None, "needs_update": False}
+    result = await update_service.check_for_updates(config)
+    return result
+
+
+@router.post("/update")
+async def trigger_update(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Backup the database, git pull the latest code, and rebuild the container.
+
+    The rebuild is fire-and-forget — the app will restart in ~60 seconds.
+    Only admin users may trigger an update.
+
+    Returns:
+        Dict with ok, message, and backup path.
+    """
+    if getattr(current_user, "role", "admin") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admin users can trigger an update.",
+        )
+    config = get_system_config(db)
+    if not config:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="System configuration not initialized.",
+        )
+    if not config.git_repo_url:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="git_repo_url is not configured in settings.",
+        )
+
+    result = update_service.trigger_update(config, DATABASE_PATH)
+    if not result.get("ok"):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=result.get("message", "Update failed."),
+        )
+    logger.info("Update triggered by %s.", current_user.username)
+    return result

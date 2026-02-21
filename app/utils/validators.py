@@ -154,6 +154,10 @@ class SystemConfigUpdate(BaseModel):
     ldap_base_dn: Optional[str] = Field(None, max_length=500)
     ldap_user_filter: Optional[str] = Field(None, max_length=255)
     ldap_group_dn: Optional[str] = Field(None, max_length=500)
+    # Update management
+    git_repo_url: Optional[str] = Field(None, max_length=500)
+    git_branch: Optional[str] = Field(None, max_length=100)
+    git_token: Optional[str] = None  # plaintext, encrypted before storage
 
     @field_validator("ssl_mode")
     @classmethod

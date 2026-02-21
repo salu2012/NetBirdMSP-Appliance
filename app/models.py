@@ -194,6 +194,11 @@ class SystemConfig(Base):
     )
     ldap_group_dn: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
+    # Update management
+    git_repo_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    git_branch: Mapped[Optional[str]] = mapped_column(String(100), default="main")
+    git_token_encrypted: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
@@ -245,6 +250,9 @@ class SystemConfig(Base):
             "ldap_base_dn": self.ldap_base_dn or "",
             "ldap_user_filter": self.ldap_user_filter or "(sAMAccountName={username})",
             "ldap_group_dn": self.ldap_group_dn or "",
+            "git_repo_url": self.git_repo_url or "",
+            "git_branch": self.git_branch or "main",
+            "git_token_set": bool(self.git_token_encrypted),
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

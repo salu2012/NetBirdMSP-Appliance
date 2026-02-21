@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && chmod a+r /etc/apt/keyrings/docker.gpg \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_CODENAME") stable" > /etc/apt/sources.list.d/docker.list \
     && apt-get update \
-    && apt-get install -y --no-install-recommends docker-ce-cli docker-compose-plugin \
+    && apt-get install -y --no-install-recommends docker-ce-cli docker-compose-plugin git \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -27,6 +27,15 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app/ ./app/
 COPY templates/ ./templates/
 COPY static/ ./static/
+
+# Bake version info at build time
+ARG GIT_COMMIT=unknown
+ARG GIT_BRANCH=unknown
+ARG GIT_COMMIT_DATE=unknown
+RUN echo "{\"commit\": \"$GIT_COMMIT\", \"branch\": \"$GIT_BRANCH\", \"date\": \"$GIT_COMMIT_DATE\"}" > /app/version.json
+
+# Allow git to operate in the /app-source volume (owner may differ from container user)
+RUN git config --global --add safe.directory /app-source
 
 # Create data directories
 RUN mkdir -p /app/data /app/logs /app/backups

@@ -38,7 +38,12 @@ services:
     # Only accessible from within the Docker network — never expose port externally
 
   netbird-msp-appliance:
-    build: .
+    build:
+      context: .
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+        GIT_BRANCH: ${GIT_BRANCH:-unknown}
+        GIT_COMMIT_DATE: ${GIT_COMMIT_DATE:-unknown}
     container_name: netbird-msp-appliance
     restart: unless-stopped
     security_opt:
@@ -55,6 +60,7 @@ services:
       - ./backups:/app/backups:z
       - /var/run/docker.sock:/var/run/docker.sock:z
       - ${DATA_DIR:-/opt/netbird-instances}:${DATA_DIR:-/opt/netbird-instances}:z
+      - .:/app-source:z
     environment:
       - SECRET_KEY=${SECRET_KEY}
       - DATABASE_PATH=/app/data/netbird_msp.db

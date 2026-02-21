@@ -118,6 +118,10 @@ def _run_migrations() -> None:
         ("system_config", "ldap_base_dn", "TEXT"),
         ("system_config", "ldap_user_filter", "TEXT DEFAULT '(sAMAccountName={username})'"),
         ("system_config", "ldap_group_dn", "TEXT"),
+        # Update management
+        ("system_config", "git_repo_url", "TEXT"),
+        ("system_config", "git_branch", "TEXT DEFAULT 'main'"),
+        ("system_config", "git_token_encrypted", "TEXT"),
     ]
     for table, column, col_type in migrations:
         if not _has_column(table, column):

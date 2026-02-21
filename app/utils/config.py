@@ -50,6 +50,10 @@ class AppConfig:
     ldap_base_dn: str = ""
     ldap_user_filter: str = "(sAMAccountName={username})"
     ldap_group_dn: str = ""
+    # Update management
+    git_repo_url: str = ""
+    git_branch: str = "main"
+    git_token: str = ""  # decrypted
 
 
 # ---------------------------------------------------------------------------
@@ -117,6 +121,10 @@ def get_system_config(db: Session) -> Optional[AppConfig]:
         ldap_bind_password = decrypt_value(row.ldap_bind_password_encrypted) if row.ldap_bind_password_encrypted else ""
     except Exception:
         ldap_bind_password = ""
+    try:
+        git_token = decrypt_value(row.git_token_encrypted) if row.git_token_encrypted else ""
+    except Exception:
+        git_token = ""
 
     return AppConfig(
         base_domain=row.base_domain,
@@ -149,4 +157,7 @@ def get_system_config(db: Session) -> Optional[AppConfig]:
         ldap_base_dn=getattr(row, "ldap_base_dn", "") or "",
         ldap_user_filter=getattr(row, "ldap_user_filter", "(sAMAccountName={username})") or "(sAMAccountName={username})",
         ldap_group_dn=getattr(row, "ldap_group_dn", "") or "",
+        git_repo_url=getattr(row, "git_repo_url", "") or "",
+        git_branch=getattr(row, "git_branch", "main") or "main",
+        git_token=git_token,
     )
