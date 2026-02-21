@@ -844,6 +844,31 @@ async function loadSettings() {
         document.getElementById('cfg-azure-tenant').value = cfg.azure_tenant_id || '';
         document.getElementById('cfg-azure-client-id').value = cfg.azure_client_id || '';
         document.getElementById('azure-secret-status').textContent = cfg.azure_client_secret_set ? t('settings.secretSet') : t('settings.noSecret');
+        document.getElementById('cfg-azure-group-id').value = cfg.azure_allowed_group_id || '';
+
+        // DNS tab
+        document.getElementById('cfg-dns-enabled').checked = cfg.dns_enabled || false;
+        document.getElementById('cfg-dns-server').value = cfg.dns_server || '';
+        document.getElementById('cfg-dns-zone').value = cfg.dns_zone || '';
+        document.getElementById('cfg-dns-username').value = cfg.dns_username || '';
+        document.getElementById('cfg-dns-record-ip').value = cfg.dns_record_ip || '';
+        document.getElementById('dns-password-status').textContent = cfg.dns_password_set ? t('settings.passwordSet') : t('settings.noPasswordSet');
+
+        // LDAP tab
+        document.getElementById('cfg-ldap-enabled').checked = cfg.ldap_enabled || false;
+        document.getElementById('cfg-ldap-server').value = cfg.ldap_server || '';
+        document.getElementById('cfg-ldap-port').value = cfg.ldap_port || 389;
+        document.getElementById('cfg-ldap-use-ssl').checked = cfg.ldap_use_ssl || false;
+        document.getElementById('cfg-ldap-bind-dn').value = cfg.ldap_bind_dn || '';
+        document.getElementById('cfg-ldap-base-dn').value = cfg.ldap_base_dn || '';
+        document.getElementById('cfg-ldap-user-filter').value = cfg.ldap_user_filter || '(sAMAccountName={username})';
+        document.getElementById('cfg-ldap-group-dn').value = cfg.ldap_group_dn || '';
+        document.getElementById('ldap-password-status').textContent = cfg.ldap_bind_password_set ? t('settings.passwordSet') : t('settings.noPasswordSet');
+
+        // Git/Update tab
+        document.getElementById('cfg-git-repo-url').value = cfg.git_repo_url || '';
+        document.getElementById('cfg-git-branch').value = cfg.git_branch || 'main';
+        document.getElementById('git-token-status').textContent = cfg.git_token_set ? t('settings.tokenSet') : t('settings.noToken');
     } catch (err) {
         showSettingsAlert('danger', t('errors.failedToLoadSettings', { error: err.message }));
     }
@@ -1070,6 +1095,182 @@ async function deleteLogo() {
 }
 
 // ---------------------------------------------------------------------------
+// DNS Settings
+// ---------------------------------------------------------------------------
+document.getElementById('settings-dns-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const payload = {
+        dns_enabled: document.getElementById('cfg-dns-enabled').checked,
+        dns_server: document.getElementById('cfg-dns-server').value,
+        dns_zone: document.getElementById('cfg-dns-zone').value,
+        dns_username: document.getElementById('cfg-dns-username').value,
+        dns_record_ip: document.getElementById('cfg-dns-record-ip').value,
+    };
+    const pw = document.getElementById('cfg-dns-password').value;
+    if (pw) payload.dns_password = pw;
+    try {
+        await api('PUT', '/settings/system', payload);
+        showSettingsAlert('success', t('messages.dnsSettingsSaved'));
+        document.getElementById('cfg-dns-password').value = '';
+        loadSettings();
+    } catch (err) {
+        showSettingsAlert('danger', t('errors.failed', { error: err.message }));
+    }
+});
+
+async function testDnsConnection() {
+    const spinner = document.getElementById('dns-test-spinner');
+    const resultEl = document.getElementById('dns-test-result');
+    spinner.classList.remove('d-none');
+    resultEl.classList.add('d-none');
+    try {
+        const data = await api('GET', '/settings/test-dns');
+        resultEl.className = `mt-3 alert alert-${data.ok ? 'success' : 'danger'}`;
+        resultEl.textContent = data.message;
+        resultEl.classList.remove('d-none');
+    } catch (err) {
+        resultEl.className = 'mt-3 alert alert-danger';
+        resultEl.textContent = err.message;
+        resultEl.classList.remove('d-none');
+    } finally {
+        spinner.classList.add('d-none');
+    }
+}
+
+// ---------------------------------------------------------------------------
+// LDAP Settings
+// ---------------------------------------------------------------------------
+document.getElementById('settings-ldap-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const payload = {
+        ldap_enabled: document.getElementById('cfg-ldap-enabled').checked,
+        ldap_server: document.getElementById('cfg-ldap-server').value,
+        ldap_port: parseInt(document.getElementById('cfg-ldap-port').value) || 389,
+        ldap_use_ssl: document.getElementById('cfg-ldap-use-ssl').checked,
+        ldap_bind_dn: document.getElementById('cfg-ldap-bind-dn').value,
+        ldap_base_dn: document.getElementById('cfg-ldap-base-dn').value,
+        ldap_user_filter: document.getElementById('cfg-ldap-user-filter').value,
+        ldap_group_dn: document.getElementById('cfg-ldap-group-dn').value,
+    };
+    const pw = document.getElementById('cfg-ldap-bind-password').value;
+    if (pw) payload.ldap_bind_password = pw;
+    try {
+        await api('PUT', '/settings/system', payload);
+        showSettingsAlert('success', t('messages.ldapSettingsSaved'));
+        document.getElementById('cfg-ldap-bind-password').value = '';
+        loadSettings();
+    } catch (err) {
+        showSettingsAlert('danger', t('errors.failed', { error: err.message }));
+    }
+});
+
+async function testLdapConnection() {
+    const spinner = document.getElementById('ldap-test-spinner');
+    const resultEl = document.getElementById('ldap-test-result');
+    spinner.classList.remove('d-none');
+    resultEl.classList.add('d-none');
+    try {
+        const data = await api('GET', '/settings/test-ldap');
+        resultEl.className = `mt-3 alert alert-${data.ok ? 'success' : 'danger'}`;
+        resultEl.textContent = data.message;
+        resultEl.classList.remove('d-none');
+    } catch (err) {
+        resultEl.className = 'mt-3 alert alert-danger';
+        resultEl.textContent = err.message;
+        resultEl.classList.remove('d-none');
+    } finally {
+        spinner.classList.add('d-none');
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Update / Version Management
+// ---------------------------------------------------------------------------
+document.getElementById('settings-git-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const payload = {
+        git_repo_url: document.getElementById('cfg-git-repo-url').value,
+        git_branch: document.getElementById('cfg-git-branch').value || 'main',
+    };
+    const token = document.getElementById('cfg-git-token').value;
+    if (token) payload.git_token = token;
+    try {
+        await api('PUT', '/settings/system', payload);
+        showSettingsAlert('success', t('messages.gitSettingsSaved'));
+        document.getElementById('cfg-git-token').value = '';
+        loadSettings();
+    } catch (err) {
+        showSettingsAlert('danger', t('errors.failed', { error: err.message }));
+    }
+});
+
+async function loadVersionInfo() {
+    const el = document.getElementById('version-info-content');
+    if (!el) return;
+    el.innerHTML = `<div class="text-muted">${t('common.loading')}</div>`;
+    try {
+        const data = await api('GET', '/settings/version');
+        const current = data.current || {};
+        const latest = data.latest;
+        const needsUpdate = data.needs_update;
+
+        let html = `<div class="row g-3">
+            <div class="col-md-6">
+                <div class="border rounded p-3">
+                    <div class="text-muted small mb-1">${t('settings.currentVersion')}</div>
+                    <div class="fw-bold font-monospace">${esc(current.commit || 'unknown')}</div>
+                    <div class="text-muted small">${t('settings.branch')}: <strong>${esc(current.branch || 'unknown')}</strong></div>
+                    <div class="text-muted small">${esc(current.date || '')}</div>
+                </div>
+            </div>`;
+
+        if (latest) {
+            const badge = needsUpdate
+                ? `<span class="badge bg-warning text-dark ms-1">${t('settings.updateAvailable')}</span>`
+                : `<span class="badge bg-success ms-1">${t('settings.upToDate')}</span>`;
+            html += `<div class="col-md-6">
+                <div class="border rounded p-3 ${needsUpdate ? 'border-warning' : ''}">
+                    <div class="text-muted small mb-1">${t('settings.latestVersion')} ${badge}</div>
+                    <div class="fw-bold font-monospace">${esc(latest.commit || 'unknown')}</div>
+                    <div class="text-muted small">${t('settings.branch')}: <strong>${esc(latest.branch || 'unknown')}</strong></div>
+                    <div class="text-muted small">${esc(latest.message || '')}</div>
+                    <div class="text-muted small">${esc(latest.date || '')}</div>
+                </div>
+            </div>`;
+        } else if (data.error) {
+            html += `<div class="col-md-6"><div class="alert alert-warning mb-0">${esc(data.error)}</div></div>`;
+        }
+        html += '</div>';
+
+        if (needsUpdate) {
+            html += `<div class="mt-3">
+                <button class="btn btn-warning" onclick="triggerUpdate()">
+                    <span class="spinner-border spinner-border-sm d-none me-1" id="update-spinner"></span>
+                    <i class="bi bi-arrow-repeat me-1"></i>${t('settings.triggerUpdate')}
+                </button>
+                <div class="text-muted small mt-1">${t('settings.updateWarning')}</div>
+            </div>`;
+        }
+        el.innerHTML = html;
+    } catch (err) {
+        el.innerHTML = `<div class="text-danger">${esc(err.message)}</div>`;
+    }
+}
+
+async function triggerUpdate() {
+    if (!confirm(t('settings.confirmUpdate'))) return;
+    const spinner = document.getElementById('update-spinner');
+    if (spinner) spinner.classList.remove('d-none');
+    try {
+        const data = await api('POST', '/settings/update');
+        showSettingsAlert('success', data.message || t('messages.updateStarted'));
+    } catch (err) {
+        showSettingsAlert('danger', t('errors.failed', { error: err.message }));
+        if (spinner) spinner.classList.add('d-none');
+    }
+}
+
+// ---------------------------------------------------------------------------
 // User Management
 // ---------------------------------------------------------------------------
 async function loadUsers() {
@@ -1181,6 +1382,7 @@ document.getElementById('settings-azure-form').addEventListener('submit', async 
         azure_enabled: document.getElementById('cfg-azure-enabled').checked,
         azure_tenant_id: document.getElementById('cfg-azure-tenant').value || null,
         azure_client_id: document.getElementById('cfg-azure-client-id').value || null,
+        azure_allowed_group_id: document.getElementById('cfg-azure-group-id').value || null,
     };
     const secret = document.getElementById('cfg-azure-client-secret').value;
     if (secret) payload.azure_client_secret = secret;

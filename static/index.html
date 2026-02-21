@@ -311,6 +311,9 @@
                     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#settings-branding" data-i18n="settings.tabBranding">Branding</a></li>
                     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#settings-users" onclick="loadUsers()" data-i18n="settings.tabUsers">Users</a></li>
                     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#settings-azure" data-i18n="settings.tabAzure">Azure AD</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#settings-dns" data-i18n="settings.tabDns">Windows DNS</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#settings-ldap" data-i18n="settings.tabLdap">LDAP / AD</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#settings-update" onclick="loadVersionInfo()" data-i18n="settings.tabUpdate">Updates</a></li>
                     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#settings-security" data-i18n="settings.tabSecurity">Security</a></li>
                 </ul>
 
@@ -562,9 +565,179 @@
                                             </div>
                                             <div class="form-text" id="azure-secret-status"></div>
                                         </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label" data-i18n="settings.azureGroupId">Allowed Group Object ID (optional)</label>
+                                            <input type="text" class="form-control" id="cfg-azure-group-id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+                                            <div class="form-text" data-i18n="settings.azureGroupIdHint">If set, only Azure AD members of this group can log in.</div>
+                                        </div>
                                     </div>
                                     <div class="mt-4">
                                         <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i><span data-i18n="settings.saveAzureSettings">Save Azure AD Settings</span></button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Windows DNS -->
+                    <div class="tab-pane fade" id="settings-dns">
+                        <div class="card shadow-sm">
+                            <div class="card-body">
+                                <h5 class="mb-3" data-i18n="settings.dnsTitle">Windows DNS Integration</h5>
+                                <form id="settings-dns-form">
+                                    <div class="row g-3">
+                                        <div class="col-12">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="cfg-dns-enabled">
+                                                <label class="form-check-label" for="cfg-dns-enabled" data-i18n="settings.enableDns">Enable Windows DNS Integration</label>
+                                            </div>
+                                            <div class="form-text" data-i18n="settings.dnsDescription">Automatically create/delete DNS A-records when deploying customers.</div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label" data-i18n="settings.dnsServer">DNS Server Address</label>
+                                            <input type="text" class="form-control" id="cfg-dns-server" placeholder="192.168.1.10">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label" data-i18n="settings.dnsZone">DNS Zone</label>
+                                            <input type="text" class="form-control" id="cfg-dns-zone" placeholder="example.com">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label" data-i18n="settings.dnsUsername">Username (NTLM)</label>
+                                            <input type="text" class="form-control" id="cfg-dns-username" placeholder="DOMAIN\svcuser">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label" data-i18n="settings.dnsPassword">Password</label>
+                                            <div class="input-group">
+                                                <input type="password" class="form-control" id="cfg-dns-password" data-i18n-placeholder="settings.leaveEmptyToKeep" placeholder="Leave empty to keep current">
+                                                <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('cfg-dns-password')"><i class="bi bi-eye"></i></button>
+                                            </div>
+                                            <div class="form-text" id="dns-password-status"></div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label" data-i18n="settings.dnsRecordIp">A-Record Target IP</label>
+                                            <input type="text" class="form-control" id="cfg-dns-record-ip" placeholder="1.2.3.4">
+                                            <div class="form-text" data-i18n="settings.dnsRecordIpHint">IP address that customer A-records will point to (usually your NPM server IP).</div>
+                                        </div>
+                                    </div>
+                                    <div class="mt-4">
+                                        <button type="submit" class="btn btn-primary me-2"><i class="bi bi-save me-1"></i><span data-i18n="settings.saveDnsSettings">Save DNS Settings</span></button>
+                                        <button type="button" class="btn btn-outline-info" onclick="testDnsConnection()">
+                                            <span class="spinner-border spinner-border-sm d-none me-1" id="dns-test-spinner"></span>
+                                            <i class="bi bi-plug me-1"></i><span data-i18n="settings.testConnection">Test Connection</span>
+                                        </button>
+                                    </div>
+                                </form>
+                                <div id="dns-test-result" class="mt-3 d-none"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- LDAP / Active Directory -->
+                    <div class="tab-pane fade" id="settings-ldap">
+                        <div class="card shadow-sm">
+                            <div class="card-body">
+                                <h5 class="mb-3" data-i18n="settings.ldapTitle">LDAP / Active Directory Authentication</h5>
+                                <form id="settings-ldap-form">
+                                    <div class="row g-3">
+                                        <div class="col-12">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="cfg-ldap-enabled">
+                                                <label class="form-check-label" for="cfg-ldap-enabled" data-i18n="settings.enableLdap">Enable LDAP / AD Authentication</label>
+                                            </div>
+                                            <div class="form-text" data-i18n="settings.ldapDescription">Allow Active Directory users to log in. Local admin accounts always work as fallback.</div>
+                                        </div>
+                                        <div class="col-md-5">
+                                            <label class="form-label" data-i18n="settings.ldapServer">LDAP Server</label>
+                                            <input type="text" class="form-control" id="cfg-ldap-server" placeholder="192.168.1.10 or dc.example.com">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label" data-i18n="settings.ldapPort">Port</label>
+                                            <input type="number" class="form-control" id="cfg-ldap-port" value="389" min="1" max="65535">
+                                        </div>
+                                        <div class="col-md-4 d-flex align-items-end pb-1">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="cfg-ldap-use-ssl">
+                                                <label class="form-check-label" for="cfg-ldap-use-ssl" data-i18n="settings.ldapUseSsl">Use SSL/TLS (LDAPS)</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label" data-i18n="settings.ldapBindDn">Bind DN (Service Account)</label>
+                                            <input type="text" class="form-control" id="cfg-ldap-bind-dn" placeholder="CN=svcUser,OU=Service,DC=example,DC=com">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label" data-i18n="settings.ldapBindPassword">Bind Password</label>
+                                            <div class="input-group">
+                                                <input type="password" class="form-control" id="cfg-ldap-bind-password" data-i18n-placeholder="settings.leaveEmptyToKeep" placeholder="Leave empty to keep current">
+                                                <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('cfg-ldap-bind-password')"><i class="bi bi-eye"></i></button>
+                                            </div>
+                                            <div class="form-text" id="ldap-password-status"></div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label" data-i18n="settings.ldapBaseDn">Base DN</label>
+                                            <input type="text" class="form-control" id="cfg-ldap-base-dn" placeholder="DC=example,DC=com">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label" data-i18n="settings.ldapUserFilter">User Filter</label>
+                                            <input type="text" class="form-control" id="cfg-ldap-user-filter" placeholder="(sAMAccountName={username})">
+                                            <div class="form-text" data-i18n="settings.ldapUserFilterHint">Use {username} as placeholder for the login name.</div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label" data-i18n="settings.ldapGroupDn">Group Restriction DN (optional)</label>
+                                            <input type="text" class="form-control" id="cfg-ldap-group-dn" placeholder="CN=NetBirdAdmins,OU=Groups,DC=example,DC=com">
+                                            <div class="form-text" data-i18n="settings.ldapGroupDnHint">If set, only members of this group can log in via LDAP.</div>
+                                        </div>
+                                    </div>
+                                    <div class="mt-4">
+                                        <button type="submit" class="btn btn-primary me-2"><i class="bi bi-save me-1"></i><span data-i18n="settings.saveLdapSettings">Save LDAP Settings</span></button>
+                                        <button type="button" class="btn btn-outline-info" onclick="testLdapConnection()">
+                                            <span class="spinner-border spinner-border-sm d-none me-1" id="ldap-test-spinner"></span>
+                                            <i class="bi bi-plug me-1"></i><span data-i18n="settings.testConnection">Test Connection</span>
+                                        </button>
+                                    </div>
+                                </form>
+                                <div id="ldap-test-result" class="mt-3 d-none"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Updates -->
+                    <div class="tab-pane fade" id="settings-update">
+                        <div class="card shadow-sm mb-4">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <span data-i18n="settings.versionTitle">Version &amp; Updates</span>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="loadVersionInfo()">
+                                    <i class="bi bi-arrow-clockwise me-1"></i><span data-i18n="dashboard.refresh">Refresh</span>
+                                </button>
+                            </div>
+                            <div class="card-body" id="version-info-content">
+                                <div class="text-muted" data-i18n="common.loading">Loading...</div>
+                            </div>
+                        </div>
+                        <div class="card shadow-sm">
+                            <div class="card-body">
+                                <h5 class="mb-3" data-i18n="settings.gitTitle">Git Repository Settings</h5>
+                                <form id="settings-git-form">
+                                    <div class="row g-3">
+                                        <div class="col-md-8">
+                                            <label class="form-label" data-i18n="settings.gitRepoUrl">Repository URL</label>
+                                            <input type="text" class="form-control" id="cfg-git-repo-url" placeholder="https://git.example.com/owner/repo">
+                                            <div class="form-text" data-i18n="settings.gitRepoUrlHint">Used for version checks and one-click updates via Gitea API.</div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label" data-i18n="settings.gitBranch">Branch</label>
+                                            <input type="text" class="form-control" id="cfg-git-branch" placeholder="main">
+                                        </div>
+                                        <div class="col-md-8">
+                                            <label class="form-label" data-i18n="settings.gitToken">Access Token (optional)</label>
+                                            <div class="input-group">
+                                                <input type="password" class="form-control" id="cfg-git-token" data-i18n-placeholder="settings.leaveEmptyToKeep" placeholder="Leave empty to keep current">
+                                                <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('cfg-git-token')"><i class="bi bi-eye"></i></button>
+                                            </div>
+                                            <div class="form-text" id="git-token-status"></div>
+                                        </div>
+                                    </div>
+                                    <div class="mt-4">
+                                        <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i><span data-i18n="settings.saveGitSettings">Save Git Settings</span></button>
                                     </div>
                                 </form>
                             </div>
