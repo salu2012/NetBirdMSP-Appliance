@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models import SystemConfig, User
-from app.services import npm_service
+from app.services import dns_service, ldap_service, npm_service
 from app.utils.config import get_system_config
 from app.utils.security import encrypt_value
 from app.utils.validators import SystemConfigUpdate
@@ -85,6 +85,14 @@ async def update_settings(
     if "azure_client_secret" in update_data:
         raw_secret = update_data.pop("azure_client_secret")
         row.azure_client_secret_encrypted = encrypt_value(raw_secret)
+
+    # Handle DNS password encryption
+    if "dns_password" in update_data:
+        row.dns_password_encrypted = encrypt_value(update_data.pop("dns_password"))
+
+    # Handle LDAP bind password encryption
+    if "ldap_bind_password" in update_data:
+        row.ldap_bind_password_encrypted = encrypt_value(update_data.pop("ldap_bind_password"))
 
     for field, value in update_data.items():
         if hasattr(row, field):
@@ -162,6 +170,64 @@ async def list_npm_certificates(
             detail=result["error"],
         )
     return result["certificates"]
+
+
+@router.get("/test-dns")
+async def test_dns(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Test connectivity to the Windows DNS server via WinRM.
+
+    Returns:
+        Dict with ``ok`` and ``message``.
+    """
+    config = get_system_config(db)
+    if not config:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="System configuration not initialized.",
+        )
+    if not config.dns_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Windows DNS integration is not enabled.",
+        )
+    if not config.dns_server or not config.dns_username or not config.dns_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="DNS server, username, or password not configured.",
+        )
+    return await dns_service.test_dns_connection(config)
+
+
+@router.get("/test-ldap")
+async def test_ldap(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Test connectivity to the LDAP / Active Directory server.
+
+    Returns:
+        Dict with ``ok`` and ``message``.
+    """
+    config = get_system_config(db)
+    if not config:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="System configuration not initialized.",
+        )
+    if not config.ldap_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="LDAP authentication is not enabled.",
+        )
+    if not config.ldap_server or not config.ldap_bind_dn or not config.ldap_bind_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="LDAP server, bind DN, or bind password not configured.",
+        )
+    return await ldap_service.test_ldap_connection(config)
 
 
 @router.get("/branding")

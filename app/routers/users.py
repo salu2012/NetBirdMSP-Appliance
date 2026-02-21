@@ -126,7 +126,7 @@ async def reset_password(
     if user.auth_provider != "local":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot reset password for Azure AD users.",
+            detail="Cannot reset password for external auth users (Azure AD / LDAP).",
         )
 
     new_password = secrets.token_urlsafe(16)
@@ -151,7 +151,7 @@ async def reset_mfa(
     if user.auth_provider != "local":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot reset MFA for Azure AD users.",
+            detail="Cannot reset MFA for external auth users (Azure AD / LDAP).",
         )
 
     user.totp_enabled = False

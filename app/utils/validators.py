@@ -137,6 +137,23 @@ class SystemConfigUpdate(BaseModel):
         None, max_length=255,
         description="Azure AD group object ID. If set, only members of this group can log in."
     )
+    # Windows DNS
+    dns_enabled: Optional[bool] = None
+    dns_server: Optional[str] = Field(None, max_length=255)
+    dns_username: Optional[str] = Field(None, max_length=255)
+    dns_password: Optional[str] = None  # plaintext, encrypted before storage
+    dns_zone: Optional[str] = Field(None, max_length=255)
+    dns_record_ip: Optional[str] = Field(None, max_length=45)
+    # LDAP
+    ldap_enabled: Optional[bool] = None
+    ldap_server: Optional[str] = Field(None, max_length=255)
+    ldap_port: Optional[int] = Field(None, ge=1, le=65535)
+    ldap_use_ssl: Optional[bool] = None
+    ldap_bind_dn: Optional[str] = Field(None, max_length=500)
+    ldap_bind_password: Optional[str] = None  # plaintext, encrypted before storage
+    ldap_base_dn: Optional[str] = Field(None, max_length=500)
+    ldap_user_filter: Optional[str] = Field(None, max_length=255)
+    ldap_group_dn: Optional[str] = Field(None, max_length=500)
 
     @field_validator("ssl_mode")
     @classmethod

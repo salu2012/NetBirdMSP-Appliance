@@ -101,6 +101,23 @@ def _run_migrations() -> None:
         ("users", "totp_enabled", "BOOLEAN DEFAULT 0"),
         ("system_config", "ssl_mode", "TEXT DEFAULT 'letsencrypt'"),
         ("system_config", "wildcard_cert_id", "INTEGER"),
+        # Windows DNS
+        ("system_config", "dns_enabled", "BOOLEAN DEFAULT 0"),
+        ("system_config", "dns_server", "TEXT"),
+        ("system_config", "dns_username", "TEXT"),
+        ("system_config", "dns_password_encrypted", "TEXT"),
+        ("system_config", "dns_zone", "TEXT"),
+        ("system_config", "dns_record_ip", "TEXT"),
+        # LDAP
+        ("system_config", "ldap_enabled", "BOOLEAN DEFAULT 0"),
+        ("system_config", "ldap_server", "TEXT"),
+        ("system_config", "ldap_port", "INTEGER DEFAULT 389"),
+        ("system_config", "ldap_use_ssl", "BOOLEAN DEFAULT 0"),
+        ("system_config", "ldap_bind_dn", "TEXT"),
+        ("system_config", "ldap_bind_password_encrypted", "TEXT"),
+        ("system_config", "ldap_base_dn", "TEXT"),
+        ("system_config", "ldap_user_filter", "TEXT DEFAULT '(sAMAccountName={username})'"),
+        ("system_config", "ldap_group_dn", "TEXT"),
     ]
     for table, column, col_type in migrations:
         if not _has_column(table, column):

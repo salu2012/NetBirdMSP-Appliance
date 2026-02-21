@@ -30,7 +30,7 @@ from jinja2 import Environment, FileSystemLoader
 from sqlalchemy.orm import Session
 
 from app.models import Customer, Deployment, DeploymentLog
-from app.services import docker_service, npm_service, port_manager
+from app.services import dns_service, docker_service, npm_service, port_manager
 from app.utils.config import get_system_config
 from app.utils.security import encrypt_value, generate_datastore_encryption_key, generate_relay_secret
 
@@ -326,7 +326,20 @@ async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
                     "Please create it manually in NPM or ensure DNS resolves and port 80 is reachable, then re-deploy.",
                 )
 
-        # Step 10: Create or update deployment record
+        # Step 10: Create Windows DNS A-record (non-fatal — failure does not abort deployment)
+        if config.dns_enabled and config.dns_server and config.dns_zone and config.dns_record_ip:
+            try:
+                dns_result = await dns_service.create_dns_record(customer.subdomain, config)
+                if dns_result["ok"]:
+                    _log_action(db, customer_id, "dns_create", "success", dns_result["message"])
+                else:
+                    _log_action(db, customer_id, "dns_create", "error", dns_result["message"])
+                    logger.warning("DNS record creation failed (non-fatal): %s", dns_result["message"])
+            except Exception as exc:
+                logger.error("DNS service error (non-fatal): %s", exc)
+                _log_action(db, customer_id, "dns_create", "error", str(exc))
+
+        # Step 11: Create or update deployment record
         setup_url = external_url
 
         deployment = db.query(Deployment).filter(Deployment.customer_id == customer_id).first()
@@ -440,6 +453,17 @@ async def undeploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
                 _log_action(db, customer_id, "undeploy", "info", "NPM stream removed.")
             except Exception as exc:
                 _log_action(db, customer_id, "undeploy", "error", f"NPM stream removal error: {exc}")
+
+        # Remove Windows DNS A-record (non-fatal)
+        if config and config.dns_enabled and config.dns_server and config.dns_zone:
+            try:
+                dns_result = await dns_service.delete_dns_record(customer.subdomain, config)
+                if dns_result["ok"]:
+                    _log_action(db, customer_id, "undeploy", "info", dns_result["message"])
+                else:
+                    _log_action(db, customer_id, "undeploy", "error", f"DNS removal: {dns_result['message']}")
+            except Exception as exc:
+                logger.error("DNS record deletion failed (non-fatal): %s", exc)
 
         # Remove instance directory
         if os.path.isdir(instance_dir):

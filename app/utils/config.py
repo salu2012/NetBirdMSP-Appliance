@@ -33,6 +33,23 @@ class AppConfig:
     dashboard_base_port: int
     ssl_mode: str
     wildcard_cert_id: int | None
+    # Windows DNS
+    dns_enabled: bool = False
+    dns_server: str = ""
+    dns_username: str = ""
+    dns_password: str = ""  # decrypted
+    dns_zone: str = ""
+    dns_record_ip: str = ""
+    # LDAP
+    ldap_enabled: bool = False
+    ldap_server: str = ""
+    ldap_port: int = 389
+    ldap_use_ssl: bool = False
+    ldap_bind_dn: str = ""
+    ldap_bind_password: str = ""  # decrypted
+    ldap_base_dn: str = ""
+    ldap_user_filter: str = "(sAMAccountName={username})"
+    ldap_group_dn: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -92,6 +109,14 @@ def get_system_config(db: Session) -> Optional[AppConfig]:
         npm_password = decrypt_value(row.npm_api_password_encrypted)
     except Exception:
         npm_password = ""
+    try:
+        dns_password = decrypt_value(row.dns_password_encrypted) if row.dns_password_encrypted else ""
+    except Exception:
+        dns_password = ""
+    try:
+        ldap_bind_password = decrypt_value(row.ldap_bind_password_encrypted) if row.ldap_bind_password_encrypted else ""
+    except Exception:
+        ldap_bind_password = ""
 
     return AppConfig(
         base_domain=row.base_domain,
@@ -109,4 +134,19 @@ def get_system_config(db: Session) -> Optional[AppConfig]:
         dashboard_base_port=getattr(row, "dashboard_base_port", 9000) or 9000,
         ssl_mode=getattr(row, "ssl_mode", "letsencrypt") or "letsencrypt",
         wildcard_cert_id=getattr(row, "wildcard_cert_id", None),
+        dns_enabled=bool(getattr(row, "dns_enabled", False)),
+        dns_server=getattr(row, "dns_server", "") or "",
+        dns_username=getattr(row, "dns_username", "") or "",
+        dns_password=dns_password,
+        dns_zone=getattr(row, "dns_zone", "") or "",
+        dns_record_ip=getattr(row, "dns_record_ip", "") or "",
+        ldap_enabled=bool(getattr(row, "ldap_enabled", False)),
+        ldap_server=getattr(row, "ldap_server", "") or "",
+        ldap_port=getattr(row, "ldap_port", 389) or 389,
+        ldap_use_ssl=bool(getattr(row, "ldap_use_ssl", False)),
+        ldap_bind_dn=getattr(row, "ldap_bind_dn", "") or "",
+        ldap_bind_password=ldap_bind_password,
+        ldap_base_dn=getattr(row, "ldap_base_dn", "") or "",
+        ldap_user_filter=getattr(row, "ldap_user_filter", "(sAMAccountName={username})") or "(sAMAccountName={username})",
+        ldap_group_dn=getattr(row, "ldap_group_dn", "") or "",
     )

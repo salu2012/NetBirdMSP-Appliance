@@ -13,6 +13,8 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import create_access_token, create_mfa_token, get_current_user, verify_mfa_token
 from app.models import SystemConfig, User
+from app.services import ldap_service
+from app.utils.config import get_system_config
 from app.utils.security import (
     decrypt_value,
     encrypt_value,
@@ -35,24 +37,94 @@ from app.limiter import limiter
 async def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)):
     """Authenticate with username/password. May require MFA as a second step.
 
+    Auth flow:
+    1. If LDAP is enabled: try LDAP authentication first.
+       - Success → find or auto-create local User with auth_provider="ldap"
+       - Wrong password (user found in LDAP) → HTTP 401
+       - User not found in LDAP → fall through to local auth
+    2. Local auth: verify bcrypt hash for users with auth_provider="local"
+    3. On success: check MFA requirement (local users only) then issue JWT
+
     Rate-limited to 10 attempts per minute per IP address.
     """
-    user = db.query(User).filter(User.username == payload.username).first()
-    if not user or not verify_password(payload.password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid username or password.",
-        )
+    config = get_system_config(db)
+    user: User | None = None
+
+    # ------------------------------------------------------------------
+    # Step 1: LDAP authentication (if enabled)
+    # ------------------------------------------------------------------
+    if config and config.ldap_enabled and config.ldap_server:
+        try:
+            ldap_info = await ldap_service.authenticate_ldap(
+                payload.username, payload.password, config
+            )
+            if ldap_info is not None:
+                # User authenticated via LDAP — find or create local record
+                user = db.query(User).filter(User.username == ldap_info["username"]).first()
+                if not user:
+                    user = User(
+                        username=ldap_info["username"],
+                        password_hash=hash_password(secrets.token_urlsafe(32)),
+                        email=ldap_info.get("email", ""),
+                        is_active=True,
+                        role="viewer",
+                        auth_provider="ldap",
+                    )
+                    db.add(user)
+                    db.commit()
+                    db.refresh(user)
+                    logger.info("LDAP user '%s' auto-created with role 'viewer'.", ldap_info["username"])
+                elif not user.is_active:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Account is disabled.",
+                    )
+                else:
+                    # Keep auth_provider in sync in case it was changed
+                    if user.auth_provider != "ldap":
+                        user.auth_provider = "ldap"
+                        db.commit()
+        except ValueError as exc:
+            # User found in LDAP but wrong password or group denied
+            logger.warning("LDAP login failed for '%s': %s", payload.username, exc)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid username or password.",
+            )
+        except RuntimeError as exc:
+            # LDAP server unreachable — log and fall through to local auth
+            logger.error("LDAP server error, falling back to local auth: %s", exc)
+
+    # ------------------------------------------------------------------
+    # Step 2: Local authentication (if LDAP didn't produce a user)
+    # ------------------------------------------------------------------
+    if user is None:
+        local_user = db.query(User).filter(User.username == payload.username).first()
+        if local_user and local_user.auth_provider == "local":
+            if not verify_password(payload.password, local_user.password_hash):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid username or password.",
+                )
+            user = local_user
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid username or password.",
+            )
+
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account is disabled.",
         )
 
-    # Check if MFA is required (only for local users)
+    # ------------------------------------------------------------------
+    # Step 3: MFA check (local users only)
+    # ------------------------------------------------------------------
     if user.auth_provider == "local":
-        config = db.query(SystemConfig).filter(SystemConfig.id == 1).first()
-        if config and getattr(config, "mfa_enabled", False):
+        sys_config = db.query(SystemConfig).filter(SystemConfig.id == 1).first()
+        if sys_config and getattr(sys_config, "mfa_enabled", False):
             mfa_token = create_mfa_token(user.username)
             return {
                 "mfa_required": True,
@@ -61,7 +133,7 @@ async def login(request: Request, payload: LoginRequest, db: Session = Depends(g
             }
 
     token = create_access_token(user.username)
-    logger.info("User %s logged in.", user.username)
+    logger.info("User %s logged in (provider: %s).", user.username, user.auth_provider)
     return {
         "access_token": token,
         "token_type": "bearer",
