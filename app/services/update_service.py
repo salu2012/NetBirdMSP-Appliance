@@ -310,8 +310,7 @@ def trigger_update(config: Any, db_path: str) -> dict:
             "sleep 3 && "
             "docker compose -p netbirdmsp-appliance "
             f"-f {host_source_dir}/docker-compose.yml "
-            "up --force-recreate --no-deps -d netbird-msp-appliance "
-            f">> {host_source_dir}/app/backups/updater.log 2>&1"
+            "up --force-recreate --no-deps -d netbird-msp-appliance"
         ),
     ]
     try:

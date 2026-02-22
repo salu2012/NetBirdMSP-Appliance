@@ -1,0 +1,10 @@
+[unstable 94d0b98] alpha-1.5: trigger update
+remote: 
+remote: Create a new pull request for 'unstable':        
+remote:   https://git.0x26.ch/BurgerGames/NetBirdMSP-Appliance/pulls/new/unstable        
+remote: 
+remote: .. Processing 2 references        
+remote: Processed 2 references in total        
+To https://git.0x26.ch/BurgerGames/NetBirdMSP-Appliance.git
+   2780b06..94d0b98  unstable -> unstable
+ * [new tag]         alpha-1.5 -> alpha-1.5

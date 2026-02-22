@@ -1,0 +1,1 @@
+sh: 1: cannot create /home/sascha/NetBirdMSP-Appliance/app/backups/updater.log: Directory nonexistent

@@ -1,0 +1,8 @@
+msp-updater	Exited (2) 11 seconds ago	netbirdmsp-appliance-netbird-msp-appliance:latest	15 seconds ago
+netbird-msp-appliance	Up 6 minutes (healthy)	07c60529cf9f	6 minutes ago
+netbird-kunde1-caddy	Up 2 hours	caddy:2-alpine	3 hours ago
+netbird-kunde1-signal	Up 2 hours	netbirdio/signal:latest	3 hours ago
+netbird-kunde1-dashboard	Up 2 hours	netbirdio/dashboard:latest	3 hours ago
+netbird-kunde1-relay	Up 2 hours	netbirdio/relay:latest	3 hours ago
+netbird-kunde1-management	Up 2 hours	netbirdio/management:latest	3 hours ago
+docker-socket-proxy	Up 2 hours	tecnativa/docker-socket-proxy:latest	3 days ago
