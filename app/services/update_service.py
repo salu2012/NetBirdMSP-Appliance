@@ -301,8 +301,8 @@ def trigger_update(config: Any, db_path: str) -> dict:
     helper_cmd = [
         "docker", "run", "-d",
         "--name", "msp-updater",
-        "-v", "/var/run/docker.sock:/var/run/docker.sock",
-        "-v", f"{host_source_dir}:{host_source_dir}:ro",
+        "-v", "/var/run/docker.sock:/var/run/docker.sock:z",
+        "-v", f"{host_source_dir}:{host_source_dir}:ro,z",
         *env_flags,
         own_image,
         "sh", "-c",

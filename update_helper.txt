@@ -1,1 +1,1 @@
-sh: 1: cannot create /home/sascha/NetBirdMSP-Appliance/app/backups/updater.log: Directory nonexistent
+unable to get image 'netbirdmsp-appliance-netbird-msp-appliance': permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock: Get "http://%2Fvar%2Frun%2Fdocker.sock/v1.51/images/netbirdmsp-appliance-netbird-msp-appliance/json": dial unix /var/run/docker.sock: connect: permission denied
