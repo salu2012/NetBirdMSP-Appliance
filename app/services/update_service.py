@@ -22,21 +22,23 @@ def get_current_version() -> dict:
     try:
         data = json.loads(Path(VERSION_FILE).read_text())
         return {
+            "tag": data.get("tag", "unknown"),
             "commit": data.get("commit", "unknown"),
             "branch": data.get("branch", "unknown"),
             "date": data.get("date", "unknown"),
         }
     except Exception:
-        return {"commit": "unknown", "branch": "unknown", "date": "unknown"}
+        return {"tag": "unknown", "commit": "unknown", "branch": "unknown", "date": "unknown"}
 
 
 async def check_for_updates(config: Any) -> dict:
-    """Query the Gitea API for the latest commit on the configured branch.
+    """Query the Gitea API for the latest tag and commit on the configured branch.
 
     Parses the repo URL to build the Gitea API endpoint:
       https://git.example.com/owner/repo
-      → https://git.example.com/api/v1/repos/owner/repo/branches/{branch}
+      → https://git.example.com/api/v1/repos/owner/repo/...
 
+    Uses tags for version comparison when available, falls back to commit SHAs.
     Returns dict with current, latest, needs_update, and optional error.
     """
     current = get_current_version()
@@ -62,7 +64,8 @@ async def check_for_updates(config: Any) -> dict:
     owner = parts[-2]
     repo = parts[-1]
     branch = config.git_branch or "main"
-    api_url = f"{base_url}/api/v1/repos/{owner}/{repo}/branches/{branch}"
+    branch_api = f"{base_url}/api/v1/repos/{owner}/{repo}/branches/{branch}"
+    tags_api = f"{base_url}/api/v1/repos/{owner}/{repo}/tags?limit=1"
 
     headers = {}
     if config.git_token:
@@ -70,7 +73,8 @@ async def check_for_updates(config: Any) -> dict:
 
     try:
         async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(api_url, headers=headers)
+            # Fetch branch info (latest commit)
+            resp = await client.get(branch_api, headers=headers)
             if resp.status_code != 200:
                 return {
                     "current": current,
@@ -82,20 +86,39 @@ async def check_for_updates(config: Any) -> dict:
             latest_commit = data.get("commit", {})
             full_sha = latest_commit.get("id", "unknown")
             short_sha = full_sha[:8] if full_sha != "unknown" else "unknown"
+
+            # Fetch latest tag
+            latest_tag = "unknown"
+            try:
+                tag_resp = await client.get(tags_api, headers=headers)
+                if tag_resp.status_code == 200:
+                    tags = tag_resp.json()
+                    if tags and len(tags) > 0:
+                        latest_tag = tags[0].get("name", "unknown")
+            except Exception:
+                pass  # Tag fetch is best-effort
+
             latest = {
+                "tag": latest_tag,
                 "commit": short_sha,
                 "commit_full": full_sha,
                 "message": latest_commit.get("commit", {}).get("message", "").split("\n")[0],
                 "date": latest_commit.get("commit", {}).get("committer", {}).get("date", ""),
                 "branch": branch,
             }
+
+            # Determine if update is needed: prefer tag comparison, fallback to commit
+            current_tag = current.get("tag", "unknown")
             current_sha = current.get("commit", "unknown")
-            needs_update = (
-                current_sha != "unknown"
-                and short_sha != "unknown"
-                and current_sha != short_sha
-                and not full_sha.startswith(current_sha)
-            )
+            if current_tag != "unknown" and latest_tag != "unknown":
+                needs_update = current_tag != latest_tag
+            else:
+                needs_update = (
+                    current_sha != "unknown"
+                    and short_sha != "unknown"
+                    and current_sha != short_sha
+                    and not full_sha.startswith(current_sha)
+                )
             return {"current": current, "latest": latest, "needs_update": needs_update}
     except Exception as exc:
         return {

@@ -214,6 +214,7 @@
     "currentVersion": "Installierte Version",
     "latestVersion": "Neueste verfügbare Version",
     "branch": "Branch",
+    "commitHash": "Commit",
     "updateAvailable": "Update verfügbar",
     "upToDate": "Aktuell",
     "triggerUpdate": "Update starten",

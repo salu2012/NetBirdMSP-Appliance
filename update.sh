@@ -38,9 +38,11 @@ echo "✓ Code updated to: $(git log --oneline -1)"
 export GIT_COMMIT=$(git rev-parse HEAD)
 export GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 export GIT_COMMIT_DATE=$(git log -1 --format=%cI)
+export GIT_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "unknown")
 
 echo ""
 echo "Building with:"
+echo "  GIT_TAG         = $GIT_TAG"
 echo "  GIT_COMMIT      = $GIT_COMMIT"
 echo "  GIT_BRANCH      = $GIT_BRANCH"
 echo "  GIT_COMMIT_DATE = $GIT_COMMIT_DATE"

@@ -1214,24 +1214,31 @@ async function loadVersionInfo() {
         const latest = data.latest;
         const needsUpdate = data.needs_update;
 
+        const currentTag = current.tag && current.tag !== 'unknown' ? current.tag : null;
+        const currentCommit = current.commit || 'unknown';
+
         let html = `<div class="row g-3">
             <div class="col-md-6">
                 <div class="border rounded p-3">
                     <div class="text-muted small mb-1">${t('settings.currentVersion')}</div>
-                    <div class="fw-bold font-monospace">${esc(current.commit || 'unknown')}</div>
+                    <div class="fw-bold fs-5">${esc(currentTag || currentCommit)}</div>
+                    ${currentTag ? `<div class="text-muted small font-monospace">${t('settings.commitHash')}: ${esc(currentCommit)}</div>` : ''}
                     <div class="text-muted small">${t('settings.branch')}: <strong>${esc(current.branch || 'unknown')}</strong></div>
                     <div class="text-muted small">${esc(current.date || '')}</div>
                 </div>
             </div>`;
 
         if (latest) {
+            const latestTag = latest.tag && latest.tag !== 'unknown' ? latest.tag : null;
+            const latestCommit = latest.commit || 'unknown';
             const badge = needsUpdate
                 ? `<span class="badge bg-warning text-dark ms-1">${t('settings.updateAvailable')}</span>`
                 : `<span class="badge bg-success ms-1">${t('settings.upToDate')}</span>`;
             html += `<div class="col-md-6">
                 <div class="border rounded p-3 ${needsUpdate ? 'border-warning' : ''}">
                     <div class="text-muted small mb-1">${t('settings.latestVersion')} ${badge}</div>
-                    <div class="fw-bold font-monospace">${esc(latest.commit || 'unknown')}</div>
+                    <div class="fw-bold fs-5">${esc(latestTag || latestCommit)}</div>
+                    ${latestTag ? `<div class="text-muted small font-monospace">${t('settings.commitHash')}: ${esc(latestCommit)}</div>` : ''}
                     <div class="text-muted small">${t('settings.branch')}: <strong>${esc(latest.branch || 'unknown')}</strong></div>
                     <div class="text-muted small">${esc(latest.message || '')}</div>
                     <div class="text-muted small">${esc(latest.date || '')}</div>

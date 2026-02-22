@@ -32,7 +32,8 @@ COPY static/ ./static/
 ARG GIT_COMMIT=unknown
 ARG GIT_BRANCH=unknown
 ARG GIT_COMMIT_DATE=unknown
-RUN echo "{\"commit\": \"$GIT_COMMIT\", \"branch\": \"$GIT_BRANCH\", \"date\": \"$GIT_COMMIT_DATE\"}" > /app/version.json
+ARG GIT_TAG=unknown
+RUN echo "{\"tag\": \"$GIT_TAG\", \"commit\": \"$GIT_COMMIT\", \"branch\": \"$GIT_BRANCH\", \"date\": \"$GIT_COMMIT_DATE\"}" > /app/version.json
 
 # Allow git to operate in the /app-source volume (owner may differ from container user)
 RUN git config --global --add safe.directory /app-source
