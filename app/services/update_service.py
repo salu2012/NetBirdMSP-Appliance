@@ -233,10 +233,14 @@ def trigger_update(config: Any, db_path: str) -> dict:
     )
 
     # 5. Fire-and-forget docker compose rebuild — the container will restart itself
+    #    Use the correct project name so compose finds/replaces the right container.
+    #    Only rebuild the app service — docker-socket-proxy must not be recreated.
     compose_cmd = [
         "docker", "compose",
+        "-p", "netbirdmsp-appliance",
         "-f", f"{SOURCE_DIR}/docker-compose.yml",
-        "up", "--build", "-d",
+        "up", "--build", "--no-deps", "-d",
+        "netbird-msp-appliance",
     ]
     log_path = Path(BACKUP_DIR) / "update_rebuild.log"
     log_file = open(log_path, "w")
