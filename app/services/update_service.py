@@ -299,7 +299,7 @@ def trigger_update(config: Any, db_path: str) -> dict:
     own_image = "netbirdmsp-appliance-netbird-msp-appliance:latest"
 
     helper_cmd = [
-        "docker", "run", "-d", "--privileged",
+        "docker", "run", "--rm", "-d", "--privileged",
         "--name", "msp-updater",
         "-v", "/var/run/docker.sock:/var/run/docker.sock:z",
         "-v", f"{host_source_dir}:{host_source_dir}:ro,z",

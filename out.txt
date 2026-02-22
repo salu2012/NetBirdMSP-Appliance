@@ -1,10 +1,1 @@
-[unstable c40b7d3] alpha-1.7: final test
-remote: 
-remote: Create a new pull request for 'unstable':        
-remote:   https://git.0x26.ch/BurgerGames/NetBirdMSP-Appliance/pulls/new/unstable        
-remote: 
-remote: .. Processing 2 references        
-remote: Processed 2 references in total        
-To https://git.0x26.ch/BurgerGames/NetBirdMSP-Appliance.git
-   525b056..c40b7d3  unstable -> unstable
- * [new tag]         alpha-1.7 -> alpha-1.7
+msp-updater
