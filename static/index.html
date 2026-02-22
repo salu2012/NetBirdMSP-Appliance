@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,6 +9,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="/static/css/styles.css" rel="stylesheet">
 </head>
+
 <body class="i18n-loading">
     <!-- Login Page -->
     <div id="login-page" class="d-none">
@@ -17,8 +19,10 @@
                     <div class="text-center mb-4">
                         <div id="login-logo"><i class="bi bi-hdd-network fs-1 text-primary"></i></div>
                         <h3 class="mt-2" id="login-title">NetBird MSP Appliance</h3>
-                        <p class="text-muted" id="login-subtitle" data-i18n="login.subtitle">Multi-Tenant Management Platform</p>
-                        <p class="text-muted small mb-0" style="opacity:0.6;"><i class="bi bi-tag me-1"></i>alpha-1.1</p>
+                        <p class="text-muted" id="login-subtitle" data-i18n="login.subtitle">Multi-Tenant Management
+                            Platform</p>
+                        <p class="text-muted small mb-0" style="opacity:0.6;"><i class="bi bi-tag me-1"></i>alpha-1.1
+                        </p>
                     </div>
                     <div id="login-error" class="alert alert-danger d-none"></div>
                     <form id="login-form">
@@ -37,30 +41,37 @@
                     </form>
                     <div id="azure-login-divider" class="d-none">
                         <hr class="my-3">
-                        <button type="button" class="btn btn-outline-dark w-100" id="azure-login-btn" onclick="loginWithAzure()">
-                            <i class="bi bi-microsoft me-2"></i><span data-i18n="login.signInWithMicrosoft">Sign in with Microsoft</span>
+                        <button type="button" class="btn btn-outline-dark w-100" id="azure-login-btn"
+                            onclick="loginWithAzure()">
+                            <i class="bi bi-microsoft me-2"></i><span data-i18n="login.signInWithMicrosoft">Sign in with
+                                Microsoft</span>
                         </button>
                     </div>
 
                     <!-- MFA: TOTP Verify (existing setup) -->
                     <div id="mfa-verify-section" class="d-none">
                         <div id="mfa-verify-error" class="alert alert-danger d-none"></div>
-                        <p class="text-muted text-center mb-3" data-i18n="mfa.enterCode">Enter your 6-digit authenticator code</p>
+                        <p class="text-muted text-center mb-3" data-i18n="mfa.enterCode">Enter your 6-digit
+                            authenticator code</p>
                         <form id="mfa-verify-form">
                             <input type="text" class="form-control form-control-lg text-center" id="mfa-code"
-                                   maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" required autofocus>
+                                maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code"
+                                required autofocus>
                             <button type="submit" class="btn btn-primary w-100 mt-3">
-                                <span class="spinner-border spinner-border-sm d-none me-1" id="mfa-verify-spinner"></span>
+                                <span class="spinner-border spinner-border-sm d-none me-1"
+                                    id="mfa-verify-spinner"></span>
                                 <span data-i18n="mfa.verify">Verify</span>
                             </button>
                         </form>
-                        <a href="#" id="mfa-back-to-login" class="d-block text-center mt-2 small" data-i18n="mfa.backToLogin">Back to login</a>
+                        <a href="#" id="mfa-back-to-login" class="d-block text-center mt-2 small"
+                            data-i18n="mfa.backToLogin">Back to login</a>
                     </div>
 
                     <!-- MFA: TOTP Setup (first time) -->
                     <div id="mfa-setup-section" class="d-none">
                         <div id="mfa-setup-error" class="alert alert-danger d-none"></div>
-                        <p class="text-muted text-center mb-2" data-i18n="mfa.scanQrCode">Scan this QR code with your authenticator app</p>
+                        <p class="text-muted text-center mb-2" data-i18n="mfa.scanQrCode">Scan this QR code with your
+                            authenticator app</p>
                         <div class="text-center mb-3">
                             <img id="mfa-qr-code" class="img-fluid rounded" style="max-width:200px" alt="TOTP QR Code">
                         </div>
@@ -70,13 +81,16 @@
                         </p>
                         <form id="mfa-setup-form">
                             <input type="text" class="form-control form-control-lg text-center" id="mfa-setup-code"
-                                   maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" required>
+                                maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code"
+                                required>
                             <button type="submit" class="btn btn-success w-100 mt-3">
-                                <span class="spinner-border spinner-border-sm d-none me-1" id="mfa-setup-spinner"></span>
+                                <span class="spinner-border spinner-border-sm d-none me-1"
+                                    id="mfa-setup-spinner"></span>
                                 <span data-i18n="mfa.verifyAndActivate">Verify & Activate</span>
                             </button>
                         </form>
-                        <a href="#" id="mfa-setup-back-to-login" class="d-block text-center mt-2 small" data-i18n="mfa.backToLogin">Back to login</a>
+                        <a href="#" id="mfa-setup-back-to-login" class="d-block text-center mt-2 small"
+                            data-i18n="mfa.backToLogin">Back to login</a>
                     </div>
                 </div>
             </div>
@@ -88,17 +102,21 @@
         <!-- Navbar -->
         <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
             <div class="container-fluid">
-                <a class="navbar-brand d-flex align-items-center" href="#" onclick="showPage('dashboard'); return false;">
+                <a class="navbar-brand d-flex align-items-center" href="#"
+                    onclick="showPage('dashboard'); return false;">
                     <span id="nav-logo"><i class="bi bi-hdd-network me-2"></i></span>
                     <span id="nav-brand-name">NetBird MSP</span>
                 </a>
                 <div class="d-flex align-items-center">
                     <!-- Language Switcher -->
                     <div class="dropdown me-2">
-                        <button class="btn btn-outline-light btn-sm dropdown-toggle" id="language-switcher-btn" data-bs-toggle="dropdown" aria-expanded="false">EN</button>
+                        <button class="btn btn-outline-light btn-sm dropdown-toggle" id="language-switcher-btn"
+                            data-bs-toggle="dropdown" aria-expanded="false">EN</button>
                         <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item" href="#" data-lang="en" onclick="switchLanguage('en'); return false;">English</a></li>
-                            <li><a class="dropdown-item" href="#" data-lang="de" onclick="switchLanguage('de'); return false;">Deutsch</a></li>
+                            <li><a class="dropdown-item" href="#" data-lang="en"
+                                    onclick="switchLanguage('en'); return false;">English</a></li>
+                            <li><a class="dropdown-item" href="#" data-lang="de"
+                                    onclick="switchLanguage('de'); return false;">Deutsch</a></li>
                         </ul>
                     </div>
                     <button class="btn btn-success btn-sm me-3" onclick="showNewCustomerModal()">
@@ -109,10 +127,18 @@
                             <i class="bi bi-person-circle me-1"></i><span id="nav-username">Admin</span>
                         </button>
                         <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item" href="#" onclick="showPage('settings')"><i class="bi bi-gear me-2"></i><span data-i18n="nav.settings">Settings</span></a></li>
-                            <li><a class="dropdown-item" href="#" onclick="showPage('monitoring')"><i class="bi bi-activity me-2"></i><span data-i18n="nav.monitoring">Monitoring</span></a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item text-danger" href="#" onclick="logout()"><i class="bi bi-box-arrow-right me-2"></i><span data-i18n="nav.logout">Logout</span></a></li>
+                            <li><a class="dropdown-item" href="#" onclick="showPage('settings')"><i
+                                        class="bi bi-gear me-2"></i><span data-i18n="nav.settings">Settings</span></a>
+                            </li>
+                            <li><a class="dropdown-item" href="#" onclick="showPage('monitoring')"><i
+                                        class="bi bi-activity me-2"></i><span
+                                        data-i18n="nav.monitoring">Monitoring</span></a></li>
+                            <li>
+                                <hr class="dropdown-divider">
+                            </li>
+                            <li><a class="dropdown-item text-danger" href="#" onclick="logout()"><i
+                                        class="bi bi-box-arrow-right me-2"></i><span
+                                        data-i18n="nav.logout">Logout</span></a></li>
                         </ul>
                     </div>
                 </div>
@@ -129,10 +155,12 @@
                             <div class="card-body">
                                 <div class="d-flex justify-content-between">
                                     <div>
-                                        <div class="text-muted small" data-i18n="dashboard.totalCustomers">Total Customers</div>
+                                        <div class="text-muted small" data-i18n="dashboard.totalCustomers">Total
+                                            Customers</div>
                                         <div class="fs-3 fw-bold" id="stat-total">0</div>
                                     </div>
-                                    <div class="stat-icon bg-primary bg-opacity-10 text-primary"><i class="bi bi-people"></i></div>
+                                    <div class="stat-icon bg-primary bg-opacity-10 text-primary"><i
+                                            class="bi bi-people"></i></div>
                                 </div>
                             </div>
                         </div>
@@ -145,7 +173,8 @@
                                         <div class="text-muted small" data-i18n="dashboard.active">Active</div>
                                         <div class="fs-3 fw-bold text-success" id="stat-active">0</div>
                                     </div>
-                                    <div class="stat-icon bg-success bg-opacity-10 text-success"><i class="bi bi-check-circle"></i></div>
+                                    <div class="stat-icon bg-success bg-opacity-10 text-success"><i
+                                            class="bi bi-check-circle"></i></div>
                                 </div>
                             </div>
                         </div>
@@ -158,7 +187,8 @@
                                         <div class="text-muted small" data-i18n="dashboard.inactive">Inactive</div>
                                         <div class="fs-3 fw-bold text-warning" id="stat-inactive">0</div>
                                     </div>
-                                    <div class="stat-icon bg-warning bg-opacity-10 text-warning"><i class="bi bi-pause-circle"></i></div>
+                                    <div class="stat-icon bg-warning bg-opacity-10 text-warning"><i
+                                            class="bi bi-pause-circle"></i></div>
                                 </div>
                             </div>
                         </div>
@@ -171,7 +201,8 @@
                                         <div class="text-muted small" data-i18n="dashboard.errors">Errors</div>
                                         <div class="fs-3 fw-bold text-danger" id="stat-error">0</div>
                                     </div>
-                                    <div class="stat-icon bg-danger bg-opacity-10 text-danger"><i class="bi bi-exclamation-triangle"></i></div>
+                                    <div class="stat-icon bg-danger bg-opacity-10 text-danger"><i
+                                            class="bi bi-exclamation-triangle"></i></div>
                                 </div>
                             </div>
                         </div>
@@ -183,7 +214,9 @@
                     <div class="card-body">
                         <div class="row g-2">
                             <div class="col-md-6">
-                                <input type="text" class="form-control" id="search-input" data-i18n-placeholder="dashboard.searchPlaceholder" placeholder="Search by name, subdomain, email...">
+                                <input type="text" class="form-control" id="search-input"
+                                    data-i18n-placeholder="dashboard.searchPlaceholder"
+                                    placeholder="Search by name, subdomain, email...">
                             </div>
                             <div class="col-md-3">
                                 <select class="form-select" id="status-filter">
@@ -195,7 +228,9 @@
                                 </select>
                             </div>
                             <div class="col-md-3 text-end">
-                                <button class="btn btn-outline-secondary" onclick="loadCustomers()"><i class="bi bi-arrow-clockwise me-1"></i><span data-i18n="dashboard.refresh">Refresh</span></button>
+                                <button class="btn btn-outline-secondary" onclick="loadCustomers()"><i
+                                        class="bi bi-arrow-clockwise me-1"></i><span
+                                        data-i18n="dashboard.refresh">Refresh</span></button>
                             </div>
                         </div>
                     </div>
@@ -218,13 +253,17 @@
                                 </tr>
                             </thead>
                             <tbody id="customers-table-body">
-                                <tr><td colspan="8" class="text-center text-muted py-4" data-i18n="common.loading">Loading...</td></tr>
+                                <tr>
+                                    <td colspan="8" class="text-center text-muted py-4" data-i18n="common.loading">
+                                        Loading...</td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
                     <!-- Pagination -->
                     <div class="card-footer d-flex justify-content-between align-items-center">
-                        <div class="text-muted small" id="pagination-info" data-i18n="dashboard.showingEmpty">Showing 0 of 0</div>
+                        <div class="text-muted small" id="pagination-info" data-i18n="dashboard.showingEmpty">Showing 0
+                            of 0</div>
                         <nav>
                             <ul class="pagination pagination-sm mb-0" id="pagination-controls"></ul>
                         </nav>
@@ -238,21 +277,28 @@
             <div class="container-fluid p-4">
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <div>
-                        <button class="btn btn-outline-secondary btn-sm me-2" onclick="showPage('dashboard')"><i class="bi bi-arrow-left me-1"></i><span data-i18n="common.back">Back</span></button>
+                        <button class="btn btn-outline-secondary btn-sm me-2" onclick="showPage('dashboard')"><i
+                                class="bi bi-arrow-left me-1"></i><span data-i18n="common.back">Back</span></button>
                         <span class="fs-4 fw-bold" id="detail-customer-name">Customer</span>
                         <span class="badge ms-2" id="detail-customer-status">active</span>
                     </div>
                     <div>
-                        <button class="btn btn-outline-primary btn-sm me-1" onclick="editCurrentCustomer()"><i class="bi bi-pencil me-1"></i><span data-i18n="customer.edit">Edit</span></button>
-                        <button class="btn btn-outline-danger btn-sm" onclick="deleteCurrentCustomer()"><i class="bi bi-trash me-1"></i><span data-i18n="customer.delete">Delete</span></button>
+                        <button class="btn btn-outline-primary btn-sm me-1" onclick="editCurrentCustomer()"><i
+                                class="bi bi-pencil me-1"></i><span data-i18n="customer.edit">Edit</span></button>
+                        <button class="btn btn-outline-danger btn-sm" onclick="deleteCurrentCustomer()"><i
+                                class="bi bi-trash me-1"></i><span data-i18n="customer.delete">Delete</span></button>
                     </div>
                 </div>
 
                 <ul class="nav nav-tabs mb-3" id="detail-tabs">
-                    <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-info" data-i18n="customer.tabInfo">Info</a></li>
-                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-deployment" data-i18n="customer.tabDeployment">Deployment</a></li>
-                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-logs" data-i18n="customer.tabLogs">Logs</a></li>
-                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-health" data-i18n="customer.tabHealth">Health</a></li>
+                    <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-info"
+                            data-i18n="customer.tabInfo">Info</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-deployment"
+                            data-i18n="customer.tabDeployment">Deployment</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-logs"
+                            data-i18n="customer.tabLogs">Logs</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-health"
+                            data-i18n="customer.tabHealth">Health</a></li>
                 </ul>
 
                 <div class="tab-content">
@@ -265,7 +311,8 @@
                     <!-- Tab: Deployment -->
                     <div class="tab-pane fade" id="tab-deployment">
                         <div class="card shadow-sm">
-                            <div class="card-body" id="detail-deployment-content" data-i18n="common.loading">Loading...</div>
+                            <div class="card-body" id="detail-deployment-content" data-i18n="common.loading">Loading...
+                            </div>
                         </div>
                     </div>
                     <!-- Tab: Logs -->
@@ -273,10 +320,13 @@
                         <div class="card shadow-sm">
                             <div class="card-header d-flex justify-content-between">
                                 <span data-i18n="customer.containerLogs">Container Logs</span>
-                                <button class="btn btn-sm btn-outline-secondary" onclick="loadCustomerLogs()"><i class="bi bi-arrow-clockwise"></i> <span data-i18n="dashboard.refresh">Refresh</span></button>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="loadCustomerLogs()"><i
+                                        class="bi bi-arrow-clockwise"></i> <span
+                                        data-i18n="dashboard.refresh">Refresh</span></button>
                             </div>
                             <div class="card-body">
-                                <div id="detail-logs-content" class="log-viewer" data-i18n="customer.noLogsLoaded">No logs loaded.</div>
+                                <div id="detail-logs-content" class="log-viewer" data-i18n="customer.noLogsLoaded">No
+                                    logs loaded.</div>
                             </div>
                         </div>
                     </div>
@@ -285,9 +335,12 @@
                         <div class="card shadow-sm">
                             <div class="card-header d-flex justify-content-between">
                                 <span data-i18n="customer.healthCheck">Health Check</span>
-                                <button class="btn btn-sm btn-outline-secondary" onclick="loadCustomerHealth()"><i class="bi bi-arrow-clockwise"></i> <span data-i18n="customer.check">Check</span></button>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="loadCustomerHealth()"><i
+                                        class="bi bi-arrow-clockwise"></i> <span
+                                        data-i18n="customer.check">Check</span></button>
                             </div>
-                            <div class="card-body" id="detail-health-content" data-i18n="customer.clickCheck">Click "Check" to run a health check.</div>
+                            <div class="card-body" id="detail-health-content" data-i18n="customer.clickCheck">Click
+                                "Check" to run a health check.</div>
                         </div>
                     </div>
                 </div>
@@ -299,500 +352,753 @@
             <div class="container-fluid p-4">
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h4 class="mb-0">
-                        <button class="btn btn-outline-secondary btn-sm me-2" onclick="showPage('dashboard')"><i class="bi bi-arrow-left me-1"></i><span data-i18n="common.back">Back</span></button>
+                        <button class="btn btn-outline-secondary btn-sm me-2" onclick="showPage('dashboard')"><i
+                                class="bi bi-arrow-left me-1"></i><span data-i18n="common.back">Back</span></button>
                         <i class="bi bi-gear me-2"></i><span data-i18n="settings.title">System Settings</span>
                     </h4>
                 </div>
                 <div id="settings-alert" class="d-none"></div>
 
-                <ul class="nav nav-tabs mb-3">
-                    <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#settings-system" data-i18n="settings.tabSystem">System Configuration</a></li>
-                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#settings-npm" data-i18n="settings.tabNpm">NPM Integration</a></li>
-                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#settings-images" data-i18n="settings.tabImages">Docker Images</a></li>
-                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#settings-branding" data-i18n="settings.tabBranding">Branding</a></li>
-                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#settings-users" onclick="loadUsers()" data-i18n="settings.tabUsers">Users</a></li>
-                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#settings-azure" data-i18n="settings.tabAzure">Azure AD</a></li>
-                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#settings-dns" data-i18n="settings.tabDns">Windows DNS</a></li>
-                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#settings-ldap" data-i18n="settings.tabLdap">LDAP / AD</a></li>
-                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#settings-update" onclick="loadVersionInfo()" data-i18n="settings.tabUpdate">Updates</a></li>
-                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#settings-security" data-i18n="settings.tabSecurity">Security</a></li>
-                </ul>
+                <div class="row">
+                    <!-- Sidebar -->
+                    <div class="col-md-3 mb-4 mb-md-0 border-end pe-3">
+                        <ul class="nav nav-pills flex-column" id="settings-tabs">
+                            <li class="nav-item"><a class="nav-link active" data-bs-toggle="pill"
+                                    href="#settings-system"><i class="bi bi-pc-display me-2"></i><span
+                                        data-i18n="settings.tabSystem">System</span></a></li>
+                            <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#settings-npm"><i
+                                        class="bi bi-router me-2"></i><span data-i18n="settings.tabNpm">NPM
+                                        Proxy</span></a></li>
+                            <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#settings-images"><i
+                                        class="bi bi-box me-2"></i><span
+                                        data-i18n="settings.tabImages">Images</span></a></li>
+                            <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#settings-branding"><i
+                                        class="bi bi-palette me-2"></i><span
+                                        data-i18n="settings.tabBranding">Branding</span></a></li>
 
-                <div class="tab-content">
-                    <!-- System Config -->
-                    <div class="tab-pane fade show active" id="settings-system">
-                        <div class="card shadow-sm">
-                            <div class="card-body">
-                                <form id="settings-system-form">
-                                    <div class="row g-3">
-                                        <div class="col-md-6">
-                                            <label class="form-label" data-i18n="settings.baseDomain">Base Domain</label>
-                                            <input type="text" class="form-control" id="cfg-base-domain" data-i18n-placeholder="settings.baseDomainPlaceholder" placeholder="yourdomain.com">
-                                            <div class="form-text" data-i18n="settings.baseDomainHint">Customers get subdomains: customer.yourdomain.com</div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label" data-i18n="settings.adminEmail">Admin Email</label>
-                                            <input type="email" class="form-control" id="cfg-admin-email" data-i18n-placeholder="settings.adminEmailPlaceholder" placeholder="admin@yourdomain.com">
-                                        </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label" data-i18n="settings.dataDir">Data Directory</label>
-                                            <input type="text" class="form-control" id="cfg-data-dir" data-i18n-placeholder="settings.dataDirPlaceholder" placeholder="/opt/netbird-instances">
-                                        </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label" data-i18n="settings.dockerNetwork">Docker Network</label>
-                                            <input type="text" class="form-control" id="cfg-docker-network" data-i18n-placeholder="settings.dockerNetworkPlaceholder" placeholder="npm-network">
-                                        </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label" data-i18n="settings.relayBasePort">Relay Base Port</label>
-                                            <input type="number" class="form-control" id="cfg-relay-base-port" min="1024" max="65535">
-                                            <div class="form-text" data-i18n="settings.relayBasePortHint">First UDP port for relay. Range: base to base+99</div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label" data-i18n="settings.dashboardBasePort">Dashboard Base Port</label>
-                                            <input type="number" class="form-control" id="cfg-dashboard-base-port" min="1024" max="65535">
-                                            <div class="form-text" data-i18n="settings.dashboardBasePortHint">Base port for customer dashboards. Customer N gets base+N</div>
-                                        </div>
-                                    </div>
-                                    <div class="mt-4">
-                                        <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i><span data-i18n="settings.saveSystemSettings">Save System Settings</span></button>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
+                            <hr class="my-3 border-secondary opacity-25">
+
+                            <div class="text-uppercase text-muted fw-bold mb-2 ps-3"
+                                style="font-size: 0.75rem; letter-spacing: 0.05em;"><i
+                                    class="bi bi-shield-check me-1"></i>Auth & Users</div>
+                            <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#settings-users"
+                                    onclick="loadUsers()"><i class="bi bi-people me-2"></i><span
+                                        data-i18n="settings.tabUsers">Users</span></a></li>
+                            <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#settings-azure"><i
+                                        class="bi bi-microsoft me-2"></i><span data-i18n="settings.tabAzure">Azure
+                                        AD</span></a></li>
+                            <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#settings-ldap"><i
+                                        class="bi bi-diagram-3 me-2"></i><span data-i18n="settings.tabLdap">LDAP /
+                                        AD</span></a></li>
+
+                            <hr class="my-3 border-secondary opacity-25">
+
+                            <div class="text-uppercase text-muted fw-bold mb-2 ps-3"
+                                style="font-size: 0.75rem; letter-spacing: 0.05em;"><i
+                                    class="bi bi-gear-wide-connected me-1"></i>System</div>
+                            <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#settings-dns"><i
+                                        class="bi bi-hdd-network me-2"></i><span data-i18n="settings.tabDns">Windows
+                                        DNS</span></a></li>
+                            <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#settings-update"
+                                    onclick="loadVersionInfo()"><i class="bi bi-cloud-arrow-down me-2"></i><span
+                                        data-i18n="settings.tabUpdate">Updates</span></a></li>
+                            <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#settings-security"><i
+                                        class="bi bi-shield-lock me-2"></i><span
+                                        data-i18n="settings.tabSecurity">Security</span></a></li>
+                        </ul>
                     </div>
 
-                    <!-- NPM Integration -->
-                    <div class="tab-pane fade" id="settings-npm">
-                        <div class="card shadow-sm">
-                            <div class="card-body">
-                                <form id="settings-npm-form">
-                                    <p class="text-muted mb-3" data-i18n="settings.npmDescription">NPM uses JWT authentication. Enter your NPM login credentials (email + password). The system will automatically log in and obtain tokens for API calls.</p>
-                                    <div class="row g-3">
-                                        <div class="col-md-8">
-                                            <label class="form-label" data-i18n="settings.npmApiUrl">NPM API URL</label>
-                                            <input type="text" class="form-control" id="cfg-npm-api-url" data-i18n-placeholder="settings.npmApiUrlPlaceholder" placeholder="http://nginx-proxy-manager:81/api">
-                                            <div class="form-text" data-i18n="settings.npmApiUrlHint">http:// or https:// - must include /api at the end</div>
-                                        </div>
-                                        <div class="col-md-8">
-                                            <label class="form-label" data-i18n="settings.npmLoginEmail">NPM Login Email</label>
-                                            <input type="text" class="form-control" id="cfg-npm-api-email" data-i18n-placeholder="settings.npmLoginEmailPlaceholder" placeholder="Leave empty to keep current">
-                                            <div class="form-text" id="npm-credentials-status"></div>
-                                        </div>
-                                        <div class="col-md-8">
-                                            <label class="form-label" data-i18n="settings.npmLoginPassword">NPM Login Password</label>
-                                            <div class="input-group">
-                                                <input type="password" class="form-control" id="cfg-npm-api-password" data-i18n-placeholder="settings.npmLoginPasswordPlaceholder" placeholder="Leave empty to keep current">
-                                                <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('cfg-npm-api-password')"><i class="bi bi-eye"></i></button>
+                    <!-- Content -->
+                    <div class="col-md-9">
+                        <div class="tab-content">
+                            <!-- System Config -->
+                            <div class="tab-pane fade show active" id="settings-system">
+                                <div class="card shadow-sm">
+                                    <div class="card-body">
+                                        <form id="settings-system-form">
+                                            <div class="row g-3">
+                                                <div class="col-md-6">
+                                                    <label class="form-label" data-i18n="settings.baseDomain">Base
+                                                        Domain</label>
+                                                    <input type="text" class="form-control" id="cfg-base-domain"
+                                                        data-i18n-placeholder="settings.baseDomainPlaceholder"
+                                                        placeholder="yourdomain.com">
+                                                    <div class="form-text" data-i18n="settings.baseDomainHint">Customers
+                                                        get subdomains: customer.yourdomain.com</div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label" data-i18n="settings.adminEmail">Admin
+                                                        Email</label>
+                                                    <input type="email" class="form-control" id="cfg-admin-email"
+                                                        data-i18n-placeholder="settings.adminEmailPlaceholder"
+                                                        placeholder="admin@yourdomain.com">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label" data-i18n="settings.dataDir">Data
+                                                        Directory</label>
+                                                    <input type="text" class="form-control" id="cfg-data-dir"
+                                                        data-i18n-placeholder="settings.dataDirPlaceholder"
+                                                        placeholder="/opt/netbird-instances">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label" data-i18n="settings.dockerNetwork">Docker
+                                                        Network</label>
+                                                    <input type="text" class="form-control" id="cfg-docker-network"
+                                                        data-i18n-placeholder="settings.dockerNetworkPlaceholder"
+                                                        placeholder="npm-network">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label" data-i18n="settings.relayBasePort">Relay
+                                                        Base Port</label>
+                                                    <input type="number" class="form-control" id="cfg-relay-base-port"
+                                                        min="1024" max="65535">
+                                                    <div class="form-text" data-i18n="settings.relayBasePortHint">First
+                                                        UDP port for relay. Range: base to base+99</div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label"
+                                                        data-i18n="settings.dashboardBasePort">Dashboard Base
+                                                        Port</label>
+                                                    <input type="number" class="form-control"
+                                                        id="cfg-dashboard-base-port" min="1024" max="65535">
+                                                    <div class="form-text" data-i18n="settings.dashboardBasePortHint">
+                                                        Base port for customer dashboards. Customer N gets base+N</div>
+                                                </div>
                                             </div>
-                                        </div>
-                                        <!-- SSL Certificate Mode -->
-                                        <div class="col-12 mt-3">
-                                            <hr class="my-2">
-                                            <h6 class="mb-2" data-i18n="settings.sslModeTitle">SSL Certificate Mode</h6>
-                                        </div>
-                                        <div class="col-md-8">
-                                            <label class="form-label" data-i18n="settings.sslMode">SSL Mode</label>
-                                            <select class="form-select" id="cfg-ssl-mode" onchange="onSslModeChange()">
-                                                <option value="letsencrypt" data-i18n="settings.sslModeLetsencrypt">Per-Customer Let's Encrypt Certificate</option>
-                                                <option value="wildcard" data-i18n="settings.sslModeWildcard">Wildcard Certificate (pre-configured in NPM)</option>
-                                            </select>
-                                            <div class="form-text" data-i18n="settings.sslModeHint">Choose how SSL certificates are assigned to customer proxy hosts.</div>
-                                        </div>
-                                        <div class="col-md-8" id="wildcard-cert-section" style="display:none;">
-                                            <label class="form-label" data-i18n="settings.wildcardCertificate">Wildcard Certificate</label>
-                                            <div class="input-group">
-                                                <select class="form-select" id="cfg-wildcard-cert-id">
-                                                    <option value="" data-i18n="settings.selectCertificate">-- Select a certificate --</option>
-                                                </select>
-                                                <button type="button" class="btn btn-outline-secondary" onclick="loadNpmCertificates()" title="Refresh">
-                                                    <i class="bi bi-arrow-clockwise"></i>
+                                            <div class="mt-4">
+                                                <button type="submit" class="btn btn-primary"><i
+                                                        class="bi bi-save me-1"></i><span
+                                                        data-i18n="settings.saveSystemSettings">Save System
+                                                        Settings</span></button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- NPM Integration -->
+                            <div class="tab-pane fade" id="settings-npm">
+                                <div class="card shadow-sm">
+                                    <div class="card-body">
+                                        <form id="settings-npm-form">
+                                            <p class="text-muted mb-3" data-i18n="settings.npmDescription">NPM uses JWT
+                                                authentication. Enter your NPM login credentials (email + password). The
+                                                system will automatically log in and obtain tokens for API calls.</p>
+                                            <div class="row g-3">
+                                                <div class="col-md-8">
+                                                    <label class="form-label" data-i18n="settings.npmApiUrl">NPM API
+                                                        URL</label>
+                                                    <input type="text" class="form-control" id="cfg-npm-api-url"
+                                                        data-i18n-placeholder="settings.npmApiUrlPlaceholder"
+                                                        placeholder="http://nginx-proxy-manager:81/api">
+                                                    <div class="form-text" data-i18n="settings.npmApiUrlHint">http:// or
+                                                        https:// - must include /api at the end</div>
+                                                </div>
+                                                <div class="col-md-8">
+                                                    <label class="form-label" data-i18n="settings.npmLoginEmail">NPM
+                                                        Login Email</label>
+                                                    <input type="text" class="form-control" id="cfg-npm-api-email"
+                                                        data-i18n-placeholder="settings.npmLoginEmailPlaceholder"
+                                                        placeholder="Leave empty to keep current">
+                                                    <div class="form-text" id="npm-credentials-status"></div>
+                                                </div>
+                                                <div class="col-md-8">
+                                                    <label class="form-label" data-i18n="settings.npmLoginPassword">NPM
+                                                        Login Password</label>
+                                                    <div class="input-group">
+                                                        <input type="password" class="form-control"
+                                                            id="cfg-npm-api-password"
+                                                            data-i18n-placeholder="settings.npmLoginPasswordPlaceholder"
+                                                            placeholder="Leave empty to keep current">
+                                                        <button class="btn btn-outline-secondary" type="button"
+                                                            onclick="togglePasswordVisibility('cfg-npm-api-password')"><i
+                                                                class="bi bi-eye"></i></button>
+                                                    </div>
+                                                </div>
+                                                <!-- SSL Certificate Mode -->
+                                                <div class="col-12 mt-3">
+                                                    <hr class="my-2">
+                                                    <h6 class="mb-2" data-i18n="settings.sslModeTitle">SSL Certificate
+                                                        Mode</h6>
+                                                </div>
+                                                <div class="col-md-8">
+                                                    <label class="form-label" data-i18n="settings.sslMode">SSL
+                                                        Mode</label>
+                                                    <select class="form-select" id="cfg-ssl-mode"
+                                                        onchange="onSslModeChange()">
+                                                        <option value="letsencrypt"
+                                                            data-i18n="settings.sslModeLetsencrypt">Per-Customer Let's
+                                                            Encrypt Certificate</option>
+                                                        <option value="wildcard" data-i18n="settings.sslModeWildcard">
+                                                            Wildcard Certificate (pre-configured in NPM)</option>
+                                                    </select>
+                                                    <div class="form-text" data-i18n="settings.sslModeHint">Choose how
+                                                        SSL certificates are assigned to customer proxy hosts.</div>
+                                                </div>
+                                                <div class="col-md-8" id="wildcard-cert-section" style="display:none;">
+                                                    <label class="form-label"
+                                                        data-i18n="settings.wildcardCertificate">Wildcard
+                                                        Certificate</label>
+                                                    <div class="input-group">
+                                                        <select class="form-select" id="cfg-wildcard-cert-id">
+                                                            <option value="" data-i18n="settings.selectCertificate">--
+                                                                Select a certificate --</option>
+                                                        </select>
+                                                        <button type="button" class="btn btn-outline-secondary"
+                                                            onclick="loadNpmCertificates()" title="Refresh">
+                                                            <i class="bi bi-arrow-clockwise"></i>
+                                                        </button>
+                                                    </div>
+                                                    <div class="form-text" data-i18n="settings.wildcardCertHint">Select
+                                                        the wildcard certificate (e.g. *.example.com) already uploaded
+                                                        in NPM.</div>
+                                                    <div id="wildcard-cert-status" class="mt-1"></div>
+                                                </div>
+                                            </div>
+                                            <div class="mt-4">
+                                                <button type="submit" class="btn btn-primary me-2"><i
+                                                        class="bi bi-save me-1"></i><span
+                                                        data-i18n="settings.saveNpmSettings">Save NPM
+                                                        Settings</span></button>
+                                                <button type="button" class="btn btn-outline-info" id="test-npm-btn"
+                                                    onclick="testNpmConnection()">
+                                                    <span class="spinner-border spinner-border-sm d-none me-1"
+                                                        id="npm-test-spinner"></span>
+                                                    <i class="bi bi-plug me-1"></i><span
+                                                        data-i18n="settings.testConnection">Test Connection</span>
                                                 </button>
                                             </div>
-                                            <div class="form-text" data-i18n="settings.wildcardCertHint">Select the wildcard certificate (e.g. *.example.com) already uploaded in NPM.</div>
-                                            <div id="wildcard-cert-status" class="mt-1"></div>
-                                        </div>
+                                        </form>
+                                        <div id="npm-test-result" class="mt-3 d-none"></div>
                                     </div>
-                                    <div class="mt-4">
-                                        <button type="submit" class="btn btn-primary me-2"><i class="bi bi-save me-1"></i><span data-i18n="settings.saveNpmSettings">Save NPM Settings</span></button>
-                                        <button type="button" class="btn btn-outline-info" id="test-npm-btn" onclick="testNpmConnection()">
-                                            <span class="spinner-border spinner-border-sm d-none me-1" id="npm-test-spinner"></span>
-                                            <i class="bi bi-plug me-1"></i><span data-i18n="settings.testConnection">Test Connection</span>
-                                        </button>
-                                    </div>
-                                </form>
-                                <div id="npm-test-result" class="mt-3 d-none"></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Docker Images -->
-                    <div class="tab-pane fade" id="settings-images">
-                        <div class="card shadow-sm">
-                            <div class="card-body">
-                                <form id="settings-images-form">
-                                    <div class="row g-3">
-                                        <div class="col-md-6">
-                                            <label class="form-label" data-i18n="settings.managementImage">Management Image</label>
-                                            <input type="text" class="form-control" id="cfg-mgmt-image" data-i18n-placeholder="settings.managementImagePlaceholder" placeholder="netbirdio/management:latest">
-                                        </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label" data-i18n="settings.signalImage">Signal Image</label>
-                                            <input type="text" class="form-control" id="cfg-signal-image" data-i18n-placeholder="settings.signalImagePlaceholder" placeholder="netbirdio/signal:latest">
-                                        </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label" data-i18n="settings.relayImage">Relay Image</label>
-                                            <input type="text" class="form-control" id="cfg-relay-image" data-i18n-placeholder="settings.relayImagePlaceholder" placeholder="netbirdio/relay:latest">
-                                        </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label" data-i18n="settings.dashboardImage">Dashboard Image</label>
-                                            <input type="text" class="form-control" id="cfg-dashboard-image" data-i18n-placeholder="settings.dashboardImagePlaceholder" placeholder="netbirdio/dashboard:latest">
-                                        </div>
-                                    </div>
-                                    <div class="mt-4">
-                                        <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i><span data-i18n="settings.saveImageSettings">Save Image Settings</span></button>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Branding -->
-                    <div class="tab-pane fade" id="settings-branding">
-                        <div class="card shadow-sm">
-                            <div class="card-body">
-                                <h5 class="mb-3" data-i18n="settings.brandingTitle">Branding Settings</h5>
-                                <form id="settings-branding-form">
-                                    <div class="row g-3">
-                                        <div class="col-md-6">
-                                            <label class="form-label" data-i18n="settings.companyName">Company / Application Name</label>
-                                            <input type="text" class="form-control" id="cfg-branding-name" data-i18n-placeholder="settings.companyNamePlaceholder" placeholder="NetBird MSP Appliance" maxlength="255">
-                                            <div class="form-text" data-i18n="settings.companyNameHint">Displayed on login page and navbar</div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label" data-i18n="settings.brandingSubtitle">Subtitle</label>
-                                            <input type="text" class="form-control" id="cfg-branding-subtitle" data-i18n-placeholder="settings.brandingSubtitlePlaceholder" placeholder="Multi-Tenant Management Platform" maxlength="255">
-                                            <div class="form-text" data-i18n="settings.brandingSubtitleHint">Shown below the title on the login page</div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label" data-i18n="settings.defaultLanguage">Default Language</label>
-                                            <select class="form-select" id="cfg-default-language">
-                                                <option value="en">English</option>
-                                                <option value="de">Deutsch</option>
-                                            </select>
-                                            <div class="form-text" data-i18n="settings.defaultLanguageHint">Default language for users without a preference</div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label" data-i18n="settings.logoPreview">Logo Preview</label>
-                                            <div class="border rounded p-3 text-center" id="branding-logo-preview" style="min-height:80px;">
-                                                <i class="bi bi-hdd-network fs-1 text-primary"></i>
-                                                <div class="text-muted small mt-1" data-i18n="settings.defaultIcon">Default icon (no logo uploaded)</div>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label" data-i18n="settings.uploadLogo">Upload Logo (PNG, JPG, SVG, max 500KB)</label>
-                                            <div class="input-group">
-                                                <input type="file" class="form-control" id="branding-logo-file" accept=".png,.jpg,.jpeg,.svg">
-                                                <button type="button" class="btn btn-outline-primary" onclick="uploadLogo()"><i class="bi bi-upload me-1"></i><span data-i18n="settings.uploadBtn">Upload</span></button>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-6 d-flex align-items-end">
-                                            <button type="button" class="btn btn-outline-danger" onclick="deleteLogo()"><i class="bi bi-trash me-1"></i><span data-i18n="settings.removeLogo">Remove Logo</span></button>
-                                        </div>
-                                    </div>
-                                    <div class="mt-4">
-                                        <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i><span data-i18n="settings.saveBranding">Save Branding</span></button>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Users -->
-                    <div class="tab-pane fade" id="settings-users">
-                        <div class="card shadow-sm">
-                            <div class="card-header d-flex justify-content-between align-items-center">
-                                <span data-i18n="settings.userManagement">User Management</span>
-                                <button class="btn btn-sm btn-success" onclick="showNewUserModal()"><i class="bi bi-plus-lg me-1"></i><span data-i18n="settings.newUser">New User</span></button>
-                            </div>
-                            <div class="table-responsive">
-                                <table class="table table-hover mb-0">
-                                    <thead class="table-light">
-                                        <tr>
-                                            <th data-i18n="settings.thId">ID</th>
-                                            <th data-i18n="settings.thUsername">Username</th>
-                                            <th data-i18n="settings.thEmail">Email</th>
-                                            <th data-i18n="settings.thRole">Role</th>
-                                            <th data-i18n="settings.thAuth">Auth</th>
-                                            <th data-i18n="settings.thLanguage">Language</th>
-                                            <th>MFA</th>
-                                            <th data-i18n="settings.thStatus">Status</th>
-                                            <th data-i18n="settings.thActions">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="users-table-body">
-                                        <tr><td colspan="9" class="text-center text-muted py-4" data-i18n="common.loading">Loading...</td></tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Azure AD -->
-                    <div class="tab-pane fade" id="settings-azure">
-                        <div class="card shadow-sm">
-                            <div class="card-body">
-                                <h5 class="mb-3" data-i18n="settings.azureTitle">Azure AD / Entra ID Integration</h5>
-                                <form id="settings-azure-form">
-                                    <div class="row g-3">
-                                        <div class="col-12">
-                                            <div class="form-check form-switch">
-                                                <input class="form-check-input" type="checkbox" id="cfg-azure-enabled">
-                                                <label class="form-check-label" for="cfg-azure-enabled" data-i18n="settings.enableAzureSso">Enable Azure AD SSO</label>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label" data-i18n="settings.tenantId">Tenant ID</label>
-                                            <input type="text" class="form-control" id="cfg-azure-tenant" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
-                                        </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label" data-i18n="settings.clientId">Client ID (Application ID)</label>
-                                            <input type="text" class="form-control" id="cfg-azure-client-id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
-                                        </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label" data-i18n="settings.clientSecret">Client Secret</label>
-                                            <div class="input-group">
-                                                <input type="password" class="form-control" id="cfg-azure-client-secret" data-i18n-placeholder="settings.clientSecretPlaceholder" placeholder="Leave empty to keep current">
-                                                <button class="btn btn-outline-secondary" type="button" data-toggle-pw onclick="togglePasswordVisibility('cfg-azure-client-secret')"><i class="bi bi-eye"></i></button>
-                                            </div>
-                                            <div class="form-text" id="azure-secret-status"></div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label" data-i18n="settings.azureGroupId">Allowed Group Object ID (optional)</label>
-                                            <input type="text" class="form-control" id="cfg-azure-group-id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
-                                            <div class="form-text" data-i18n="settings.azureGroupIdHint">If set, only Azure AD members of this group can log in.</div>
-                                        </div>
-                                    </div>
-                                    <div class="mt-4">
-                                        <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i><span data-i18n="settings.saveAzureSettings">Save Azure AD Settings</span></button>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Windows DNS -->
-                    <div class="tab-pane fade" id="settings-dns">
-                        <div class="card shadow-sm">
-                            <div class="card-body">
-                                <h5 class="mb-3" data-i18n="settings.dnsTitle">Windows DNS Integration</h5>
-                                <form id="settings-dns-form">
-                                    <div class="row g-3">
-                                        <div class="col-12">
-                                            <div class="form-check form-switch">
-                                                <input class="form-check-input" type="checkbox" id="cfg-dns-enabled">
-                                                <label class="form-check-label" for="cfg-dns-enabled" data-i18n="settings.enableDns">Enable Windows DNS Integration</label>
-                                            </div>
-                                            <div class="form-text" data-i18n="settings.dnsDescription">Automatically create/delete DNS A-records when deploying customers.</div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label" data-i18n="settings.dnsServer">DNS Server Address</label>
-                                            <input type="text" class="form-control" id="cfg-dns-server" placeholder="192.168.1.10">
-                                        </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label" data-i18n="settings.dnsZone">DNS Zone</label>
-                                            <input type="text" class="form-control" id="cfg-dns-zone" placeholder="example.com">
-                                        </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label" data-i18n="settings.dnsUsername">Username (NTLM)</label>
-                                            <input type="text" class="form-control" id="cfg-dns-username" placeholder="DOMAIN\svcuser">
-                                        </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label" data-i18n="settings.dnsPassword">Password</label>
-                                            <div class="input-group">
-                                                <input type="password" class="form-control" id="cfg-dns-password" data-i18n-placeholder="settings.leaveEmptyToKeep" placeholder="Leave empty to keep current">
-                                                <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('cfg-dns-password')"><i class="bi bi-eye"></i></button>
-                                            </div>
-                                            <div class="form-text" id="dns-password-status"></div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label" data-i18n="settings.dnsRecordIp">A-Record Target IP</label>
-                                            <input type="text" class="form-control" id="cfg-dns-record-ip" placeholder="1.2.3.4">
-                                            <div class="form-text" data-i18n="settings.dnsRecordIpHint">IP address that customer A-records will point to (usually your NPM server IP).</div>
-                                        </div>
-                                    </div>
-                                    <div class="mt-4">
-                                        <button type="submit" class="btn btn-primary me-2"><i class="bi bi-save me-1"></i><span data-i18n="settings.saveDnsSettings">Save DNS Settings</span></button>
-                                        <button type="button" class="btn btn-outline-info" onclick="testDnsConnection()">
-                                            <span class="spinner-border spinner-border-sm d-none me-1" id="dns-test-spinner"></span>
-                                            <i class="bi bi-plug me-1"></i><span data-i18n="settings.testConnection">Test Connection</span>
-                                        </button>
-                                    </div>
-                                </form>
-                                <div id="dns-test-result" class="mt-3 d-none"></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- LDAP / Active Directory -->
-                    <div class="tab-pane fade" id="settings-ldap">
-                        <div class="card shadow-sm">
-                            <div class="card-body">
-                                <h5 class="mb-3" data-i18n="settings.ldapTitle">LDAP / Active Directory Authentication</h5>
-                                <form id="settings-ldap-form">
-                                    <div class="row g-3">
-                                        <div class="col-12">
-                                            <div class="form-check form-switch">
-                                                <input class="form-check-input" type="checkbox" id="cfg-ldap-enabled">
-                                                <label class="form-check-label" for="cfg-ldap-enabled" data-i18n="settings.enableLdap">Enable LDAP / AD Authentication</label>
-                                            </div>
-                                            <div class="form-text" data-i18n="settings.ldapDescription">Allow Active Directory users to log in. Local admin accounts always work as fallback.</div>
-                                        </div>
-                                        <div class="col-md-5">
-                                            <label class="form-label" data-i18n="settings.ldapServer">LDAP Server</label>
-                                            <input type="text" class="form-control" id="cfg-ldap-server" placeholder="192.168.1.10 or dc.example.com">
-                                        </div>
-                                        <div class="col-md-3">
-                                            <label class="form-label" data-i18n="settings.ldapPort">Port</label>
-                                            <input type="number" class="form-control" id="cfg-ldap-port" value="389" min="1" max="65535">
-                                        </div>
-                                        <div class="col-md-4 d-flex align-items-end pb-1">
-                                            <div class="form-check form-switch">
-                                                <input class="form-check-input" type="checkbox" id="cfg-ldap-use-ssl">
-                                                <label class="form-check-label" for="cfg-ldap-use-ssl" data-i18n="settings.ldapUseSsl">Use SSL/TLS (LDAPS)</label>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label" data-i18n="settings.ldapBindDn">Bind DN (Service Account)</label>
-                                            <input type="text" class="form-control" id="cfg-ldap-bind-dn" placeholder="CN=svcUser,OU=Service,DC=example,DC=com">
-                                        </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label" data-i18n="settings.ldapBindPassword">Bind Password</label>
-                                            <div class="input-group">
-                                                <input type="password" class="form-control" id="cfg-ldap-bind-password" data-i18n-placeholder="settings.leaveEmptyToKeep" placeholder="Leave empty to keep current">
-                                                <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('cfg-ldap-bind-password')"><i class="bi bi-eye"></i></button>
-                                            </div>
-                                            <div class="form-text" id="ldap-password-status"></div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label" data-i18n="settings.ldapBaseDn">Base DN</label>
-                                            <input type="text" class="form-control" id="cfg-ldap-base-dn" placeholder="DC=example,DC=com">
-                                        </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label" data-i18n="settings.ldapUserFilter">User Filter</label>
-                                            <input type="text" class="form-control" id="cfg-ldap-user-filter" placeholder="(sAMAccountName={username})">
-                                            <div class="form-text" data-i18n="settings.ldapUserFilterHint">Use {username} as placeholder for the login name.</div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label" data-i18n="settings.ldapGroupDn">Group Restriction DN (optional)</label>
-                                            <input type="text" class="form-control" id="cfg-ldap-group-dn" placeholder="CN=NetBirdAdmins,OU=Groups,DC=example,DC=com">
-                                            <div class="form-text" data-i18n="settings.ldapGroupDnHint">If set, only members of this group can log in via LDAP.</div>
-                                        </div>
-                                    </div>
-                                    <div class="mt-4">
-                                        <button type="submit" class="btn btn-primary me-2"><i class="bi bi-save me-1"></i><span data-i18n="settings.saveLdapSettings">Save LDAP Settings</span></button>
-                                        <button type="button" class="btn btn-outline-info" onclick="testLdapConnection()">
-                                            <span class="spinner-border spinner-border-sm d-none me-1" id="ldap-test-spinner"></span>
-                                            <i class="bi bi-plug me-1"></i><span data-i18n="settings.testConnection">Test Connection</span>
-                                        </button>
-                                    </div>
-                                </form>
-                                <div id="ldap-test-result" class="mt-3 d-none"></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Updates -->
-                    <div class="tab-pane fade" id="settings-update">
-                        <div class="card shadow-sm mb-4">
-                            <div class="card-header d-flex justify-content-between align-items-center">
-                                <span data-i18n="settings.versionTitle">Version &amp; Updates</span>
-                                <button class="btn btn-sm btn-outline-secondary" onclick="loadVersionInfo()">
-                                    <i class="bi bi-arrow-clockwise me-1"></i><span data-i18n="dashboard.refresh">Refresh</span>
-                                </button>
-                            </div>
-                            <div class="card-body" id="version-info-content">
-                                <div class="text-muted" data-i18n="common.loading">Loading...</div>
-                            </div>
-                        </div>
-                        <div class="card shadow-sm">
-                            <div class="card-body">
-                                <h5 class="mb-3" data-i18n="settings.gitTitle">Git Repository Settings</h5>
-                                <form id="settings-git-form">
-                                    <div class="row g-3">
-                                        <div class="col-md-8">
-                                            <label class="form-label" data-i18n="settings.gitRepoUrl">Repository URL</label>
-                                            <input type="text" class="form-control" id="cfg-git-repo-url" placeholder="https://git.example.com/owner/repo">
-                                            <div class="form-text" data-i18n="settings.gitRepoUrlHint">Used for version checks and one-click updates via Gitea API.</div>
-                                        </div>
-                                        <div class="col-md-4">
-                                            <label class="form-label" data-i18n="settings.gitBranch">Branch</label>
-                                            <input type="text" class="form-control" id="cfg-git-branch" placeholder="main">
-                                        </div>
-                                        <div class="col-md-8">
-                                            <label class="form-label" data-i18n="settings.gitToken">Access Token (optional)</label>
-                                            <div class="input-group">
-                                                <input type="password" class="form-control" id="cfg-git-token" data-i18n-placeholder="settings.leaveEmptyToKeep" placeholder="Leave empty to keep current">
-                                                <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('cfg-git-token')"><i class="bi bi-eye"></i></button>
-                                            </div>
-                                            <div class="form-text" id="git-token-status"></div>
-                                        </div>
-                                    </div>
-                                    <div class="mt-4">
-                                        <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i><span data-i18n="settings.saveGitSettings">Save Git Settings</span></button>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Security -->
-                    <div class="tab-pane fade" id="settings-security">
-                        <!-- MFA Settings -->
-                        <div class="card shadow-sm mb-4" id="mfa-settings-card">
-                            <div class="card-body">
-                                <h5 class="mb-3" data-i18n="mfa.title">Multi-Factor Authentication (MFA)</h5>
-                                <div class="form-check form-switch mb-3">
-                                    <input class="form-check-input" type="checkbox" id="cfg-mfa-enabled">
-                                    <label class="form-check-label" for="cfg-mfa-enabled" data-i18n="mfa.enableMfa">Enable MFA for all local users</label>
                                 </div>
-                                <p class="text-muted small" data-i18n="mfa.mfaDescription">When enabled, local users must verify with a TOTP authenticator app after entering their password. Azure AD users are not affected.</p>
-                                <button class="btn btn-primary btn-sm" id="save-mfa-settings" onclick="saveMfaSettings()">
-                                    <i class="bi bi-save me-1"></i><span data-i18n="mfa.saveMfaSettings">Save MFA Settings</span>
-                                </button>
-                                <hr class="my-3" id="mfa-own-status-divider">
-                                <h6 data-i18n="mfa.yourTotpStatus">Your TOTP Status</h6>
-                                <div id="mfa-own-status" class="mb-2"></div>
-                                <button class="btn btn-outline-danger btn-sm d-none" id="mfa-disable-own" onclick="disableOwnTotp()">
-                                    <i class="bi bi-shield-x me-1"></i><span data-i18n="mfa.disableMyTotp">Disable my TOTP</span>
-                                </button>
                             </div>
-                        </div>
 
-                        <!-- Change Password -->
-                        <div class="card shadow-sm">
-                            <div class="card-body">
-                                <h5 class="mb-3" data-i18n="settings.securityTitle">Change Admin Password</h5>
-                                <form id="change-password-form">
-                                    <div class="row g-3">
-                                        <div class="col-md-6">
-                                            <label class="form-label" data-i18n="settings.currentPassword">Current Password</label>
-                                            <input type="password" class="form-control" id="pw-current" required>
-                                        </div>
-                                        <div class="col-md-6"></div>
-                                        <div class="col-md-6">
-                                            <label class="form-label" data-i18n="settings.newPassword">New Password (min 12 chars)</label>
-                                            <input type="password" class="form-control" id="pw-new" required minlength="12">
-                                        </div>
-                                        <div class="col-md-6">
-                                            <label class="form-label" data-i18n="settings.confirmPassword">Confirm New Password</label>
-                                            <input type="password" class="form-control" id="pw-confirm" required minlength="12">
-                                        </div>
+                            <!-- Docker Images -->
+                            <div class="tab-pane fade" id="settings-images">
+                                <div class="card shadow-sm">
+                                    <div class="card-body">
+                                        <form id="settings-images-form">
+                                            <div class="row g-3">
+                                                <div class="col-md-6">
+                                                    <label class="form-label"
+                                                        data-i18n="settings.managementImage">Management Image</label>
+                                                    <input type="text" class="form-control" id="cfg-mgmt-image"
+                                                        data-i18n-placeholder="settings.managementImagePlaceholder"
+                                                        placeholder="netbirdio/management:latest">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label" data-i18n="settings.signalImage">Signal
+                                                        Image</label>
+                                                    <input type="text" class="form-control" id="cfg-signal-image"
+                                                        data-i18n-placeholder="settings.signalImagePlaceholder"
+                                                        placeholder="netbirdio/signal:latest">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label" data-i18n="settings.relayImage">Relay
+                                                        Image</label>
+                                                    <input type="text" class="form-control" id="cfg-relay-image"
+                                                        data-i18n-placeholder="settings.relayImagePlaceholder"
+                                                        placeholder="netbirdio/relay:latest">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label"
+                                                        data-i18n="settings.dashboardImage">Dashboard Image</label>
+                                                    <input type="text" class="form-control" id="cfg-dashboard-image"
+                                                        data-i18n-placeholder="settings.dashboardImagePlaceholder"
+                                                        placeholder="netbirdio/dashboard:latest">
+                                                </div>
+                                            </div>
+                                            <div class="mt-4">
+                                                <button type="submit" class="btn btn-primary"><i
+                                                        class="bi bi-save me-1"></i><span
+                                                        data-i18n="settings.saveImageSettings">Save Image
+                                                        Settings</span></button>
+                                            </div>
+                                        </form>
                                     </div>
-                                    <div class="mt-4">
-                                        <button type="submit" class="btn btn-warning"><i class="bi bi-shield-lock me-1"></i><span data-i18n="settings.changePassword">Change Password</span></button>
+                                </div>
+                            </div>
+
+                            <!-- Branding -->
+                            <div class="tab-pane fade" id="settings-branding">
+                                <div class="card shadow-sm">
+                                    <div class="card-body">
+                                        <h5 class="mb-3" data-i18n="settings.brandingTitle">Branding Settings</h5>
+                                        <form id="settings-branding-form">
+                                            <div class="row g-3">
+                                                <div class="col-md-6">
+                                                    <label class="form-label" data-i18n="settings.companyName">Company /
+                                                        Application Name</label>
+                                                    <input type="text" class="form-control" id="cfg-branding-name"
+                                                        data-i18n-placeholder="settings.companyNamePlaceholder"
+                                                        placeholder="NetBird MSP Appliance" maxlength="255">
+                                                    <div class="form-text" data-i18n="settings.companyNameHint">
+                                                        Displayed on login page and navbar</div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label"
+                                                        data-i18n="settings.brandingSubtitle">Subtitle</label>
+                                                    <input type="text" class="form-control" id="cfg-branding-subtitle"
+                                                        data-i18n-placeholder="settings.brandingSubtitlePlaceholder"
+                                                        placeholder="Multi-Tenant Management Platform" maxlength="255">
+                                                    <div class="form-text" data-i18n="settings.brandingSubtitleHint">
+                                                        Shown below the title on the login page</div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label"
+                                                        data-i18n="settings.defaultLanguage">Default Language</label>
+                                                    <select class="form-select" id="cfg-default-language">
+                                                        <option value="en">English</option>
+                                                        <option value="de">Deutsch</option>
+                                                    </select>
+                                                    <div class="form-text" data-i18n="settings.defaultLanguageHint">
+                                                        Default language for users without a preference</div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label" data-i18n="settings.logoPreview">Logo
+                                                        Preview</label>
+                                                    <div class="border rounded p-3 text-center"
+                                                        id="branding-logo-preview" style="min-height:80px;">
+                                                        <i class="bi bi-hdd-network fs-1 text-primary"></i>
+                                                        <div class="text-muted small mt-1"
+                                                            data-i18n="settings.defaultIcon">Default icon (no logo
+                                                            uploaded)</div>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label" data-i18n="settings.uploadLogo">Upload
+                                                        Logo (PNG, JPG, SVG, max 500KB)</label>
+                                                    <div class="input-group">
+                                                        <input type="file" class="form-control" id="branding-logo-file"
+                                                            accept=".png,.jpg,.jpeg,.svg">
+                                                        <button type="button" class="btn btn-outline-primary"
+                                                            onclick="uploadLogo()"><i
+                                                                class="bi bi-upload me-1"></i><span
+                                                                data-i18n="settings.uploadBtn">Upload</span></button>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6 d-flex align-items-end">
+                                                    <button type="button" class="btn btn-outline-danger"
+                                                        onclick="deleteLogo()"><i class="bi bi-trash me-1"></i><span
+                                                            data-i18n="settings.removeLogo">Remove Logo</span></button>
+                                                </div>
+                                            </div>
+                                            <div class="mt-4">
+                                                <button type="submit" class="btn btn-primary"><i
+                                                        class="bi bi-save me-1"></i><span
+                                                        data-i18n="settings.saveBranding">Save Branding</span></button>
+                                            </div>
+                                        </form>
                                     </div>
-                                </form>
-                                <div id="password-result" class="mt-3 d-none"></div>
+                                </div>
+                            </div>
+
+                            <!-- Users -->
+                            <div class="tab-pane fade" id="settings-users">
+                                <div class="card shadow-sm">
+                                    <div class="card-header d-flex justify-content-between align-items-center">
+                                        <span data-i18n="settings.userManagement">User Management</span>
+                                        <button class="btn btn-sm btn-success" onclick="showNewUserModal()"><i
+                                                class="bi bi-plus-lg me-1"></i><span data-i18n="settings.newUser">New
+                                                User</span></button>
+                                    </div>
+                                    <div class="table-responsive">
+                                        <table class="table table-hover mb-0">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th data-i18n="settings.thId">ID</th>
+                                                    <th data-i18n="settings.thUsername">Username</th>
+                                                    <th data-i18n="settings.thEmail">Email</th>
+                                                    <th data-i18n="settings.thRole">Role</th>
+                                                    <th data-i18n="settings.thAuth">Auth</th>
+                                                    <th data-i18n="settings.thLanguage">Language</th>
+                                                    <th>MFA</th>
+                                                    <th data-i18n="settings.thStatus">Status</th>
+                                                    <th data-i18n="settings.thActions">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="users-table-body">
+                                                <tr>
+                                                    <td colspan="9" class="text-center text-muted py-4"
+                                                        data-i18n="common.loading">Loading...</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Azure AD -->
+                            <div class="tab-pane fade" id="settings-azure">
+                                <div class="card shadow-sm">
+                                    <div class="card-body">
+                                        <h5 class="mb-3" data-i18n="settings.azureTitle">Azure AD / Entra ID Integration
+                                        </h5>
+                                        <form id="settings-azure-form">
+                                            <div class="row g-3">
+                                                <div class="col-12">
+                                                    <div class="form-check form-switch">
+                                                        <input class="form-check-input" type="checkbox"
+                                                            id="cfg-azure-enabled">
+                                                        <label class="form-check-label" for="cfg-azure-enabled"
+                                                            data-i18n="settings.enableAzureSso">Enable Azure AD
+                                                            SSO</label>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label" data-i18n="settings.tenantId">Tenant
+                                                        ID</label>
+                                                    <input type="text" class="form-control" id="cfg-azure-tenant"
+                                                        placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label" data-i18n="settings.clientId">Client ID
+                                                        (Application ID)</label>
+                                                    <input type="text" class="form-control" id="cfg-azure-client-id"
+                                                        placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label" data-i18n="settings.clientSecret">Client
+                                                        Secret</label>
+                                                    <div class="input-group">
+                                                        <input type="password" class="form-control"
+                                                            id="cfg-azure-client-secret"
+                                                            data-i18n-placeholder="settings.clientSecretPlaceholder"
+                                                            placeholder="Leave empty to keep current">
+                                                        <button class="btn btn-outline-secondary" type="button"
+                                                            data-toggle-pw
+                                                            onclick="togglePasswordVisibility('cfg-azure-client-secret')"><i
+                                                                class="bi bi-eye"></i></button>
+                                                    </div>
+                                                    <div class="form-text" id="azure-secret-status"></div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label" data-i18n="settings.azureGroupId">Allowed
+                                                        Group Object ID (optional)</label>
+                                                    <input type="text" class="form-control" id="cfg-azure-group-id"
+                                                        placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+                                                    <div class="form-text" data-i18n="settings.azureGroupIdHint">If set,
+                                                        only Azure AD members of this group can log in.</div>
+                                                </div>
+                                            </div>
+                                            <div class="mt-4">
+                                                <button type="submit" class="btn btn-primary"><i
+                                                        class="bi bi-save me-1"></i><span
+                                                        data-i18n="settings.saveAzureSettings">Save Azure AD
+                                                        Settings</span></button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Windows DNS -->
+                            <div class="tab-pane fade" id="settings-dns">
+                                <div class="card shadow-sm">
+                                    <div class="card-body">
+                                        <h5 class="mb-3" data-i18n="settings.dnsTitle">Windows DNS Integration</h5>
+                                        <form id="settings-dns-form">
+                                            <div class="row g-3">
+                                                <div class="col-12">
+                                                    <div class="form-check form-switch">
+                                                        <input class="form-check-input" type="checkbox"
+                                                            id="cfg-dns-enabled">
+                                                        <label class="form-check-label" for="cfg-dns-enabled"
+                                                            data-i18n="settings.enableDns">Enable Windows DNS
+                                                            Integration</label>
+                                                    </div>
+                                                    <div class="form-text" data-i18n="settings.dnsDescription">
+                                                        Automatically create/delete DNS A-records when deploying
+                                                        customers.</div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label" data-i18n="settings.dnsServer">DNS Server
+                                                        Address</label>
+                                                    <input type="text" class="form-control" id="cfg-dns-server"
+                                                        placeholder="192.168.1.10">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label" data-i18n="settings.dnsZone">DNS
+                                                        Zone</label>
+                                                    <input type="text" class="form-control" id="cfg-dns-zone"
+                                                        placeholder="example.com">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label" data-i18n="settings.dnsUsername">Username
+                                                        (NTLM)</label>
+                                                    <input type="text" class="form-control" id="cfg-dns-username"
+                                                        placeholder="DOMAIN\svcuser">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label"
+                                                        data-i18n="settings.dnsPassword">Password</label>
+                                                    <div class="input-group">
+                                                        <input type="password" class="form-control"
+                                                            id="cfg-dns-password"
+                                                            data-i18n-placeholder="settings.leaveEmptyToKeep"
+                                                            placeholder="Leave empty to keep current">
+                                                        <button class="btn btn-outline-secondary" type="button"
+                                                            onclick="togglePasswordVisibility('cfg-dns-password')"><i
+                                                                class="bi bi-eye"></i></button>
+                                                    </div>
+                                                    <div class="form-text" id="dns-password-status"></div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label" data-i18n="settings.dnsRecordIp">A-Record
+                                                        Target IP</label>
+                                                    <input type="text" class="form-control" id="cfg-dns-record-ip"
+                                                        placeholder="1.2.3.4">
+                                                    <div class="form-text" data-i18n="settings.dnsRecordIpHint">IP
+                                                        address that customer A-records will point to (usually your NPM
+                                                        server IP).</div>
+                                                </div>
+                                            </div>
+                                            <div class="mt-4">
+                                                <button type="submit" class="btn btn-primary me-2"><i
+                                                        class="bi bi-save me-1"></i><span
+                                                        data-i18n="settings.saveDnsSettings">Save DNS
+                                                        Settings</span></button>
+                                                <button type="button" class="btn btn-outline-info"
+                                                    onclick="testDnsConnection()">
+                                                    <span class="spinner-border spinner-border-sm d-none me-1"
+                                                        id="dns-test-spinner"></span>
+                                                    <i class="bi bi-plug me-1"></i><span
+                                                        data-i18n="settings.testConnection">Test Connection</span>
+                                                </button>
+                                            </div>
+                                        </form>
+                                        <div id="dns-test-result" class="mt-3 d-none"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- LDAP / Active Directory -->
+                            <div class="tab-pane fade" id="settings-ldap">
+                                <div class="card shadow-sm">
+                                    <div class="card-body">
+                                        <h5 class="mb-3" data-i18n="settings.ldapTitle">LDAP / Active Directory
+                                            Authentication</h5>
+                                        <form id="settings-ldap-form">
+                                            <div class="row g-3">
+                                                <div class="col-12">
+                                                    <div class="form-check form-switch">
+                                                        <input class="form-check-input" type="checkbox"
+                                                            id="cfg-ldap-enabled">
+                                                        <label class="form-check-label" for="cfg-ldap-enabled"
+                                                            data-i18n="settings.enableLdap">Enable LDAP / AD
+                                                            Authentication</label>
+                                                    </div>
+                                                    <div class="form-text" data-i18n="settings.ldapDescription">Allow
+                                                        Active Directory users to log in. Local admin accounts always
+                                                        work as fallback.</div>
+                                                </div>
+                                                <div class="col-md-5">
+                                                    <label class="form-label" data-i18n="settings.ldapServer">LDAP
+                                                        Server</label>
+                                                    <input type="text" class="form-control" id="cfg-ldap-server"
+                                                        placeholder="192.168.1.10 or dc.example.com">
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label" data-i18n="settings.ldapPort">Port</label>
+                                                    <input type="number" class="form-control" id="cfg-ldap-port"
+                                                        value="389" min="1" max="65535">
+                                                </div>
+                                                <div class="col-md-4 d-flex align-items-end pb-1">
+                                                    <div class="form-check form-switch">
+                                                        <input class="form-check-input" type="checkbox"
+                                                            id="cfg-ldap-use-ssl">
+                                                        <label class="form-check-label" for="cfg-ldap-use-ssl"
+                                                            data-i18n="settings.ldapUseSsl">Use SSL/TLS (LDAPS)</label>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label" data-i18n="settings.ldapBindDn">Bind DN
+                                                        (Service Account)</label>
+                                                    <input type="text" class="form-control" id="cfg-ldap-bind-dn"
+                                                        placeholder="CN=svcUser,OU=Service,DC=example,DC=com">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label" data-i18n="settings.ldapBindPassword">Bind
+                                                        Password</label>
+                                                    <div class="input-group">
+                                                        <input type="password" class="form-control"
+                                                            id="cfg-ldap-bind-password"
+                                                            data-i18n-placeholder="settings.leaveEmptyToKeep"
+                                                            placeholder="Leave empty to keep current">
+                                                        <button class="btn btn-outline-secondary" type="button"
+                                                            onclick="togglePasswordVisibility('cfg-ldap-bind-password')"><i
+                                                                class="bi bi-eye"></i></button>
+                                                    </div>
+                                                    <div class="form-text" id="ldap-password-status"></div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label" data-i18n="settings.ldapBaseDn">Base
+                                                        DN</label>
+                                                    <input type="text" class="form-control" id="cfg-ldap-base-dn"
+                                                        placeholder="DC=example,DC=com">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label" data-i18n="settings.ldapUserFilter">User
+                                                        Filter</label>
+                                                    <input type="text" class="form-control" id="cfg-ldap-user-filter"
+                                                        placeholder="(sAMAccountName={username})">
+                                                    <div class="form-text" data-i18n="settings.ldapUserFilterHint">Use
+                                                        {username} as placeholder for the login name.</div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label" data-i18n="settings.ldapGroupDn">Group
+                                                        Restriction DN (optional)</label>
+                                                    <input type="text" class="form-control" id="cfg-ldap-group-dn"
+                                                        placeholder="CN=NetBirdAdmins,OU=Groups,DC=example,DC=com">
+                                                    <div class="form-text" data-i18n="settings.ldapGroupDnHint">If set,
+                                                        only members of this group can log in via LDAP.</div>
+                                                </div>
+                                            </div>
+                                            <div class="mt-4">
+                                                <button type="submit" class="btn btn-primary me-2"><i
+                                                        class="bi bi-save me-1"></i><span
+                                                        data-i18n="settings.saveLdapSettings">Save LDAP
+                                                        Settings</span></button>
+                                                <button type="button" class="btn btn-outline-info"
+                                                    onclick="testLdapConnection()">
+                                                    <span class="spinner-border spinner-border-sm d-none me-1"
+                                                        id="ldap-test-spinner"></span>
+                                                    <i class="bi bi-plug me-1"></i><span
+                                                        data-i18n="settings.testConnection">Test Connection</span>
+                                                </button>
+                                            </div>
+                                        </form>
+                                        <div id="ldap-test-result" class="mt-3 d-none"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Updates -->
+                            <div class="tab-pane fade" id="settings-update">
+                                <div class="card shadow-sm mb-4">
+                                    <div class="card-header d-flex justify-content-between align-items-center">
+                                        <span data-i18n="settings.versionTitle">Version &amp; Updates</span>
+                                        <button class="btn btn-sm btn-outline-secondary" onclick="loadVersionInfo()">
+                                            <i class="bi bi-arrow-clockwise me-1"></i><span
+                                                data-i18n="dashboard.refresh">Refresh</span>
+                                        </button>
+                                    </div>
+                                    <div class="card-body" id="version-info-content">
+                                        <div class="text-muted" data-i18n="common.loading">Loading...</div>
+                                    </div>
+                                </div>
+                                <div class="card shadow-sm">
+                                    <div class="card-body">
+                                        <h5 class="mb-3" data-i18n="settings.gitTitle">Git Repository Settings</h5>
+                                        <form id="settings-git-form">
+                                            <div class="row g-3">
+                                                <div class="col-md-8">
+                                                    <label class="form-label" data-i18n="settings.gitRepoUrl">Repository
+                                                        URL</label>
+                                                    <input type="text" class="form-control" id="cfg-git-repo-url"
+                                                        placeholder="https://git.example.com/owner/repo">
+                                                    <div class="form-text" data-i18n="settings.gitRepoUrlHint">Used for
+                                                        version checks and one-click updates via Gitea API.</div>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label class="form-label"
+                                                        data-i18n="settings.gitBranch">Branch</label>
+                                                    <input type="text" class="form-control" id="cfg-git-branch"
+                                                        placeholder="main">
+                                                </div>
+                                                <div class="col-md-8">
+                                                    <label class="form-label" data-i18n="settings.gitToken">Access Token
+                                                        (optional)</label>
+                                                    <div class="input-group">
+                                                        <input type="password" class="form-control" id="cfg-git-token"
+                                                            data-i18n-placeholder="settings.leaveEmptyToKeep"
+                                                            placeholder="Leave empty to keep current">
+                                                        <button class="btn btn-outline-secondary" type="button"
+                                                            onclick="togglePasswordVisibility('cfg-git-token')"><i
+                                                                class="bi bi-eye"></i></button>
+                                                    </div>
+                                                    <div class="form-text" id="git-token-status"></div>
+                                                </div>
+                                            </div>
+                                            <div class="mt-4">
+                                                <button type="submit" class="btn btn-primary"><i
+                                                        class="bi bi-save me-1"></i><span
+                                                        data-i18n="settings.saveGitSettings">Save Git
+                                                        Settings</span></button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Security -->
+                            <div class="tab-pane fade" id="settings-security">
+                                <!-- MFA Settings -->
+                                <div class="card shadow-sm mb-4" id="mfa-settings-card">
+                                    <div class="card-body">
+                                        <h5 class="mb-3" data-i18n="mfa.title">Multi-Factor Authentication (MFA)</h5>
+                                        <div class="form-check form-switch mb-3">
+                                            <input class="form-check-input" type="checkbox" id="cfg-mfa-enabled">
+                                            <label class="form-check-label" for="cfg-mfa-enabled"
+                                                data-i18n="mfa.enableMfa">Enable MFA for all local users</label>
+                                        </div>
+                                        <p class="text-muted small" data-i18n="mfa.mfaDescription">When enabled, local
+                                            users must verify with a TOTP authenticator app after entering their
+                                            password. Azure AD users are not affected.</p>
+                                        <button class="btn btn-primary btn-sm" id="save-mfa-settings"
+                                            onclick="saveMfaSettings()">
+                                            <i class="bi bi-save me-1"></i><span data-i18n="mfa.saveMfaSettings">Save
+                                                MFA Settings</span>
+                                        </button>
+                                        <hr class="my-3" id="mfa-own-status-divider">
+                                        <h6 data-i18n="mfa.yourTotpStatus">Your TOTP Status</h6>
+                                        <div id="mfa-own-status" class="mb-2"></div>
+                                        <button class="btn btn-outline-danger btn-sm d-none" id="mfa-disable-own"
+                                            onclick="disableOwnTotp()">
+                                            <i class="bi bi-shield-x me-1"></i><span
+                                                data-i18n="mfa.disableMyTotp">Disable my TOTP</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Change Password -->
+                                <div class="card shadow-sm">
+                                    <div class="card-body">
+                                        <h5 class="mb-3" data-i18n="settings.securityTitle">Change Admin Password</h5>
+                                        <form id="change-password-form">
+                                            <div class="row g-3">
+                                                <div class="col-md-6">
+                                                    <label class="form-label"
+                                                        data-i18n="settings.currentPassword">Current Password</label>
+                                                    <input type="password" class="form-control" id="pw-current"
+                                                        required>
+                                                </div>
+                                                <div class="col-md-6"></div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label" data-i18n="settings.newPassword">New
+                                                        Password (min 12 chars)</label>
+                                                    <input type="password" class="form-control" id="pw-new" required
+                                                        minlength="12">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label"
+                                                        data-i18n="settings.confirmPassword">Confirm New
+                                                        Password</label>
+                                                    <input type="password" class="form-control" id="pw-confirm" required
+                                                        minlength="12">
+                                                </div>
+                                            </div>
+                                            <div class="mt-4">
+                                                <button type="submit" class="btn btn-warning"><i
+                                                        class="bi bi-shield-lock me-1"></i><span
+                                                        data-i18n="settings.changePassword">Change
+                                                        Password</span></button>
+                                            </div>
+                                        </form>
+                                        <div id="password-result" class="mt-3 d-none"></div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -805,10 +1111,13 @@
             <div class="container-fluid p-4">
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h4 class="mb-0">
-                        <button class="btn btn-outline-secondary btn-sm me-2" onclick="showPage('dashboard')"><i class="bi bi-arrow-left me-1"></i><span data-i18n="common.back">Back</span></button>
+                        <button class="btn btn-outline-secondary btn-sm me-2" onclick="showPage('dashboard')"><i
+                                class="bi bi-arrow-left me-1"></i><span data-i18n="common.back">Back</span></button>
                         <i class="bi bi-activity me-2"></i><span data-i18n="monitoring.title">System Monitoring</span>
                     </h4>
-                    <button class="btn btn-outline-secondary btn-sm" onclick="loadMonitoring()"><i class="bi bi-arrow-clockwise me-1"></i><span data-i18n="monitoring.refresh">Refresh</span></button>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="loadMonitoring()"><i
+                            class="bi bi-arrow-clockwise me-1"></i><span
+                            data-i18n="monitoring.refresh">Refresh</span></button>
                 </div>
 
                 <!-- Host Resources -->
@@ -819,7 +1128,8 @@
 
                 <!-- Customer Statuses -->
                 <div class="card shadow-sm">
-                    <div class="card-header" data-i18n="monitoring.allCustomerDeployments">All Customer Deployments</div>
+                    <div class="card-header" data-i18n="monitoring.allCustomerDeployments">All Customer Deployments
+                    </div>
                     <div class="table-responsive">
                         <table class="table table-sm mb-0">
                             <thead class="table-light">
@@ -835,7 +1145,10 @@
                                 </tr>
                             </thead>
                             <tbody id="monitoring-customers-body">
-                                <tr><td colspan="8" class="text-center text-muted py-4" data-i18n="common.loading">Loading...</td></tr>
+                                <tr>
+                                    <td colspan="8" class="text-center text-muted py-4" data-i18n="common.loading">
+                                        Loading...</td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
@@ -849,7 +1162,8 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="customer-modal-title" data-i18n="customerModal.newCustomer">New Customer</h5>
+                    <h5 class="modal-title" id="customer-modal-title" data-i18n="customerModal.newCustomer">New Customer
+                    </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
@@ -867,10 +1181,12 @@
                         <div class="mb-3">
                             <label class="form-label" data-i18n="customerModal.subdomainLabel">Subdomain *</label>
                             <div class="input-group">
-                                <input type="text" class="form-control" id="cust-subdomain" required pattern="[a-z0-9][-a-z0-9]*[a-z0-9]">
+                                <input type="text" class="form-control" id="cust-subdomain" required
+                                    pattern="[a-z0-9][-a-z0-9]*[a-z0-9]">
                                 <span class="input-group-text" id="cust-subdomain-suffix">.domain.com</span>
                             </div>
-                            <div class="form-text" data-i18n="customerModal.subdomainHint">Lowercase, alphanumeric + hyphens</div>
+                            <div class="form-text" data-i18n="customerModal.subdomainHint">Lowercase, alphanumeric +
+                                hyphens</div>
                         </div>
                         <div class="mb-3">
                             <label class="form-label" data-i18n="customerModal.emailLabel">Email *</label>
@@ -887,7 +1203,8 @@
                     </form>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="common.cancel">Cancel</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
+                        data-i18n="common.cancel">Cancel</button>
                     <button type="button" class="btn btn-primary" id="customer-save-btn" onclick="saveCustomer()">
                         <span class="spinner-border spinner-border-sm d-none me-1" id="customer-save-spinner"></span>
                         <span data-i18n="customerModal.saveAndDeploy">Save & Deploy</span>
@@ -906,12 +1223,15 @@
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <p><span data-i18n="deleteModal.confirmText">Are you sure you want to delete customer</span> <strong id="delete-customer-name"></strong>?</p>
-                    <p class="text-danger" data-i18n="deleteModal.warning">This will remove all containers, NPM entries, and data. This action cannot be undone.</p>
+                    <p><span data-i18n="deleteModal.confirmText">Are you sure you want to delete customer</span> <strong
+                            id="delete-customer-name"></strong>?</p>
+                    <p class="text-danger" data-i18n="deleteModal.warning">This will remove all containers, NPM entries,
+                        and data. This action cannot be undone.</p>
                     <input type="hidden" id="delete-customer-id">
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="common.cancel">Cancel</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
+                        data-i18n="common.cancel">Cancel</button>
                     <button type="button" class="btn btn-danger" onclick="confirmDeleteCustomer()">
                         <span class="spinner-border spinner-border-sm d-none me-1" id="delete-spinner"></span>
                         <span data-i18n="common.delete">Delete</span>
@@ -937,7 +1257,8 @@
                             <input type="text" class="form-control" id="new-user-username" required minlength="3">
                         </div>
                         <div class="mb-3">
-                            <label class="form-label" data-i18n="userModal.passwordLabel">Password * (min 8 chars)</label>
+                            <label class="form-label" data-i18n="userModal.passwordLabel">Password * (min 8
+                                chars)</label>
                             <input type="password" class="form-control" id="new-user-password" required minlength="8">
                         </div>
                         <div class="mb-3">
@@ -955,8 +1276,10 @@
                     </form>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="common.cancel">Cancel</button>
-                    <button type="button" class="btn btn-primary" onclick="saveNewUser()" data-i18n="userModal.createUser">Create User</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
+                        data-i18n="common.cancel">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveNewUser()"
+                        data-i18n="userModal.createUser">Create User</button>
                 </div>
             </div>
         </div>
@@ -966,4 +1289,5 @@
     <script src="/static/js/i18n.js"></script>
     <script src="/static/js/app.js"></script>
 </body>
+
 </html>

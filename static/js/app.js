@@ -366,7 +366,7 @@ function logout() {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${authToken}`,
             },
-        }).catch(() => {});
+        }).catch(() => { });
     }
     authToken = null;
     currentUser = null;
@@ -465,9 +465,9 @@ function renderCustomersTable(data) {
                 <div class="btn-group btn-group-sm">
                     <button class="btn btn-outline-primary" title="${t('common.view')}" onclick="viewCustomer(${c.id})"><i class="bi bi-eye"></i></button>
                     ${c.deployment && c.deployment.deployment_status === 'running'
-                        ? `<button class="btn btn-outline-warning" title="${t('common.stop')}" onclick="customerAction(${c.id},'stop')"><i class="bi bi-stop-circle"></i></button>`
-                        : `<button class="btn btn-outline-success" title="${t('common.start')}" onclick="customerAction(${c.id},'start')"><i class="bi bi-play-circle"></i></button>`
-                    }
+                ? `<button class="btn btn-outline-warning" title="${t('common.stop')}" onclick="customerAction(${c.id},'stop')"><i class="bi bi-stop-circle"></i></button>`
+                : `<button class="btn btn-outline-success" title="${t('common.start')}" onclick="customerAction(${c.id},'start')"><i class="bi bi-play-circle"></i></button>`
+            }
                     <button class="btn btn-outline-info" title="${t('common.restart')}" onclick="customerAction(${c.id},'restart')"><i class="bi bi-arrow-repeat"></i></button>
                     <button class="btn btn-outline-danger" title="${t('common.delete')}" onclick="showDeleteModal(${c.id},'${esc(c.name)}')"><i class="bi bi-trash"></i></button>
                 </div>
@@ -511,7 +511,7 @@ function showNewCustomerModal() {
     // Update subdomain suffix
     api('GET', '/settings/system').then(cfg => {
         document.getElementById('cust-subdomain-suffix').textContent = `.${cfg.base_domain || 'domain.com'}`;
-    }).catch(() => {});
+    }).catch(() => { });
 
     const modalEl = document.getElementById('customer-modal');
     const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
@@ -1219,12 +1219,12 @@ async function loadVersionInfo() {
 
         let html = `<div class="row g-3">
             <div class="col-md-6">
-                <div class="border rounded p-3">
+                <div class="border rounded p-3 h-100">
                     <div class="text-muted small mb-1">${t('settings.currentVersion')}</div>
                     <div class="fw-bold fs-5">${esc(currentTag || currentCommit)}</div>
                     ${currentTag ? `<div class="text-muted small font-monospace">${t('settings.commitHash')}: ${esc(currentCommit)}</div>` : ''}
                     <div class="text-muted small">${t('settings.branch')}: <strong>${esc(current.branch || 'unknown')}</strong></div>
-                    <div class="text-muted small">${esc(current.date || '')}</div>
+                    <div class="text-muted small mt-2"><i class="bi bi-clock me-1"></i>${formatDate(current.date)}</div>
                 </div>
             </div>`;
 
@@ -1235,17 +1235,17 @@ async function loadVersionInfo() {
                 ? `<span class="badge bg-warning text-dark ms-1">${t('settings.updateAvailable')}</span>`
                 : `<span class="badge bg-success ms-1">${t('settings.upToDate')}</span>`;
             html += `<div class="col-md-6">
-                <div class="border rounded p-3 ${needsUpdate ? 'border-warning' : ''}">
+                <div class="border rounded p-3 h-100 ${needsUpdate ? 'border-warning' : ''}">
                     <div class="text-muted small mb-1">${t('settings.latestVersion')} ${badge}</div>
                     <div class="fw-bold fs-5">${esc(latestTag || latestCommit)}</div>
                     ${latestTag ? `<div class="text-muted small font-monospace">${t('settings.commitHash')}: ${esc(latestCommit)}</div>` : ''}
                     <div class="text-muted small">${t('settings.branch')}: <strong>${esc(latest.branch || 'unknown')}</strong></div>
-                    <div class="text-muted small">${esc(latest.message || '')}</div>
-                    <div class="text-muted small">${esc(latest.date || '')}</div>
+                    <div class="text-muted small mt-2"><i class="bi bi-clock me-1"></i>${formatDate(latest.date)}</div>
+                    ${latest.message ? `<div class="text-muted small mt-1 border-top pt-1 text-truncate" title="${esc(latest.message)}"><i class="bi bi-chat-text me-1"></i>${esc(latest.message)}</div>` : ''}
                 </div>
             </div>`;
         } else if (data.error) {
-            html += `<div class="col-md-6"><div class="alert alert-warning mb-0">${esc(data.error)}</div></div>`;
+            html += `<div class="col-md-6"><div class="alert alert-warning h-100 mb-0">${esc(data.error)}</div></div>`;
         }
         html += '</div>';
 
@@ -1305,9 +1305,9 @@ async function loadUsers() {
             <td>
                 <div class="btn-group btn-group-sm">
                     ${u.is_active
-                        ? `<button class="btn btn-outline-warning" title="${t('common.disable')}" onclick="toggleUserActive(${u.id}, false)"><i class="bi bi-pause-circle"></i></button>`
-                        : `<button class="btn btn-outline-success" title="${t('common.enable')}" onclick="toggleUserActive(${u.id}, true)"><i class="bi bi-play-circle"></i></button>`
-                    }
+                    ? `<button class="btn btn-outline-warning" title="${t('common.disable')}" onclick="toggleUserActive(${u.id}, false)"><i class="bi bi-pause-circle"></i></button>`
+                    : `<button class="btn btn-outline-success" title="${t('common.enable')}" onclick="toggleUserActive(${u.id}, true)"><i class="bi bi-play-circle"></i></button>`
+                }
                     ${u.auth_provider === 'local' ? `<button class="btn btn-outline-info" title="${t('common.resetPassword')}" onclick="resetUserPassword(${u.id}, '${esc(u.username)}')"><i class="bi bi-key"></i></button>` : ''}
                     ${u.totp_enabled ? `<button class="btn btn-outline-secondary" title="${t('mfa.resetMfa')}" onclick="resetUserMfa(${u.id}, '${esc(u.username)}')"><i class="bi bi-shield-x"></i></button>` : ''}
                     <button class="btn btn-outline-danger" title="${t('common.delete')}" onclick="deleteUser(${u.id}, '${esc(u.username)}')"><i class="bi bi-trash"></i></button>
