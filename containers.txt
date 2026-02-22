@@ -1,0 +1,8 @@
+f9fa39b8080d_netbird-msp-appliance	Created	netbirdmsp-appliance-netbird-msp-appliance
+netbird-msp-appliance	Exited (0) 2 minutes ago	345ba59d123e
+netbird-kunde1-caddy	Up About an hour	caddy:2-alpine
+netbird-kunde1-signal	Up About an hour	netbirdio/signal:latest
+netbird-kunde1-dashboard	Up About an hour	netbirdio/dashboard:latest
+netbird-kunde1-relay	Up About an hour	netbirdio/relay:latest
+netbird-kunde1-management	Up About an hour	netbirdio/management:latest
+docker-socket-proxy	Up About an hour	tecnativa/docker-socket-proxy:latest

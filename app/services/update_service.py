@@ -232,25 +232,110 @@ def trigger_update(config: Any, db_path: str) -> dict:
         build_env.get("GIT_BRANCH", "?"),
     )
 
-    # 5. Fire-and-forget docker compose rebuild — the container will restart itself
-    #    Use the correct project name so compose finds/replaces the right container.
-    #    Only rebuild the app service — docker-socket-proxy must not be recreated.
-    compose_cmd = [
+    # 5. Two-phase rebuild: Build image first, then swap container.
+    #    The swap will kill this process (we ARE the container), so we must
+    #    ensure the compose-up runs detached on the Docker host via a wrapper.
+    log_path = Path(BACKUP_DIR) / "update_rebuild.log"
+
+    # Phase A — build the new image (does NOT stop anything)
+    build_cmd = [
         "docker", "compose",
         "-p", "netbirdmsp-appliance",
         "-f", f"{SOURCE_DIR}/docker-compose.yml",
-        "up", "--build", "--no-deps", "-d",
+        "build", "--no-cache",
         "netbird-msp-appliance",
     ]
-    log_path = Path(BACKUP_DIR) / "update_rebuild.log"
-    log_file = open(log_path, "w")
-    subprocess.Popen(
-        compose_cmd,
-        stdout=log_file,
-        stderr=log_file,
-        env=build_env,
-    )
-    logger.info("docker compose up --build -d triggered — container will restart shortly.")
+    logger.info("Phase A: building new image …")
+    try:
+        build_result = subprocess.run(
+            build_cmd,
+            capture_output=True, text=True,
+            timeout=600,
+            env=build_env,
+        )
+        with open(log_path, "w") as f:
+            f.write(build_result.stdout)
+            f.write(build_result.stderr)
+        if build_result.returncode != 0:
+            logger.error("Image build failed: %s", build_result.stderr[:500])
+            return {
+                "ok": False,
+                "message": f"Image build failed: {build_result.stderr[:300]}",
+                "backup": backup_path,
+            }
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "message": "Image build timed out after 600s.", "backup": backup_path}
+
+    logger.info("Phase A complete — image built successfully.")
+
+    # Phase B — swap the container using a helper container.
+    #    When compose recreates our container, ALL processes inside die (PID namespace
+    #    is destroyed). So we launch a *separate* helper container via 'docker run -d'
+    #    that has access to the Docker socket and runs 'docker compose up -d'.
+    #    This helper lives outside our container and survives our restart.
+
+    # Discover the host-side path of /app-source (docker volumes use host paths)
+    try:
+        inspect_result = subprocess.run(
+            ["docker", "inspect", "netbird-msp-appliance",
+             "--format", '{{range .Mounts}}{{if eq .Destination "/app-source"}}{{.Source}}{{end}}{{end}}'],
+            capture_output=True, text=True, timeout=10,
+        )
+        host_source_dir = inspect_result.stdout.strip()
+        if not host_source_dir:
+            raise ValueError("Could not find /app-source mount")
+    except Exception as exc:
+        logger.error("Failed to discover host source path: %s", exc)
+        return {"ok": False, "message": f"Could not find host source path: {exc}", "backup": backup_path}
+
+    logger.info("Host source directory: %s", host_source_dir)
+
+    env_flags = []
+    for key in ("GIT_TAG", "GIT_COMMIT", "GIT_BRANCH", "GIT_COMMIT_DATE"):
+        val = build_env.get(key, "unknown")
+        env_flags.extend(["-e", f"{key}={val}"])
+
+    # Use the same image we're already running (it has docker CLI + compose plugin)
+    own_image = "netbirdmsp-appliance-netbird-msp-appliance:latest"
+
+    helper_cmd = [
+        "docker", "run", "--rm", "-d",
+        "--name", "msp-updater",
+        "-v", "/var/run/docker.sock:/var/run/docker.sock",
+        "-v", f"{host_source_dir}:{host_source_dir}:ro",
+        *env_flags,
+        own_image,
+        "sh", "-c",
+        (
+            "sleep 3 && "
+            "docker compose -p netbirdmsp-appliance "
+            f"-f {host_source_dir}/docker-compose.yml "
+            "up --no-deps -d netbird-msp-appliance"
+        ),
+    ]
+    try:
+        # Remove stale updater container if any
+        subprocess.run(
+            ["docker", "rm", "-f", "msp-updater"],
+            capture_output=True, timeout=10,
+        )
+        result = subprocess.run(
+            helper_cmd,
+            capture_output=True, text=True,
+            timeout=30,
+            env=build_env,
+        )
+        if result.returncode != 0:
+            logger.error("Failed to start updater container: %s", result.stderr.strip())
+            return {
+                "ok": False,
+                "message": f"Update-Container konnte nicht gestartet werden: {result.stderr.strip()[:200]}",
+                "backup": backup_path,
+            }
+        logger.info("Phase B: updater container started — this container will restart in ~5s.")
+    except Exception as exc:
+        logger.error("Failed to launch updater: %s", exc)
+        return {"ok": False, "message": f"Updater launch failed: {exc}", "backup": backup_path}
 
     return {
         "ok": True,
