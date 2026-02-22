@@ -104,8 +104,8 @@ async def check_for_updates(config: Any) -> dict:
                 "tag": latest_tag,
                 "commit": short_sha,
                 "commit_full": full_sha,
-                "message": latest_commit.get("commit", {}).get("message", "").split("\n")[0],
-                "date": latest_commit.get("commit", {}).get("committer", {}).get("date", ""),
+                "message": latest_commit.get("commit", {}).get("message", "").split("\n")[0] if latest_commit.get("commit") else "",
+                "date": latest_commit.get("timestamp", ""),
                 "branch": branch,
             }
 
