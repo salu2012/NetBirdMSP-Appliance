@@ -363,48 +363,54 @@
                     <!-- Sidebar -->
                     <div class="col-md-3 mb-4 mb-md-0 border-end pe-3">
                         <ul class="nav nav-pills flex-column" id="settings-tabs">
-                            <li class="nav-item"><a class="nav-link active" data-bs-toggle="pill"
-                                    href="#settings-system"><i class="bi bi-pc-display me-2"></i><span
-                                        data-i18n="settings.tabSystem">System</span></a></li>
-                            <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#settings-npm"><i
-                                        class="bi bi-router me-2"></i><span data-i18n="settings.tabNpm">NPM
-                                        Proxy</span></a></li>
-                            <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#settings-images"><i
-                                        class="bi bi-box me-2"></i><span
-                                        data-i18n="settings.tabImages">Images</span></a></li>
-                            <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#settings-branding"><i
-                                        class="bi bi-palette me-2"></i><span
-                                        data-i18n="settings.tabBranding">Branding</span></a></li>
-
-                            <hr class="my-3 border-secondary opacity-25">
-
                             <div class="text-uppercase text-muted fw-bold mb-2 ps-3"
                                 style="font-size: 0.75rem; letter-spacing: 0.05em;"><i
-                                    class="bi bi-shield-check me-1"></i>Auth & Users</div>
-                            <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#settings-users"
-                                    onclick="loadUsers()"><i class="bi bi-people me-2"></i><span
-                                        data-i18n="settings.tabUsers">Users</span></a></li>
+                                    class="bi bi-shield-check me-1"></i><span
+                                    data-i18n="settings.groupUsers">Benutzerverwaltung</span></div>
                             <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#settings-azure"><i
                                         class="bi bi-microsoft me-2"></i><span data-i18n="settings.tabAzure">Azure
                                         AD</span></a></li>
+                            <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#settings-users"
+                                    onclick="loadUsers()"><i class="bi bi-people me-2"></i><span
+                                        data-i18n="settings.tabUsers">Benutzer</span></a></li>
                             <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#settings-ldap"><i
                                         class="bi bi-diagram-3 me-2"></i><span data-i18n="settings.tabLdap">LDAP /
                                         AD</span></a></li>
+                            <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#settings-security"><i
+                                        class="bi bi-shield-lock me-2"></i><span
+                                        data-i18n="settings.tabSecurity">Sicherheit</span></a></li>
 
                             <hr class="my-3 border-secondary opacity-25">
 
                             <div class="text-uppercase text-muted fw-bold mb-2 ps-3"
                                 style="font-size: 0.75rem; letter-spacing: 0.05em;"><i
-                                    class="bi bi-gear-wide-connected me-1"></i>System</div>
+                                    class="bi bi-gear-wide-connected me-1"></i><span
+                                    data-i18n="settings.groupSystem">Systemkonfiguration</span></div>
+                            <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#settings-branding"><i
+                                        class="bi bi-palette me-2"></i><span
+                                        data-i18n="settings.tabBranding">Branding</span></a></li>
+                            <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#settings-images"><i
+                                        class="bi bi-box me-2"></i><span data-i18n="settings.tabImages">NetBird Docker
+                                        Images</span></a></li>
+                            <li class="nav-item"><a class="nav-link active" data-bs-toggle="pill"
+                                    href="#settings-system"><i class="bi bi-pc-display me-2"></i><span
+                                        data-i18n="settings.tabSystem">NetBird MSP System</span></a></li>
+                            <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#settings-update"
+                                    onclick="loadVersionInfo()"><i class="bi bi-cloud-arrow-down me-2"></i><span
+                                        data-i18n="settings.tabUpdate">NetBird MSP Updates</span></a></li>
+
+                            <hr class="my-3 border-secondary opacity-25">
+
+                            <div class="text-uppercase text-muted fw-bold mb-2 ps-3"
+                                style="font-size: 0.75rem; letter-spacing: 0.05em;"><i
+                                    class="bi bi-link-45deg me-1"></i><span
+                                    data-i18n="settings.groupExternal">Umsysteme</span></div>
+                            <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#settings-npm"><i
+                                        class="bi bi-router me-2"></i><span data-i18n="settings.tabNpm">NPM
+                                        Proxy</span></a></li>
                             <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#settings-dns"><i
                                         class="bi bi-hdd-network me-2"></i><span data-i18n="settings.tabDns">Windows
                                         DNS</span></a></li>
-                            <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#settings-update"
-                                    onclick="loadVersionInfo()"><i class="bi bi-cloud-arrow-down me-2"></i><span
-                                        data-i18n="settings.tabUpdate">Updates</span></a></li>
-                            <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#settings-security"><i
-                                        class="bi bi-shield-lock me-2"></i><span
-                                        data-i18n="settings.tabSecurity">Security</span></a></li>
                         </ul>
                     </div>
 
@@ -1004,8 +1010,15 @@
                                                 <div class="col-md-4">
                                                     <label class="form-label"
                                                         data-i18n="settings.gitBranch">Branch</label>
-                                                    <input type="text" class="form-control" id="cfg-git-branch"
-                                                        placeholder="main">
+                                                    <div class="input-group">
+                                                        <select class="form-select" id="cfg-git-branch">
+                                                            <option value="main">main</option>
+                                                        </select>
+                                                        <button class="btn btn-outline-secondary" type="button"
+                                                            onclick="loadGitBranches()" title="Aktualisieren">
+                                                            <i class="bi bi-arrow-clockwise"></i>
+                                                        </button>
+                                                    </div>
                                                 </div>
                                                 <div class="col-md-8">
                                                     <label class="form-label" data-i18n="settings.gitToken">Access Token

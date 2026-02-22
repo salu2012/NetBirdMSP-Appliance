@@ -1,4 +1,0 @@
- Container netbird-msp-appliance Recreate 
- Container netbird-msp-appliance Recreated 
- Container netbird-msp-appliance Starting 
- Container netbird-msp-appliance Started 

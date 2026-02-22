@@ -1,9 +1,0 @@
-NAMES                       STATUS                     IMAGE
-netbird-msp-appliance       Up 3 minutes (healthy)     netbirdmsp-appliance-netbird-msp-appliance
-msp-updater                 Exited (0) 3 minutes ago   netbirdmsp-appliance-netbird-msp-appliance:latest
-netbird-kunde1-caddy        Up 2 hours                 caddy:2-alpine
-netbird-kunde1-signal       Up 2 hours                 netbirdio/signal:latest
-netbird-kunde1-dashboard    Up 2 hours                 netbirdio/dashboard:latest
-netbird-kunde1-relay        Up 2 hours                 netbirdio/relay:latest
-netbird-kunde1-management   Up 2 hours                 netbirdio/management:latest
-docker-socket-proxy         Up 2 hours                 tecnativa/docker-socket-proxy:latest

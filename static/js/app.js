@@ -872,6 +872,9 @@ async function loadSettings() {
     } catch (err) {
         showSettingsAlert('danger', t('errors.failedToLoadSettings', { error: err.message }));
     }
+
+    // Automatically fetch branches once the base config is populated
+    await loadGitBranches();
 }
 
 function updateLogoPreview(logoPath) {
@@ -1180,6 +1183,42 @@ async function testLdapConnection() {
         resultEl.classList.remove('d-none');
     } finally {
         spinner.classList.add('d-none');
+    }
+}
+
+async function loadGitBranches() {
+    const branchSelect = document.getElementById('cfg-git-branch');
+    const currentVal = branchSelect.value;
+
+    // Disable mapping while loading
+    branchSelect.disabled = true;
+    branchSelect.innerHTML = `<option value="${currentVal}">${currentVal} (Loading...)</option>`;
+
+    try {
+        const branches = await api('GET', '/settings/branches');
+        branchSelect.innerHTML = '';
+
+        // Always ensure the currently saved branch is an option
+        if (currentVal && !branches.includes(currentVal)) {
+            branches.unshift(currentVal);
+        }
+
+        if (branches.length === 0) {
+            branchSelect.innerHTML = `<option value="main">main</option>`;
+        } else {
+            branches.forEach(b => {
+                const opt = document.createElement('option');
+                opt.value = b;
+                opt.textContent = b;
+                if (b === currentVal) opt.selected = true;
+                branchSelect.appendChild(opt);
+            });
+        }
+    } catch (err) {
+        showSettingsAlert('warning', `Failed to load branches: ${err.message}`);
+        branchSelect.innerHTML = `<option value="${currentVal}">${currentVal}</option>`;
+    } finally {
+        branchSelect.disabled = false;
     }
 }
 

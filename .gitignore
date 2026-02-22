@@ -69,5 +69,20 @@ PROJECT_SUMMARY.md
 QUICKSTART.md
 VS_CODE_SETUP.md
 
+# Gemini / Antigravity
+.gemini/
+
 # Windows artifacts
 nul
+
+# Debug / temp files (generated during development & testing)
+out.txt
+containers.txt
+helper.txt
+logs.txt
+port.txt
+env.txt
+network.txt
+update_helper.txt
+state.txt
+hostpath.txt

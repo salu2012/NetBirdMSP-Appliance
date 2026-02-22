@@ -5,6 +5,7 @@ import logging
 import os
 import shutil
 import subprocess
+import httpx
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -128,6 +129,42 @@ async def check_for_updates(config: Any) -> dict:
             "needs_update": False,
             "error": str(exc),
         }
+
+
+async def get_remote_branches(config: Any) -> list[str]:
+    """Query the Gitea API for available branches on the configured repository.
+    
+    Returns a list of branch names (e.g., ['main', 'unstable', 'development']).
+    If the repository URL is not configured or an error occurs, returns an empty list.
+    """
+    if not config.git_repo_url:
+        return []
+
+    repo_url = config.git_repo_url.rstrip("/")
+    parts = repo_url.split("/")
+    if len(parts) < 5:
+        return []
+
+    base_url = "/".join(parts[:-2])
+    owner = parts[-2]
+    repo = parts[-1]
+    branches_api = f"{base_url}/api/v1/repos/{owner}/{repo}/branches?limit=100"
+
+    headers = {}
+    if config.git_token:
+        headers["Authorization"] = f"token {config.git_token}"
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(branches_api, headers=headers)
+            if resp.status_code == 200:
+                data = resp.json()
+                if isinstance(data, list):
+                    return [branch.get("name") for branch in data if "name" in branch]
+    except Exception as exc:
+        logger.error("Error fetching branches: %s", exc)
+        
+    return []
 
 
 def backup_database(db_path: str) -> str:

@@ -334,6 +334,19 @@ async def get_version(
     return result
 
 
+@router.get("/branches")
+async def get_branches(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return a list of available branches from the configured git remote."""
+    config = get_system_config(db)
+    if not config or not config.git_repo_url:
+        return []
+    branches = await update_service.get_remote_branches(config)
+    return branches
+
+
 @router.post("/update")
 async def trigger_update(
     current_user: User = Depends(get_current_user),

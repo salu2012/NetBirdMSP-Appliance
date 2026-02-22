@@ -1,9 +1,0 @@
-INFO:     Started server process [1]
-INFO:     Waiting for application startup.
-2026-02-22 14:53:59,694 [INFO] app.main: Starting NetBird MSP Appliance...
-2026-02-22 14:53:59,744 [INFO] app.main: Database initialized.
-INFO:     Application startup complete.
-INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-INFO:     127.0.0.1:45370 - "GET /api/health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57724 - "GET /api/health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:56212 - "GET /api/health HTTP/1.1" 200 OK
