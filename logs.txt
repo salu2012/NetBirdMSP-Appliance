@@ -1,30 +1,30 @@
-INFO:     172.18.0.1:54920 - "GET /api/customers?page=1&per_page=25 HTTP/1.1" 200 OK
-INFO:     172.18.0.1:38426 - "GET /api/settings/system HTTP/1.1" 200 OK
-INFO:     172.18.0.1:38426 - "GET /api/auth/mfa/status HTTP/1.1" 200 OK
-2026-02-22 14:26:24,600 [INFO] httpx: HTTP Request: GET https://git.0x26.ch/api/v1/repos/BurgerGames/NetBirdMSP-Appliance/branches/unstable "HTTP/1.1 200 OK"
-2026-02-22 14:26:24,610 [INFO] httpx: HTTP Request: GET https://git.0x26.ch/api/v1/repos/BurgerGames/NetBirdMSP-Appliance/tags?limit=1 "HTTP/1.1 200 OK"
-INFO:     172.18.0.1:53830 - "GET /api/settings/version HTTP/1.1" 200 OK
-INFO:     127.0.0.1:46712 - "GET /api/health HTTP/1.1" 200 OK
-2026-02-22 14:26:51,522 [INFO] app.services.update_service: Database backed up to /app/backups/netbird_msp_20260222_142651.db
-2026-02-22 14:26:51,823 [INFO] app.services.update_service: git pull succeeded: Already up to date.
-2026-02-22 14:26:51,846 [INFO] app.services.update_service: Rebuilding with GIT_TAG=alpha-1.6 GIT_COMMIT=6bc11d4 GIT_BRANCH=unstable
-2026-02-22 14:26:51,847 [INFO] app.services.update_service: Phase A: building new image …
-2026-02-22 14:29:45,287 [INFO] app.services.update_service: Phase A complete — image built successfully.
-2026-02-22 14:29:45,305 [INFO] app.services.update_service: Host source directory: /home/sascha/NetBirdMSP-Appliance
-2026-02-22 14:29:46,017 [INFO] app.services.update_service: Phase B: updater container started — this container will restart in ~5s.
-2026-02-22 14:29:46,017 [INFO] app.routers.settings: Update triggered by admin.
-INFO:     127.0.0.1:34660 - "GET /api/health HTTP/1.1" 200 OK
-INFO:     172.18.0.1:41348 - "GET /api/monitoring/status HTTP/1.1" 200 OK
-INFO:     172.18.0.1:41362 - "GET /api/customers?page=1&per_page=25 HTTP/1.1" 200 OK
-2026-02-22 14:29:46,083 [INFO] httpx: HTTP Request: GET https://git.0x26.ch/api/v1/repos/BurgerGames/NetBirdMSP-Appliance/branches/unstable "HTTP/1.1 200 OK"
-2026-02-22 14:29:46,090 [INFO] httpx: HTTP Request: GET https://git.0x26.ch/api/v1/repos/BurgerGames/NetBirdMSP-Appliance/tags?limit=1 "HTTP/1.1 200 OK"
-INFO:     172.18.0.1:41362 - "GET /api/settings/system HTTP/1.1" 200 OK
-INFO:     172.18.0.1:41362 - "GET /api/auth/mfa/status HTTP/1.1" 200 OK
-2026-02-22 14:29:51,064 [INFO] httpx: HTTP Request: GET https://git.0x26.ch/api/v1/repos/BurgerGames/NetBirdMSP-Appliance/branches/unstable "HTTP/1.1 200 OK"
-2026-02-22 14:29:51,071 [INFO] httpx: HTTP Request: GET https://git.0x26.ch/api/v1/repos/BurgerGames/NetBirdMSP-Appliance/tags?limit=1 "HTTP/1.1 200 OK"
-INFO:     172.18.0.1:41362 - "GET /api/settings/version HTTP/1.1" 200 OK
-INFO:     127.0.0.1:39688 - "GET /api/health HTTP/1.1" 200 OK
-2026-02-22 14:30:21,600 [INFO] httpx: HTTP Request: GET https://git.0x26.ch/api/v1/repos/BurgerGames/NetBirdMSP-Appliance/branches/unstable "HTTP/1.1 200 OK"
-2026-02-22 14:30:21,606 [INFO] httpx: HTTP Request: GET https://git.0x26.ch/api/v1/repos/BurgerGames/NetBirdMSP-Appliance/tags?limit=1 "HTTP/1.1 200 OK"
-INFO:     172.18.0.1:34698 - "GET /api/settings/version HTTP/1.1" 200 OK
-INFO:     127.0.0.1:48454 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     172.18.0.1:34414 - "GET /lang/de.json HTTP/1.1" 304 Not Modified
+INFO:     172.18.0.1:34414 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     172.18.0.1:34424 - "GET /api/settings/branding HTTP/1.1" 200 OK
+INFO:     172.18.0.1:34424 - "GET /api/auth/azure/config HTTP/1.1" 200 OK
+INFO:     172.18.0.1:34424 - "GET /api/auth/me HTTP/1.1" 200 OK
+INFO:     172.18.0.1:34424 - "GET /api/monitoring/status HTTP/1.1" 200 OK
+INFO:     172.18.0.1:34414 - "GET /api/customers?page=1&per_page=25 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34422 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     172.18.0.1:34042 - "GET /api/settings/system HTTP/1.1" 200 OK
+INFO:     172.18.0.1:34042 - "GET /api/auth/mfa/status HTTP/1.1" 200 OK
+2026-02-22 14:40:01,292 [INFO] httpx: HTTP Request: GET https://git.0x26.ch/api/v1/repos/BurgerGames/NetBirdMSP-Appliance/branches/unstable "HTTP/1.1 200 OK"
+2026-02-22 14:40:01,301 [INFO] httpx: HTTP Request: GET https://git.0x26.ch/api/v1/repos/BurgerGames/NetBirdMSP-Appliance/tags?limit=1 "HTTP/1.1 200 OK"
+INFO:     172.18.0.1:49812 - "GET /api/settings/version HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54492 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36052 - "GET /api/health HTTP/1.1" 200 OK
+2026-02-22 14:40:57,656 [INFO] app.services.update_service: Database backed up to /app/backups/netbird_msp_20260222_144057.db
+2026-02-22 14:40:57,971 [INFO] app.services.update_service: git pull succeeded: Already up to date.
+2026-02-22 14:40:57,988 [INFO] app.services.update_service: Rebuilding with GIT_TAG=alpha-1.7 GIT_COMMIT=c40b7d3 GIT_BRANCH=unstable
+2026-02-22 14:40:57,988 [INFO] app.services.update_service: Phase A: building new image …
+2026-02-22 14:42:44,434 [INFO] app.services.update_service: Phase A complete — image built successfully.
+2026-02-22 14:42:44,461 [INFO] app.services.update_service: Host source directory: /home/sascha/NetBirdMSP-Appliance
+2026-02-22 14:42:44,973 [INFO] app.services.update_service: Phase B: updater container started — this container will restart in ~5s.
+2026-02-22 14:42:44,973 [INFO] app.routers.settings: Update triggered by admin.
+INFO:     172.18.0.1:46292 - "POST /api/settings/update HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54584 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33600 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35272 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44226 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48574 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53686 - "GET /api/health HTTP/1.1" 200 OK
