@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 import shutil
 import subprocess
 from datetime import datetime
@@ -198,16 +199,52 @@ def trigger_update(config: Any, db_path: str) -> dict:
 
     logger.info("git pull succeeded: %s", result.stdout.strip()[:200])
 
-    # 4. Fire-and-forget docker compose rebuild — the container will restart itself
+    # 4. Read version info from the freshly-pulled source
+    build_env = os.environ.copy()
+    try:
+        build_env["GIT_COMMIT"] = subprocess.run(
+            ["git", "-C", SOURCE_DIR, "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, timeout=10,
+        ).stdout.strip() or "unknown"
+
+        build_env["GIT_BRANCH"] = subprocess.run(
+            ["git", "-C", SOURCE_DIR, "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True, text=True, timeout=10,
+        ).stdout.strip() or "unknown"
+
+        build_env["GIT_COMMIT_DATE"] = subprocess.run(
+            ["git", "-C", SOURCE_DIR, "log", "-1", "--format=%cI"],
+            capture_output=True, text=True, timeout=10,
+        ).stdout.strip() or "unknown"
+
+        tag_result = subprocess.run(
+            ["git", "-C", SOURCE_DIR, "describe", "--tags", "--abbrev=0"],
+            capture_output=True, text=True, timeout=10,
+        )
+        build_env["GIT_TAG"] = tag_result.stdout.strip() if tag_result.returncode == 0 else "unknown"
+    except Exception as exc:
+        logger.warning("Could not read version info from source: %s", exc)
+
+    logger.info(
+        "Rebuilding with GIT_TAG=%s GIT_COMMIT=%s GIT_BRANCH=%s",
+        build_env.get("GIT_TAG", "?"),
+        build_env.get("GIT_COMMIT", "?"),
+        build_env.get("GIT_BRANCH", "?"),
+    )
+
+    # 5. Fire-and-forget docker compose rebuild — the container will restart itself
     compose_cmd = [
         "docker", "compose",
         "-f", f"{SOURCE_DIR}/docker-compose.yml",
         "up", "--build", "-d",
     ]
+    log_path = Path(BACKUP_DIR) / "update_rebuild.log"
+    log_file = open(log_path, "w")
     subprocess.Popen(
         compose_cmd,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stdout=log_file,
+        stderr=log_file,
+        env=build_env,
     )
     logger.info("docker compose up --build -d triggered — container will restart shortly.")
 
