@@ -299,7 +299,7 @@ def trigger_update(config: Any, db_path: str) -> dict:
     own_image = "netbirdmsp-appliance-netbird-msp-appliance:latest"
 
     helper_cmd = [
-        "docker", "run", "--rm", "-d",
+        "docker", "run", "-d",
         "--name", "msp-updater",
         "-v", "/var/run/docker.sock:/var/run/docker.sock",
         "-v", f"{host_source_dir}:{host_source_dir}:ro",
@@ -310,7 +310,8 @@ def trigger_update(config: Any, db_path: str) -> dict:
             "sleep 3 && "
             "docker compose -p netbirdmsp-appliance "
             f"-f {host_source_dir}/docker-compose.yml "
-            "up --no-deps -d netbird-msp-appliance"
+            "up --force-recreate --no-deps -d netbird-msp-appliance "
+            f">> {host_source_dir}/app/backups/updater.log 2>&1"
         ),
     ]
     try:
