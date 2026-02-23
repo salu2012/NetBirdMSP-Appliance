@@ -112,7 +112,11 @@ async def check_for_updates(config: Any) -> dict:
             # Determine if update is needed: prefer tag comparison, fallback to commit
             current_tag = current.get("tag", "unknown")
             current_sha = current.get("commit", "unknown")
-            if current_tag != "unknown" and latest_tag != "unknown":
+            
+            # If we don't know our current version but the remote has one, we should update
+            if current_tag == "unknown" and current_sha == "unknown":
+                needs_update = latest_tag != "unknown" or short_sha != "unknown"
+            elif current_tag != "unknown" and latest_tag != "unknown":
                 needs_update = current_tag != latest_tag
             else:
                 needs_update = (
