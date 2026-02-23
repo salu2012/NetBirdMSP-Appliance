@@ -259,7 +259,16 @@ async def create_proxy_host(
         "block_exploits": True,
         "allow_websocket_upgrade": True,
         "access_list_id": 0,
-        "advanced_config": "",
+        "advanced_config": (
+            "location ^~ /management.ManagementService/ {\n"
+            f"    grpc_pass grpc://{forward_host}:{forward_port};\n"
+            "    grpc_set_header Host $host;\n"
+            "}\n"
+            "location ^~ /signalexchange.SignalExchange/ {\n"
+            f"    grpc_pass grpc://{forward_host}:{forward_port};\n"
+            "    grpc_set_header Host $host;\n"
+            "}\n"
+        ),
         "meta": {
             "letsencrypt_agree": True,
             "letsencrypt_email": admin_email,
