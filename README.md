@@ -95,8 +95,8 @@ A management solution for running isolated NetBird instances for your MSP busine
 |  | Caddy      |  |                  |  | Caddy      |  |
 |  +------------+  |                  |  +------------+  |
 +------------------+                  +------------------+
-  kunde1.domain.de                      kundeN.domain.de
-  UDP 3478                              UDP 3478+N-1
+  customer-a.domain.de                  customer-x.domain.de
+         |                                     |3478+N-1
 ```
 
 ### Components per Customer Instance (5 containers):
@@ -140,9 +140,9 @@ Example for 3 customers:
 
 | Customer | Dashboard (TCP) | Relay (UDP) |
 |----------|----------------|-------------|
-| Kunde 1  | 9001           | 3478        |
-| Kunde 2  | 9002           | 3479        |
-| Kunde 3  | 9003           | 3480        |
+| Customer-A | 9001           | 3478        |
+| Customer-C | 9002           | 3479        |
+| Customer-X | 9003           | 3480        |
 
 **Your firewall must allow both the TCP dashboard ports and the UDP relay ports!**
 

@@ -6,7 +6,7 @@ services:
   # --- Caddy Reverse Proxy (entry point) ---
   netbird-caddy:
     image: caddy:2-alpine
-    container_name: netbird-kunde{{ customer_id }}-caddy
+    container_name: netbird-{{ subdomain }}-caddy
     restart: unless-stopped
     networks:
       - {{ docker_network }}
@@ -18,7 +18,7 @@ services:
   # --- NetBird Management (with embedded IdP) ---
   netbird-management:
     image: {{ netbird_management_image }}
-    container_name: netbird-kunde{{ customer_id }}-management
+    container_name: netbird-{{ subdomain }}-management
     restart: unless-stopped
     networks:
       - {{ docker_network }}
@@ -39,7 +39,7 @@ services:
   # --- NetBird Signal ---
   netbird-signal:
     image: {{ netbird_signal_image }}
-    container_name: netbird-kunde{{ customer_id }}-signal
+    container_name: netbird-{{ subdomain }}-signal
     restart: unless-stopped
     networks:
       - {{ docker_network }}
@@ -49,7 +49,7 @@ services:
   # --- NetBird Relay ---
   netbird-relay:
     image: {{ netbird_relay_image }}
-    container_name: netbird-kunde{{ customer_id }}-relay
+    container_name: netbird-{{ subdomain }}-relay
     restart: unless-stopped
     networks:
       - {{ docker_network }}
@@ -61,7 +61,7 @@ services:
   # --- NetBird Dashboard ---
   netbird-dashboard:
     image: {{ netbird_dashboard_image }}
-    container_name: netbird-kunde{{ customer_id }}-dashboard
+    container_name: netbird-{{ subdomain }}-dashboard
     restart: unless-stopped
     networks:
       - {{ docker_network }}

@@ -12,7 +12,7 @@ let currentPage = 'dashboard';
 let currentCustomerId = null;
 let currentCustomerData = null;
 let customersPage = 1;
-let brandingData = { branding_name: 'NetBird MSP Appliance', branding_logo_path: null };
+let brandingData = { branding_name: 'NetBird MSP Appliance', branding_logo_path: null, version: 'alpha-1.1' };
 let azureConfig = { azure_enabled: false };
 
 // ---------------------------------------------------------------------------
@@ -127,12 +127,19 @@ function applyBranding() {
     const name = brandingData.branding_name || 'NetBird MSP Appliance';
     const subtitle = brandingData.branding_subtitle || t('login.subtitle');
     const logoPath = brandingData.branding_logo_path;
+    const version = brandingData.version || 'alpha-1.1';
 
     // Login page
     document.getElementById('login-title').textContent = name;
     const subtitleEl = document.getElementById('login-subtitle');
     if (subtitleEl) subtitleEl.textContent = subtitle;
     document.title = name;
+    
+    // Update version string in login page
+    const versionEl = document.querySelector('#login-page .text-muted.small.mb-0');
+    if (versionEl) {
+        versionEl.innerHTML = `<i class="bi bi-tag me-1"></i>${version}`;
+    }
     if (logoPath) {
         document.getElementById('login-logo').innerHTML = `<img src="${logoPath}" alt="Logo" style="max-height:64px;max-width:200px;" class="mb-1">`;
     } else {

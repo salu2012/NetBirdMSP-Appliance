@@ -5,15 +5,15 @@
 :80 {
 	# Embedded IdP OAuth2/OIDC endpoints
 	handle /oauth2/* {
-		reverse_proxy netbird-kunde{{ customer_id }}-management:80
+		reverse_proxy netbird-{{ subdomain }}-management:80
 	}
 
 	# NetBird Management API + gRPC
 	handle /api/* {
-		reverse_proxy netbird-kunde{{ customer_id }}-management:80
+		reverse_proxy netbird-{{ subdomain }}-management:80
 	}
 	handle /management.ManagementService/* {
-		reverse_proxy netbird-kunde{{ customer_id }}-management:80 {
+		reverse_proxy netbird-{{ subdomain }}-management:80 {
 			transport http {
 				versions h2c
 			}
@@ -22,7 +22,7 @@
 
 	# NetBird Signal gRPC
 	handle /signalexchange.SignalExchange/* {
-		reverse_proxy netbird-kunde{{ customer_id }}-signal:80 {
+		reverse_proxy netbird-{{ subdomain }}-signal:80 {
 			transport http {
 				versions h2c
 			}
@@ -31,6 +31,6 @@
 
 	# Default: NetBird Dashboard
 	handle {
-		reverse_proxy netbird-kunde{{ customer_id }}-dashboard:80
+		reverse_proxy netbird-{{ subdomain }}-dashboard:80
 	}
 }

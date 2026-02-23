@@ -237,6 +237,10 @@ async def test_ldap(
 @router.get("/branding")
 async def get_branding(db: Session = Depends(get_db)):
     """Public endpoint — returns branding info for the login page (no auth required)."""
+    current_version = update_service.get_current_version().get("tag", "alpha-1.1")
+    if current_version == "unknown":
+        current_version = "alpha-1.1"
+    
     row = db.query(SystemConfig).filter(SystemConfig.id == 1).first()
     if not row:
         return {
@@ -244,12 +248,14 @@ async def get_branding(db: Session = Depends(get_db)):
             "branding_subtitle": "Multi-Tenant Management Platform",
             "branding_logo_path": None,
             "default_language": "en",
+            "version": current_version
         }
     return {
         "branding_name": row.branding_name or "NetBird MSP Appliance",
         "branding_subtitle": row.branding_subtitle or "Multi-Tenant Management Platform",
         "branding_logo_path": row.branding_logo_path,
         "default_language": row.default_language or "en",
+        "version": current_version
     }
 
 

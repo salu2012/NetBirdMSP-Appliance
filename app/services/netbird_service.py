@@ -118,7 +118,7 @@ async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
 
     allocated_port = None
     instance_dir = None
-    container_prefix = f"netbird-kunde{customer_id}"
+    container_prefix = f"netbird-{customer.subdomain}"
     local_mode = _is_local_domain(config.base_domain)
     existing_deployment = db.query(Deployment).filter(Deployment.customer_id == customer_id).first()
 
@@ -135,7 +135,7 @@ async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
         # Step 2: Generate secrets (reuse existing key if instance data exists)
         relay_secret = generate_relay_secret()
         datastore_key = _get_existing_datastore_key(
-            os.path.join(config.data_dir, f"kunde{customer_id}", "management.json")
+            os.path.join(config.data_dir, customer.subdomain, "management.json")
         )
         if datastore_key:
             _log_action(db, customer_id, "deploy", "info",
@@ -159,7 +159,7 @@ async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
             relay_ws_protocol = "rels"
 
         # Step 4: Create instance directory
-        instance_dir = os.path.join(config.data_dir, f"kunde{customer_id}")
+        instance_dir = os.path.join(config.data_dir, customer.subdomain)
         os.makedirs(instance_dir, exist_ok=True)
         os.makedirs(os.path.join(instance_dir, "data", "management"), exist_ok=True)
         os.makedirs(os.path.join(instance_dir, "data", "signal"), exist_ok=True)
@@ -225,7 +225,7 @@ async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
         # Step 8: Auto-create admin user via NetBird setup API
         admin_email = customer.email
         admin_password = secrets.token_urlsafe(16)
-        management_container = f"netbird-kunde{customer_id}-management"
+        management_container = f"netbird-{customer.subdomain}-management"
         setup_api_url = f"http://{management_container}:80/api/setup"
         setup_payload = json.dumps({
             "name": customer.name,
@@ -387,7 +387,7 @@ async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
         # Rollback: stop containers if they were started
         try:
             await docker_service.compose_down(
-                instance_dir or os.path.join(config.data_dir, f"kunde{customer_id}"),
+                instance_dir or os.path.join(config.data_dir, customer.subdomain),
                 container_prefix,
                 remove_volumes=True,
             )
@@ -423,7 +423,7 @@ async def undeploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
     config = get_system_config(db)
 
     if deployment and config:
-        instance_dir = os.path.join(config.data_dir, f"kunde{customer_id}")
+        instance_dir = os.path.join(config.data_dir, customer.subdomain)
 
         # Stop and remove containers
         try:
@@ -488,7 +488,7 @@ async def stop_customer(db: Session, customer_id: int) -> dict[str, Any]:
     if not deployment or not config:
         return {"success": False, "error": "Deployment or config not found."}
 
-    instance_dir = os.path.join(config.data_dir, f"kunde{customer_id}")
+    instance_dir = os.path.join(config.data_dir, customer.subdomain)
     ok = await docker_service.compose_stop(instance_dir, deployment.container_prefix)
     if ok:
         deployment.deployment_status = "stopped"
@@ -509,7 +509,7 @@ async def start_customer(db: Session, customer_id: int) -> dict[str, Any]:
     if not deployment or not config:
         return {"success": False, "error": "Deployment or config not found."}
 
-    instance_dir = os.path.join(config.data_dir, f"kunde{customer_id}")
+    instance_dir = os.path.join(config.data_dir, customer.subdomain)
     ok = await docker_service.compose_start(instance_dir, deployment.container_prefix)
     if ok:
         deployment.deployment_status = "running"
@@ -530,7 +530,7 @@ async def restart_customer(db: Session, customer_id: int) -> dict[str, Any]:
     if not deployment or not config:
         return {"success": False, "error": "Deployment or config not found."}
 
-    instance_dir = os.path.join(config.data_dir, f"kunde{customer_id}")
+    instance_dir = os.path.join(config.data_dir, customer.subdomain)
     ok = await docker_service.compose_restart(instance_dir, deployment.container_prefix)
     if ok:
         deployment.deployment_status = "running"

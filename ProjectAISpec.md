@@ -91,7 +91,7 @@ netbird-msp-appliance/
 1. Validate inputs (subdomain unique, email valid)
 2. Allocate ports (Management internal, Relay UDP public)
 3. Generate configs from Jinja2 templates
-4. Create instance directory: `/opt/netbird-instances/kunde{id}/`
+4. Create instance directory: `/opt/netbird-instances/{subdomain}/`
 5. Write `docker-compose.yml`, `management.json`, `relay.env`
 6. Start Docker containers via Docker SDK
 7. Wait for health checks (max 60s)
@@ -113,7 +113,7 @@ No manual config file editing required!
 ### 4. Nginx Proxy Manager Integration
 **Per customer, create proxy host:**
 - Domain: `{subdomain}.{base_domain}`
-- Forward to: `netbird-kunde{id}-dashboard:80`
+- Forward to: `netbird-{subdomain}-dashboard:80`
 - SSL: Automatic Let's Encrypt
 - Advanced config: Route `/api/*` to management, `/signalexchange.*` to signal, `/relay` to relay
 
@@ -272,7 +272,7 @@ networks:
 services:
   netbird-management:
     image: {{ netbird_management_image }}
-    container_name: netbird-kunde{{ customer_id }}-management
+    container_name: netbird-{{ subdomain }}-management
     restart: unless-stopped
     networks:
       - npm-network
@@ -285,7 +285,7 @@ services:
 
   netbird-signal:
     image: {{ netbird_signal_image }}
-    container_name: netbird-kunde{{ customer_id }}-signal
+    container_name: netbird-{{ subdomain }}-signal
     restart: unless-stopped
     networks:
       - npm-network
@@ -294,7 +294,7 @@ services:
 
   netbird-relay:
     image: {{ netbird_relay_image }}
-    container_name: netbird-kunde{{ customer_id }}-relay
+    container_name: netbird-{{ subdomain }}-relay
     restart: unless-stopped
     networks:
       - npm-network
@@ -311,7 +311,7 @@ services:
 
   netbird-dashboard:
     image: {{ netbird_dashboard_image }}
-    container_name: netbird-kunde{{ customer_id }}-dashboard
+    container_name: netbird-{{ subdomain }}-dashboard
     restart: unless-stopped
     networks:
       - npm-network
