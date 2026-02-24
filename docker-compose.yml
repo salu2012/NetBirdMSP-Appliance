@@ -57,6 +57,7 @@ services:
       - "${WEB_UI_PORT:-8000}:8000"
     volumes:
       - ./data:/app/data:z
+      - ./data/uploads:/app/static/uploads:z
       - ./logs:/app/logs:z
       - ./backups:/app/backups:z
       - /var/run/docker.sock:/var/run/docker.sock:z
