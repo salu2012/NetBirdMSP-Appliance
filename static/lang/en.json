@@ -191,6 +191,8 @@
     "saveBranding": "Save Branding",
     "userManagement": "User Management",
     "newUser": "New User",
+    "makeAdmin": "Promote to admin",
+    "makeViewer": "Demote to viewer",
     "thId": "ID",
     "thUsername": "Username",
     "thEmail": "Email",

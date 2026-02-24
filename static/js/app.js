@@ -1368,8 +1368,8 @@ async function loadUsers() {
             <td>${u.id}</td>
             <td><strong>${esc(u.username)}</strong></td>
             <td>${esc(u.email || '-')}</td>
-            <td><span class="badge bg-info">${esc(u.role || 'admin')}</span></td>
-            <td><span class="badge bg-${u.auth_provider === 'azure' ? 'primary' : 'secondary'}">${esc(u.auth_provider || 'local')}</span></td>
+            <td><span class="badge bg-${u.role === 'admin' ? 'success' : 'secondary'}">${esc(u.role || 'admin')}</span></td>
+            <td><span class="badge bg-${u.auth_provider === 'azure' ? 'primary' : u.auth_provider === 'ldap' ? 'info' : 'secondary'}">${esc(u.auth_provider || 'local')}</span></td>
             <td>${langDisplay}</td>
             <td>${mfaDisplay}</td>
             <td>${u.is_active ? `<span class="badge bg-success">${t('common.active')}</span>` : `<span class="badge bg-danger">${t('common.disabled')}</span>`}</td>
@@ -1381,6 +1381,11 @@ async function loadUsers() {
                 }
                     ${u.auth_provider === 'local' ? `<button class="btn btn-outline-info" title="${t('common.resetPassword')}" onclick="resetUserPassword(${u.id}, '${esc(u.username)}')"><i class="bi bi-key"></i></button>` : ''}
                     ${u.totp_enabled ? `<button class="btn btn-outline-secondary" title="${t('mfa.resetMfa')}" onclick="resetUserMfa(${u.id}, '${esc(u.username)}')"><i class="bi bi-shield-x"></i></button>` : ''}
+                    ${currentUser && currentUser.role === 'admin' && u.id !== currentUser.id
+                        ? (u.role === 'admin'
+                            ? `<button class="btn btn-outline-secondary" title="${t('settings.makeViewer')}" onclick="toggleUserRole(${u.id}, 'admin')"><i class="bi bi-person-dash"></i></button>`
+                            : `<button class="btn btn-outline-success" title="${t('settings.makeAdmin')}" onclick="toggleUserRole(${u.id}, 'viewer')"><i class="bi bi-person-check"></i></button>`)
+                        : ''}
                     <button class="btn btn-outline-danger" title="${t('common.delete')}" onclick="deleteUser(${u.id}, '${esc(u.username)}')"><i class="bi bi-trash"></i></button>
                 </div>
             </td>
@@ -1434,6 +1439,16 @@ async function deleteUser(id, username) {
 async function toggleUserActive(id, active) {
     try {
         await api('PUT', `/users/${id}`, { is_active: active });
+        loadUsers();
+    } catch (err) {
+        showSettingsAlert('danger', t('errors.updateFailed', { error: err.message }));
+    }
+}
+
+async function toggleUserRole(id, currentRole) {
+    const newRole = currentRole === 'admin' ? 'viewer' : 'admin';
+    try {
+        await api('PUT', `/users/${id}`, { role: newRole });
         loadUsers();
     } catch (err) {
         showSettingsAlert('danger', t('errors.updateFailed', { error: err.message }));

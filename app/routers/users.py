@@ -70,12 +70,31 @@ async def update_user(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Update an existing user (email, is_active, role)."""
+    """Update an existing user (email, is_active, role). Admin only."""
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can update users.",
+        )
+
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
 
     update_data = payload.model_dump(exclude_none=True)
+
+    if "role" in update_data:
+        if update_data["role"] not in ("admin", "viewer"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Role must be 'admin' or 'viewer'.",
+            )
+        if user_id == current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="You cannot change your own role.",
+            )
+
     for field, value in update_data.items():
         if hasattr(user, field):
             setattr(user, field, value)

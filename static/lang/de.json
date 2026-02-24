@@ -170,6 +170,8 @@
     "saveBranding": "Branding speichern",
     "userManagement": "Benutzerverwaltung",
     "newUser": "Neuer Benutzer",
+    "makeAdmin": "Zum Admin befördern",
+    "makeViewer": "Zum Viewer degradieren",
     "thId": "ID",
     "thUsername": "Benutzername",
     "thEmail": "E-Mail",
