@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Blue rounded background -->
+  <rect width="32" height="32" rx="7" fill="#2563EB"/>
+
+  <!-- Bird silhouette: top-down view, wings spread, forked tail -->
+  <path fill="white" d="
+    M 16 7
+    C 15 8 14 9.5 14 11
+    C 11 10.5 7 11 4 14
+    C 8 15 12 14.5 14 14.5
+    L 15 22
+    L 13 26
+    L 16 24
+    L 19 26
+    L 17 22
+    L 18 14.5
+    C 20 14.5 24 15 28 14
+    C 25 11 21 10.5 18 11
+    C 18 9.5 17 8 16 7 Z
+  "/>
+</svg>
