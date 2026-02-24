@@ -484,17 +484,16 @@ async def undeploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
 async def stop_customer(db: Session, customer_id: int) -> dict[str, Any]:
     """Stop containers for a customer."""
     deployment = db.query(Deployment).filter(Deployment.customer_id == customer_id).first()
+    customer = db.query(Customer).filter(Customer.id == customer_id).first()
     config = get_system_config(db)
-    if not deployment or not config:
-        return {"success": False, "error": "Deployment or config not found."}
+    if not deployment or not config or not customer:
+        return {"success": False, "error": "Deployment, customer or config not found."}
 
     instance_dir = os.path.join(config.data_dir, customer.subdomain)
     ok = await docker_service.compose_stop(instance_dir, deployment.container_prefix)
     if ok:
         deployment.deployment_status = "stopped"
-        customer = db.query(Customer).filter(Customer.id == customer_id).first()
-        if customer:
-            customer.status = "inactive"
+        customer.status = "inactive"
         db.commit()
         _log_action(db, customer_id, "stop", "success", "Containers stopped.")
     else:
@@ -505,17 +504,16 @@ async def stop_customer(db: Session, customer_id: int) -> dict[str, Any]:
 async def start_customer(db: Session, customer_id: int) -> dict[str, Any]:
     """Start containers for a customer."""
     deployment = db.query(Deployment).filter(Deployment.customer_id == customer_id).first()
+    customer = db.query(Customer).filter(Customer.id == customer_id).first()
     config = get_system_config(db)
-    if not deployment or not config:
-        return {"success": False, "error": "Deployment or config not found."}
+    if not deployment or not config or not customer:
+        return {"success": False, "error": "Deployment, customer or config not found."}
 
     instance_dir = os.path.join(config.data_dir, customer.subdomain)
     ok = await docker_service.compose_start(instance_dir, deployment.container_prefix)
     if ok:
         deployment.deployment_status = "running"
-        customer = db.query(Customer).filter(Customer.id == customer_id).first()
-        if customer:
-            customer.status = "active"
+        customer.status = "active"
         db.commit()
         _log_action(db, customer_id, "start", "success", "Containers started.")
     else:
@@ -526,17 +524,16 @@ async def start_customer(db: Session, customer_id: int) -> dict[str, Any]:
 async def restart_customer(db: Session, customer_id: int) -> dict[str, Any]:
     """Restart containers for a customer."""
     deployment = db.query(Deployment).filter(Deployment.customer_id == customer_id).first()
+    customer = db.query(Customer).filter(Customer.id == customer_id).first()
     config = get_system_config(db)
-    if not deployment or not config:
-        return {"success": False, "error": "Deployment or config not found."}
+    if not deployment or not config or not customer:
+        return {"success": False, "error": "Deployment, customer or config not found."}
 
     instance_dir = os.path.join(config.data_dir, customer.subdomain)
     ok = await docker_service.compose_restart(instance_dir, deployment.container_prefix)
     if ok:
         deployment.deployment_status = "running"
-        customer = db.query(Customer).filter(Customer.id == customer_id).first()
-        if customer:
-            customer.status = "active"
+        customer.status = "active"
         db.commit()
         _log_action(db, customer_id, "restart", "success", "Containers restarted.")
     else:
