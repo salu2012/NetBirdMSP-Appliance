@@ -15,8 +15,8 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models import SystemConfig, User
-from app.services import npm_service
-from app.utils.config import get_system_config
+from app.services import dns_service, ldap_service, npm_service, update_service
+from app.utils.config import DATABASE_PATH, get_system_config
 from app.utils.security import encrypt_value
 from app.utils.validators import SystemConfigUpdate
 
@@ -86,6 +86,18 @@ async def update_settings(
         raw_secret = update_data.pop("azure_client_secret")
         row.azure_client_secret_encrypted = encrypt_value(raw_secret)
 
+    # Handle DNS password encryption
+    if "dns_password" in update_data:
+        row.dns_password_encrypted = encrypt_value(update_data.pop("dns_password"))
+
+    # Handle LDAP bind password encryption
+    if "ldap_bind_password" in update_data:
+        row.ldap_bind_password_encrypted = encrypt_value(update_data.pop("ldap_bind_password"))
+
+    # Handle git token encryption
+    if "git_token" in update_data:
+        row.git_token_encrypted = encrypt_value(update_data.pop("git_token"))
+
     for field, value in update_data.items():
         if hasattr(row, field):
             setattr(row, field, value)
@@ -129,9 +141,106 @@ async def test_npm(
     return result
 
 
+@router.get("/npm-certificates")
+async def list_npm_certificates(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """List all SSL certificates configured in NPM.
+
+    Used by the frontend to populate the wildcard certificate dropdown.
+
+    Returns:
+        List of certificate dicts with id, domain_names, provider, expires_on, is_wildcard.
+    """
+    config = get_system_config(db)
+    if not config:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="System configuration not initialized.",
+        )
+    if not config.npm_api_url or not config.npm_api_email or not config.npm_api_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="NPM API URL or credentials not configured.",
+        )
+
+    result = await npm_service.list_certificates(
+        config.npm_api_url, config.npm_api_email, config.npm_api_password
+    )
+    if "error" in result:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=result["error"],
+        )
+    return result["certificates"]
+
+
+@router.get("/test-dns")
+async def test_dns(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Test connectivity to the Windows DNS server via WinRM.
+
+    Returns:
+        Dict with ``ok`` and ``message``.
+    """
+    config = get_system_config(db)
+    if not config:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="System configuration not initialized.",
+        )
+    if not config.dns_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Windows DNS integration is not enabled.",
+        )
+    if not config.dns_server or not config.dns_username or not config.dns_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="DNS server, username, or password not configured.",
+        )
+    return await dns_service.test_dns_connection(config)
+
+
+@router.get("/test-ldap")
+async def test_ldap(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Test connectivity to the LDAP / Active Directory server.
+
+    Returns:
+        Dict with ``ok`` and ``message``.
+    """
+    config = get_system_config(db)
+    if not config:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="System configuration not initialized.",
+        )
+    if not config.ldap_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="LDAP authentication is not enabled.",
+        )
+    if not config.ldap_server or not config.ldap_bind_dn or not config.ldap_bind_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="LDAP server, bind DN, or bind password not configured.",
+        )
+    return await ldap_service.test_ldap_connection(config)
+
+
 @router.get("/branding")
 async def get_branding(db: Session = Depends(get_db)):
     """Public endpoint — returns branding info for the login page (no auth required)."""
+    current_version = update_service.get_current_version().get("tag", "alpha-1.1")
+    if current_version == "unknown":
+        current_version = "alpha-1.1"
+    
     row = db.query(SystemConfig).filter(SystemConfig.id == 1).first()
     if not row:
         return {
@@ -139,12 +248,14 @@ async def get_branding(db: Session = Depends(get_db)):
             "branding_subtitle": "Multi-Tenant Management Platform",
             "branding_logo_path": None,
             "default_language": "en",
+            "version": current_version
         }
     return {
         "branding_name": row.branding_name or "NetBird MSP Appliance",
         "branding_subtitle": row.branding_subtitle or "Multi-Tenant Management Platform",
         "branding_logo_path": row.branding_logo_path,
         "default_language": row.default_language or "en",
+        "version": current_version
     }
 
 
@@ -209,3 +320,74 @@ async def delete_logo(
         db.commit()
 
     return {"branding_logo_path": None}
+
+
+@router.get("/version")
+async def get_version(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return current installed version and latest available from the git remote.
+
+    Returns:
+        Dict with current version, latest version, and needs_update flag.
+    """
+    config = get_system_config(db)
+    current = update_service.get_current_version()
+    if not config or not config.git_repo_url:
+        return {"current": current, "latest": None, "needs_update": False}
+    result = await update_service.check_for_updates(config)
+    return result
+
+
+@router.get("/branches")
+async def get_branches(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return a list of available branches from the configured git remote."""
+    config = get_system_config(db)
+    if not config or not config.git_repo_url:
+        return []
+    branches = await update_service.get_remote_branches(config)
+    return branches
+
+
+@router.post("/update")
+async def trigger_update(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Backup the database, git pull the latest code, and rebuild the container.
+
+    The rebuild is fire-and-forget — the app will restart in ~60 seconds.
+    Only admin users may trigger an update.
+
+    Returns:
+        Dict with ok, message, and backup path.
+    """
+    if getattr(current_user, "role", "admin") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admin users can trigger an update.",
+        )
+    config = get_system_config(db)
+    if not config:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="System configuration not initialized.",
+        )
+    if not config.git_repo_url:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="git_repo_url is not configured in settings.",
+        )
+
+    result = update_service.trigger_update(config, DATABASE_PATH)
+    if not result.get("ok"):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=result.get("message", "Update failed."),
+        )
+    logger.info("Update triggered by %s.", current_user.username)
+    return result

@@ -12,7 +12,7 @@ let currentPage = 'dashboard';
 let currentCustomerId = null;
 let currentCustomerData = null;
 let customersPage = 1;
-let brandingData = { branding_name: 'NetBird MSP Appliance', branding_logo_path: null };
+let brandingData = { branding_name: 'NetBird MSP Appliance', branding_logo_path: null, version: 'alpha-1.1' };
 let azureConfig = { azure_enabled: false };
 
 // ---------------------------------------------------------------------------
@@ -67,9 +67,34 @@ async function api(method, path, body = null) {
 }
 
 // ---------------------------------------------------------------------------
+// Dark mode
+// ---------------------------------------------------------------------------
+function toggleDarkMode() {
+    const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+    if (isDark) {
+        document.documentElement.removeAttribute('data-bs-theme');
+        localStorage.setItem('darkMode', 'light');
+        document.getElementById('darkmode-icon').className = 'bi bi-moon-fill';
+    } else {
+        document.documentElement.setAttribute('data-bs-theme', 'dark');
+        localStorage.setItem('darkMode', 'dark');
+        document.getElementById('darkmode-icon').className = 'bi bi-sun-fill';
+    }
+}
+
+function syncDarkmodeIcon() {
+    const icon = document.getElementById('darkmode-icon');
+    if (!icon) return;
+    icon.className = document.documentElement.getAttribute('data-bs-theme') === 'dark'
+        ? 'bi bi-sun-fill'
+        : 'bi bi-moon-fill';
+}
+
+// ---------------------------------------------------------------------------
 // Auth
 // ---------------------------------------------------------------------------
 async function initApp() {
+    syncDarkmodeIcon();
     await initI18n();
     await loadBranding();
     await loadAzureLoginConfig();
@@ -127,12 +152,19 @@ function applyBranding() {
     const name = brandingData.branding_name || 'NetBird MSP Appliance';
     const subtitle = brandingData.branding_subtitle || t('login.subtitle');
     const logoPath = brandingData.branding_logo_path;
+    const version = brandingData.version || 'alpha-1.1';
 
     // Login page
     document.getElementById('login-title').textContent = name;
     const subtitleEl = document.getElementById('login-subtitle');
     if (subtitleEl) subtitleEl.textContent = subtitle;
     document.title = name;
+    
+    // Update version string in login page
+    const versionEl = document.querySelector('#login-page .text-muted.small.mb-0');
+    if (versionEl) {
+        versionEl.innerHTML = `<i class="bi bi-tag me-1"></i>${version}`;
+    }
     if (logoPath) {
         document.getElementById('login-logo').innerHTML = `<img src="${logoPath}" alt="Logo" style="max-height:64px;max-width:200px;" class="mb-1">`;
     } else {
@@ -366,7 +398,7 @@ function logout() {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${authToken}`,
             },
-        }).catch(() => {});
+        }).catch(() => { });
     }
     authToken = null;
     currentUser = null;
@@ -453,11 +485,11 @@ function renderCustomersTable(data) {
         const dashLink = dPort
             ? `<a href="${esc(dashUrl || 'http://localhost:' + dPort)}" target="_blank" class="text-decoration-none" title="${t('customer.openDashboard')}">:${dPort} <i class="bi bi-box-arrow-up-right"></i></a>`
             : '-';
-        return `<tr>
+        return `<tr data-customer-id="${c.id}">
             <td>${c.id}</td>
             <td><a href="#" onclick="viewCustomer(${c.id})" class="text-decoration-none fw-semibold">${esc(c.name)}</a></td>
             <td><code>${esc(c.subdomain)}</code></td>
-            <td>${statusBadge(c.status)}</td>
+            <td><span class="customer-status-cell">${statusBadge(c.status)}</span></td>
             <td>${dashLink}</td>
             <td>${c.max_devices}</td>
             <td>${formatDate(c.created_at)}</td>
@@ -465,9 +497,9 @@ function renderCustomersTable(data) {
                 <div class="btn-group btn-group-sm">
                     <button class="btn btn-outline-primary" title="${t('common.view')}" onclick="viewCustomer(${c.id})"><i class="bi bi-eye"></i></button>
                     ${c.deployment && c.deployment.deployment_status === 'running'
-                        ? `<button class="btn btn-outline-warning" title="${t('common.stop')}" onclick="customerAction(${c.id},'stop')"><i class="bi bi-stop-circle"></i></button>`
-                        : `<button class="btn btn-outline-success" title="${t('common.start')}" onclick="customerAction(${c.id},'start')"><i class="bi bi-play-circle"></i></button>`
-                    }
+                ? `<button class="btn btn-outline-warning" title="${t('common.stop')}" onclick="customerAction(${c.id},'stop')"><i class="bi bi-stop-circle"></i></button>`
+                : `<button class="btn btn-outline-success" title="${t('common.start')}" onclick="customerAction(${c.id},'start')"><i class="bi bi-play-circle"></i></button>`
+            }
                     <button class="btn btn-outline-info" title="${t('common.restart')}" onclick="customerAction(${c.id},'restart')"><i class="bi bi-arrow-repeat"></i></button>
                     <button class="btn btn-outline-danger" title="${t('common.delete')}" onclick="showDeleteModal(${c.id},'${esc(c.name)}')"><i class="bi bi-trash"></i></button>
                 </div>
@@ -485,6 +517,26 @@ function renderCustomersTable(data) {
         paginationHtml += `<li class="page-item ${i === data.page ? 'active' : ''}"><a class="page-link" href="#" onclick="goToPage(${i})">${i}</a></li>`;
     }
     document.getElementById('pagination-controls').innerHTML = paginationHtml;
+
+    // Lazy-load update badges after table renders (best-effort, silent fail)
+    loadCustomerUpdateBadges().catch(() => {});
+}
+
+async function loadCustomerUpdateBadges() {
+    const data = await api('GET', '/monitoring/customers/local-update-status');
+    data.forEach(s => {
+        if (!s.needs_update) return;
+        const tr = document.querySelector(`tr[data-customer-id="${s.customer_id}"]`);
+        if (!tr) return;
+        const cell = tr.querySelector('.customer-status-cell');
+        if (cell && !cell.querySelector('.update-badge')) {
+            const badge = document.createElement('span');
+            badge.className = 'badge bg-warning text-dark update-badge ms-1';
+            badge.title = t('monitoring.updateAvailable');
+            badge.innerHTML = '<i class="bi bi-arrow-repeat"></i> Update';
+            cell.appendChild(badge);
+        }
+    });
 }
 
 function goToPage(page) {
@@ -511,7 +563,7 @@ function showNewCustomerModal() {
     // Update subdomain suffix
     api('GET', '/settings/system').then(cfg => {
         document.getElementById('cust-subdomain-suffix').textContent = `.${cfg.base_domain || 'domain.com'}`;
-    }).catch(() => {});
+    }).catch(() => { });
 
     const modalEl = document.getElementById('customer-modal');
     const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
@@ -710,8 +762,13 @@ async function viewCustomer(id) {
                     <button class="btn btn-success btn-sm me-1" onclick="customerAction(${id},'start')"><i class="bi bi-play-circle me-1"></i>${t('customer.start')}</button>
                     <button class="btn btn-warning btn-sm me-1" onclick="customerAction(${id},'stop')"><i class="bi bi-stop-circle me-1"></i>${t('customer.stop')}</button>
                     <button class="btn btn-info btn-sm me-1" onclick="customerAction(${id},'restart')"><i class="bi bi-arrow-repeat me-1"></i>${t('customer.restart')}</button>
-                    <button class="btn btn-outline-primary btn-sm" onclick="customerAction(${id},'deploy')"><i class="bi bi-rocket me-1"></i>${t('customer.reDeploy')}</button>
+                    <button class="btn btn-outline-primary btn-sm me-1" onclick="customerAction(${id},'deploy')"><i class="bi bi-rocket me-1"></i>${t('customer.reDeploy')}</button>
+                    <button class="btn btn-outline-warning btn-sm" id="btn-update-images-detail" onclick="updateCustomerImagesFromDetail(${id})">
+                        <span id="update-detail-spinner" class="spinner-border spinner-border-sm d-none me-1"></span>
+                        <i class="bi bi-arrow-repeat me-1"></i>${t('customer.updateImages')}
+                    </button>
                 </div>
+                <div id="detail-update-result"></div>
             `;
         } else {
             document.getElementById('detail-deployment-content').innerHTML = `
@@ -816,6 +873,14 @@ async function loadSettings() {
         document.getElementById('cfg-dashboard-base-port').value = cfg.dashboard_base_port || 9000;
         document.getElementById('cfg-npm-api-url').value = cfg.npm_api_url || '';
         document.getElementById('npm-credentials-status').textContent = cfg.npm_credentials_set ? t('settings.credentialsSet') : t('settings.noCredentials');
+
+        // SSL mode
+        document.getElementById('cfg-ssl-mode').value = cfg.ssl_mode || 'letsencrypt';
+        onSslModeChange();
+        if (cfg.ssl_mode === 'wildcard') {
+            loadNpmCertificates(cfg.wildcard_cert_id);
+        }
+
         document.getElementById('cfg-mgmt-image').value = cfg.netbird_management_image || '';
         document.getElementById('cfg-signal-image').value = cfg.netbird_signal_image || '';
         document.getElementById('cfg-relay-image').value = cfg.netbird_relay_image || '';
@@ -836,9 +901,37 @@ async function loadSettings() {
         document.getElementById('cfg-azure-tenant').value = cfg.azure_tenant_id || '';
         document.getElementById('cfg-azure-client-id').value = cfg.azure_client_id || '';
         document.getElementById('azure-secret-status').textContent = cfg.azure_client_secret_set ? t('settings.secretSet') : t('settings.noSecret');
+        document.getElementById('cfg-azure-group-id').value = cfg.azure_allowed_group_id || '';
+
+        // DNS tab
+        document.getElementById('cfg-dns-enabled').checked = cfg.dns_enabled || false;
+        document.getElementById('cfg-dns-server').value = cfg.dns_server || '';
+        document.getElementById('cfg-dns-zone').value = cfg.dns_zone || '';
+        document.getElementById('cfg-dns-username').value = cfg.dns_username || '';
+        document.getElementById('cfg-dns-record-ip').value = cfg.dns_record_ip || '';
+        document.getElementById('dns-password-status').textContent = cfg.dns_password_set ? t('settings.passwordSet') : t('settings.noPasswordSet');
+
+        // LDAP tab
+        document.getElementById('cfg-ldap-enabled').checked = cfg.ldap_enabled || false;
+        document.getElementById('cfg-ldap-server').value = cfg.ldap_server || '';
+        document.getElementById('cfg-ldap-port').value = cfg.ldap_port || 389;
+        document.getElementById('cfg-ldap-use-ssl').checked = cfg.ldap_use_ssl || false;
+        document.getElementById('cfg-ldap-bind-dn').value = cfg.ldap_bind_dn || '';
+        document.getElementById('cfg-ldap-base-dn').value = cfg.ldap_base_dn || '';
+        document.getElementById('cfg-ldap-user-filter').value = cfg.ldap_user_filter || '(sAMAccountName={username})';
+        document.getElementById('cfg-ldap-group-dn').value = cfg.ldap_group_dn || '';
+        document.getElementById('ldap-password-status').textContent = cfg.ldap_bind_password_set ? t('settings.passwordSet') : t('settings.noPasswordSet');
+
+        // Git/Update tab
+        document.getElementById('cfg-git-repo-url').value = cfg.git_repo_url || '';
+        document.getElementById('cfg-git-branch').value = cfg.git_branch || 'main';
+        document.getElementById('git-token-status').textContent = cfg.git_token_set ? t('settings.tokenSet') : t('settings.noToken');
     } catch (err) {
         showSettingsAlert('danger', t('errors.failedToLoadSettings', { error: err.message }));
     }
+
+    // Automatically fetch branches once the base config is populated
+    await loadGitBranches();
 }
 
 function updateLogoPreview(logoPath) {
@@ -876,6 +969,14 @@ document.getElementById('settings-npm-form').addEventListener('submit', async (e
     const password = document.getElementById('cfg-npm-api-password').value;
     if (email) payload.npm_api_email = email;
     if (password) payload.npm_api_password = password;
+
+    // SSL mode
+    const sslMode = document.getElementById('cfg-ssl-mode').value;
+    payload.ssl_mode = sslMode;
+    if (sslMode === 'wildcard') {
+        const certId = document.getElementById('cfg-wildcard-cert-id').value;
+        if (certId) payload.wildcard_cert_id = parseInt(certId);
+    }
     try {
         await api('PUT', '/settings/system', payload);
         showSettingsAlert('success', t('messages.npmSettingsSaved'));
@@ -921,6 +1022,42 @@ async function testNpmConnection() {
         resultEl.classList.remove('d-none');
     } finally {
         spinner.classList.add('d-none');
+    }
+}
+
+// SSL mode toggle
+function onSslModeChange() {
+    const mode = document.getElementById('cfg-ssl-mode').value;
+    const section = document.getElementById('wildcard-cert-section');
+    section.style.display = mode === 'wildcard' ? '' : 'none';
+}
+
+// Load NPM wildcard certificates into dropdown
+async function loadNpmCertificates(preselectId) {
+    const select = document.getElementById('cfg-wildcard-cert-id');
+    const statusEl = document.getElementById('wildcard-cert-status');
+    select.innerHTML = `<option value="">${t('settings.selectCertificate')}</option>`;
+    statusEl.textContent = t('common.loading');
+    statusEl.className = 'mt-1 text-muted';
+
+    try {
+        const certs = await api('GET', '/settings/npm-certificates');
+        const wildcards = certs.filter(c => c.is_wildcard || (c.domain_names && c.domain_names.some(d => d.startsWith('*.'))));
+        wildcards.forEach(c => {
+            const domains = (c.domain_names || []).join(', ');
+            const expires = c.expires_on ? ` (${t('settings.expiresOn')}: ${new Date(c.expires_on).toLocaleDateString()})` : '';
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.textContent = `${domains}${expires}`;
+            select.appendChild(opt);
+        });
+        if (preselectId) select.value = preselectId;
+        statusEl.textContent = t('settings.certsLoaded', { count: wildcards.length });
+        statusEl.className = wildcards.length > 0 ? 'mt-1 text-success small' : 'mt-1 text-warning small';
+        if (wildcards.length === 0) statusEl.textContent = t('settings.noWildcardCerts');
+    } catch (err) {
+        statusEl.textContent = t('errors.failed', { error: err.message });
+        statusEl.className = 'mt-1 text-danger small';
     }
 }
 
@@ -1018,6 +1155,225 @@ async function deleteLogo() {
 }
 
 // ---------------------------------------------------------------------------
+// DNS Settings
+// ---------------------------------------------------------------------------
+document.getElementById('settings-dns-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const payload = {
+        dns_enabled: document.getElementById('cfg-dns-enabled').checked,
+        dns_server: document.getElementById('cfg-dns-server').value,
+        dns_zone: document.getElementById('cfg-dns-zone').value,
+        dns_username: document.getElementById('cfg-dns-username').value,
+        dns_record_ip: document.getElementById('cfg-dns-record-ip').value,
+    };
+    const pw = document.getElementById('cfg-dns-password').value;
+    if (pw) payload.dns_password = pw;
+    try {
+        await api('PUT', '/settings/system', payload);
+        showSettingsAlert('success', t('messages.dnsSettingsSaved'));
+        document.getElementById('cfg-dns-password').value = '';
+        loadSettings();
+    } catch (err) {
+        showSettingsAlert('danger', t('errors.failed', { error: err.message }));
+    }
+});
+
+async function testDnsConnection() {
+    const spinner = document.getElementById('dns-test-spinner');
+    const resultEl = document.getElementById('dns-test-result');
+    spinner.classList.remove('d-none');
+    resultEl.classList.add('d-none');
+    try {
+        const data = await api('GET', '/settings/test-dns');
+        resultEl.className = `mt-3 alert alert-${data.ok ? 'success' : 'danger'}`;
+        resultEl.textContent = data.message;
+        resultEl.classList.remove('d-none');
+    } catch (err) {
+        resultEl.className = 'mt-3 alert alert-danger';
+        resultEl.textContent = err.message;
+        resultEl.classList.remove('d-none');
+    } finally {
+        spinner.classList.add('d-none');
+    }
+}
+
+// ---------------------------------------------------------------------------
+// LDAP Settings
+// ---------------------------------------------------------------------------
+document.getElementById('settings-ldap-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const payload = {
+        ldap_enabled: document.getElementById('cfg-ldap-enabled').checked,
+        ldap_server: document.getElementById('cfg-ldap-server').value,
+        ldap_port: parseInt(document.getElementById('cfg-ldap-port').value) || 389,
+        ldap_use_ssl: document.getElementById('cfg-ldap-use-ssl').checked,
+        ldap_bind_dn: document.getElementById('cfg-ldap-bind-dn').value,
+        ldap_base_dn: document.getElementById('cfg-ldap-base-dn').value,
+        ldap_user_filter: document.getElementById('cfg-ldap-user-filter').value,
+        ldap_group_dn: document.getElementById('cfg-ldap-group-dn').value,
+    };
+    const pw = document.getElementById('cfg-ldap-bind-password').value;
+    if (pw) payload.ldap_bind_password = pw;
+    try {
+        await api('PUT', '/settings/system', payload);
+        showSettingsAlert('success', t('messages.ldapSettingsSaved'));
+        document.getElementById('cfg-ldap-bind-password').value = '';
+        loadSettings();
+    } catch (err) {
+        showSettingsAlert('danger', t('errors.failed', { error: err.message }));
+    }
+});
+
+async function testLdapConnection() {
+    const spinner = document.getElementById('ldap-test-spinner');
+    const resultEl = document.getElementById('ldap-test-result');
+    spinner.classList.remove('d-none');
+    resultEl.classList.add('d-none');
+    try {
+        const data = await api('GET', '/settings/test-ldap');
+        resultEl.className = `mt-3 alert alert-${data.ok ? 'success' : 'danger'}`;
+        resultEl.textContent = data.message;
+        resultEl.classList.remove('d-none');
+    } catch (err) {
+        resultEl.className = 'mt-3 alert alert-danger';
+        resultEl.textContent = err.message;
+        resultEl.classList.remove('d-none');
+    } finally {
+        spinner.classList.add('d-none');
+    }
+}
+
+async function loadGitBranches() {
+    const branchSelect = document.getElementById('cfg-git-branch');
+    const currentVal = branchSelect.value;
+
+    // Disable mapping while loading
+    branchSelect.disabled = true;
+    branchSelect.innerHTML = `<option value="${currentVal}">${currentVal} (Loading...)</option>`;
+
+    try {
+        const branches = await api('GET', '/settings/branches');
+        branchSelect.innerHTML = '';
+
+        // Always ensure the currently saved branch is an option
+        if (currentVal && !branches.includes(currentVal)) {
+            branches.unshift(currentVal);
+        }
+
+        if (branches.length === 0) {
+            branchSelect.innerHTML = `<option value="main">main</option>`;
+        } else {
+            branches.forEach(b => {
+                const opt = document.createElement('option');
+                opt.value = b;
+                opt.textContent = b;
+                if (b === currentVal) opt.selected = true;
+                branchSelect.appendChild(opt);
+            });
+        }
+    } catch (err) {
+        showSettingsAlert('warning', `Failed to load branches: ${err.message}`);
+        branchSelect.innerHTML = `<option value="${currentVal}">${currentVal}</option>`;
+    } finally {
+        branchSelect.disabled = false;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Update / Version Management
+// ---------------------------------------------------------------------------
+document.getElementById('settings-git-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const payload = {
+        git_repo_url: document.getElementById('cfg-git-repo-url').value,
+        git_branch: document.getElementById('cfg-git-branch').value || 'main',
+    };
+    const token = document.getElementById('cfg-git-token').value;
+    if (token) payload.git_token = token;
+    try {
+        await api('PUT', '/settings/system', payload);
+        showSettingsAlert('success', t('messages.gitSettingsSaved'));
+        document.getElementById('cfg-git-token').value = '';
+        loadSettings();
+    } catch (err) {
+        showSettingsAlert('danger', t('errors.failed', { error: err.message }));
+    }
+});
+
+async function loadVersionInfo() {
+    const el = document.getElementById('version-info-content');
+    if (!el) return;
+    el.innerHTML = `<div class="text-muted">${t('common.loading')}</div>`;
+    try {
+        const data = await api('GET', '/settings/version');
+        const current = data.current || {};
+        const latest = data.latest;
+        const needsUpdate = data.needs_update;
+
+        const currentTag = current.tag && current.tag !== 'unknown' ? current.tag : null;
+        const currentCommit = current.commit || 'unknown';
+
+        let html = `<div class="row g-3">
+            <div class="col-md-6">
+                <div class="border rounded p-3 h-100">
+                    <div class="text-muted small mb-1">${t('settings.currentVersion')}</div>
+                    <div class="fw-bold fs-5">${esc(currentTag || currentCommit)}</div>
+                    ${currentTag ? `<div class="text-muted small font-monospace">${t('settings.commitHash')}: ${esc(currentCommit)}</div>` : ''}
+                    <div class="text-muted small">${t('settings.branch')}: <strong>${esc(current.branch || 'unknown')}</strong></div>
+                    <div class="text-muted small mt-2"><i class="bi bi-clock me-1"></i>${formatDate(current.date)}</div>
+                </div>
+            </div>`;
+
+        if (latest) {
+            const latestTag = latest.tag && latest.tag !== 'unknown' ? latest.tag : null;
+            const latestCommit = latest.commit || 'unknown';
+            const badge = needsUpdate
+                ? `<span class="badge bg-warning text-dark ms-1">${t('settings.updateAvailable')}</span>`
+                : `<span class="badge bg-success ms-1">${t('settings.upToDate')}</span>`;
+            html += `<div class="col-md-6">
+                <div class="border rounded p-3 h-100 ${needsUpdate ? 'border-warning' : ''}">
+                    <div class="text-muted small mb-1">${t('settings.latestVersion')} ${badge}</div>
+                    <div class="fw-bold fs-5">${esc(latestTag || latestCommit)}</div>
+                    ${latestTag ? `<div class="text-muted small font-monospace">${t('settings.commitHash')}: ${esc(latestCommit)}</div>` : ''}
+                    <div class="text-muted small">${t('settings.branch')}: <strong>${esc(latest.branch || 'unknown')}</strong></div>
+                    <div class="text-muted small mt-2"><i class="bi bi-clock me-1"></i>${formatDate(latest.date)}</div>
+                    ${latest.message ? `<div class="text-muted small mt-1 border-top pt-1 text-truncate" title="${esc(latest.message)}"><i class="bi bi-chat-text me-1"></i>${esc(latest.message)}</div>` : ''}
+                </div>
+            </div>`;
+        } else if (data.error) {
+            html += `<div class="col-md-6"><div class="alert alert-warning h-100 mb-0">${esc(data.error)}</div></div>`;
+        }
+        html += '</div>';
+
+        if (needsUpdate) {
+            html += `<div class="mt-3">
+                <button class="btn btn-warning" onclick="triggerUpdate()">
+                    <span class="spinner-border spinner-border-sm d-none me-1" id="update-spinner"></span>
+                    <i class="bi bi-arrow-repeat me-1"></i>${t('settings.triggerUpdate')}
+                </button>
+                <div class="text-muted small mt-1">${t('settings.updateWarning')}</div>
+            </div>`;
+        }
+        el.innerHTML = html;
+    } catch (err) {
+        el.innerHTML = `<div class="text-danger">${esc(err.message)}</div>`;
+    }
+}
+
+async function triggerUpdate() {
+    if (!confirm(t('settings.confirmUpdate'))) return;
+    const spinner = document.getElementById('update-spinner');
+    if (spinner) spinner.classList.remove('d-none');
+    try {
+        const data = await api('POST', '/settings/update');
+        showSettingsAlert('success', data.message || t('messages.updateStarted'));
+    } catch (err) {
+        showSettingsAlert('danger', t('errors.failed', { error: err.message }));
+        if (spinner) spinner.classList.add('d-none');
+    }
+}
+
+// ---------------------------------------------------------------------------
 // User Management
 // ---------------------------------------------------------------------------
 async function loadUsers() {
@@ -1037,19 +1393,24 @@ async function loadUsers() {
             <td>${u.id}</td>
             <td><strong>${esc(u.username)}</strong></td>
             <td>${esc(u.email || '-')}</td>
-            <td><span class="badge bg-info">${esc(u.role || 'admin')}</span></td>
-            <td><span class="badge bg-${u.auth_provider === 'azure' ? 'primary' : 'secondary'}">${esc(u.auth_provider || 'local')}</span></td>
+            <td><span class="badge bg-${u.role === 'admin' ? 'success' : 'secondary'}">${esc(u.role || 'admin')}</span></td>
+            <td><span class="badge bg-${u.auth_provider === 'azure' ? 'primary' : u.auth_provider === 'ldap' ? 'info' : 'secondary'}">${esc(u.auth_provider || 'local')}</span></td>
             <td>${langDisplay}</td>
             <td>${mfaDisplay}</td>
             <td>${u.is_active ? `<span class="badge bg-success">${t('common.active')}</span>` : `<span class="badge bg-danger">${t('common.disabled')}</span>`}</td>
             <td>
                 <div class="btn-group btn-group-sm">
                     ${u.is_active
-                        ? `<button class="btn btn-outline-warning" title="${t('common.disable')}" onclick="toggleUserActive(${u.id}, false)"><i class="bi bi-pause-circle"></i></button>`
-                        : `<button class="btn btn-outline-success" title="${t('common.enable')}" onclick="toggleUserActive(${u.id}, true)"><i class="bi bi-play-circle"></i></button>`
-                    }
+                    ? `<button class="btn btn-outline-warning" title="${t('common.disable')}" onclick="toggleUserActive(${u.id}, false)"><i class="bi bi-pause-circle"></i></button>`
+                    : `<button class="btn btn-outline-success" title="${t('common.enable')}" onclick="toggleUserActive(${u.id}, true)"><i class="bi bi-play-circle"></i></button>`
+                }
                     ${u.auth_provider === 'local' ? `<button class="btn btn-outline-info" title="${t('common.resetPassword')}" onclick="resetUserPassword(${u.id}, '${esc(u.username)}')"><i class="bi bi-key"></i></button>` : ''}
                     ${u.totp_enabled ? `<button class="btn btn-outline-secondary" title="${t('mfa.resetMfa')}" onclick="resetUserMfa(${u.id}, '${esc(u.username)}')"><i class="bi bi-shield-x"></i></button>` : ''}
+                    ${currentUser && currentUser.role === 'admin' && u.id !== currentUser.id
+                        ? (u.role === 'admin'
+                            ? `<button class="btn btn-outline-secondary" title="${t('settings.makeViewer')}" onclick="toggleUserRole(${u.id}, 'admin')"><i class="bi bi-person-dash"></i></button>`
+                            : `<button class="btn btn-outline-success" title="${t('settings.makeAdmin')}" onclick="toggleUserRole(${u.id}, 'viewer')"><i class="bi bi-person-check"></i></button>`)
+                        : ''}
                     <button class="btn btn-outline-danger" title="${t('common.delete')}" onclick="deleteUser(${u.id}, '${esc(u.username)}')"><i class="bi bi-trash"></i></button>
                 </div>
             </td>
@@ -1109,6 +1470,16 @@ async function toggleUserActive(id, active) {
     }
 }
 
+async function toggleUserRole(id, currentRole) {
+    const newRole = currentRole === 'admin' ? 'viewer' : 'admin';
+    try {
+        await api('PUT', `/users/${id}`, { role: newRole });
+        loadUsers();
+    } catch (err) {
+        showSettingsAlert('danger', t('errors.updateFailed', { error: err.message }));
+    }
+}
+
 async function resetUserPassword(id, username) {
     if (!confirm(t('messages.confirmResetPassword', { username }))) return;
     try {
@@ -1129,6 +1500,7 @@ document.getElementById('settings-azure-form').addEventListener('submit', async 
         azure_enabled: document.getElementById('cfg-azure-enabled').checked,
         azure_tenant_id: document.getElementById('cfg-azure-tenant').value || null,
         azure_client_id: document.getElementById('cfg-azure-client-id').value || null,
+        azure_allowed_group_id: document.getElementById('cfg-azure-group-id').value || null,
     };
     const secret = document.getElementById('cfg-azure-client-secret').value;
     if (secret) payload.azure_client_secret = secret;
@@ -1284,6 +1656,221 @@ async function loadAllCustomerStatuses() {
     } catch (err) {
         document.getElementById('monitoring-customers-body').innerHTML = `<tr><td colspan="8" class="text-danger">${err.message}</td></tr>`;
     }
+}
+
+// ---------------------------------------------------------------------------
+// Image Updates
+// ---------------------------------------------------------------------------
+async function checkImageUpdates() {
+    const btn = document.getElementById('btn-check-updates');
+    const body = document.getElementById('image-updates-body');
+    btn.disabled = true;
+    body.innerHTML = `<div class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>${t('common.loading')}</div>`;
+
+    try {
+        const data = await api('GET', '/monitoring/images/check');
+
+        // Image status table
+        const imageRows = Object.values(data.images).map(img => {
+            const badge = img.update_available
+                ? `<span class="badge bg-warning text-dark">${t('monitoring.updateAvailable')}</span>`
+                : `<span class="badge bg-success">${t('monitoring.upToDate')}</span>`;
+            const shortDigest = d => d ? d.substring(7, 19) + '…' : '-';
+            return `<tr>
+                <td><code class="small">${esc(img.image)}</code></td>
+                <td class="small text-muted">${shortDigest(img.local_digest)}</td>
+                <td class="small text-muted">${shortDigest(img.hub_digest)}</td>
+                <td>${badge}</td>
+            </tr>`;
+        }).join('');
+
+        // Customer status table
+        const customerRows = data.customer_status.length === 0
+            ? `<tr><td colspan="3" class="text-center text-muted py-3">${t('monitoring.noCustomers')}</td></tr>`
+            : data.customer_status.map(c => {
+                const badge = c.needs_update
+                    ? `<span class="badge bg-warning text-dark">${t('monitoring.needsUpdate')}</span>`
+                    : `<span class="badge bg-success">${t('monitoring.upToDate')}</span>`;
+                const updateBtn = c.needs_update
+                    ? `<button class="btn btn-sm btn-outline-warning ms-2 btn-update-customer" onclick="updateCustomerImages(${c.customer_id})"
+                        title="${t('monitoring.updateCustomer')}"><i class="bi bi-arrow-repeat"></i></button>`
+                    : '';
+                return `<tr>
+                    <td>${c.customer_id}</td>
+                    <td>${esc(c.customer_name)} <code class="small text-muted">${esc(c.subdomain)}</code></td>
+                    <td>${badge}${updateBtn}</td>
+                </tr>`;
+            }).join('');
+
+        // Show "Update All" button if any customer needs update
+        const updateAllBtn = document.getElementById('btn-update-all');
+        if (data.customer_status.some(c => c.needs_update)) {
+            updateAllBtn.classList.remove('d-none');
+        } else {
+            updateAllBtn.classList.add('d-none');
+        }
+
+        body.innerHTML = `
+            <h6 class="mb-2">${t('monitoring.imageStatusTitle')}</h6>
+            <div class="table-responsive mb-4">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>${t('monitoring.thImage')}</th>
+                            <th>${t('monitoring.thLocalDigest')}</th>
+                            <th>${t('monitoring.thHubDigest')}</th>
+                            <th>${t('monitoring.thStatus')}</th>
+                        </tr>
+                    </thead>
+                    <tbody>${imageRows}</tbody>
+                </table>
+            </div>
+            <h6 class="mb-2">${t('monitoring.customerImageTitle')}</h6>
+            <div class="table-responsive">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>${t('monitoring.thId')}</th>
+                            <th>${t('monitoring.thName')}</th>
+                            <th>${t('monitoring.thStatus')}</th>
+                        </tr>
+                    </thead>
+                    <tbody>${customerRows}</tbody>
+                </table>
+            </div>`;
+    } catch (err) {
+        body.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function pullAllImages() {
+    if (!confirm(t('monitoring.confirmPull'))) return;
+    const btn = document.getElementById('btn-pull-images');
+    btn.disabled = true;
+    try {
+        await api('POST', '/monitoring/images/pull');
+        showToast(t('monitoring.pullStarted'));
+        // Re-check after a few seconds to let pull finish
+        setTimeout(() => checkImageUpdates(), 5000);
+    } catch (err) {
+        showMonitoringAlert('danger', err.message);
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function updateCustomerImagesFromDetail(id) {
+    const btn = document.getElementById('btn-update-images-detail');
+    const spinner = document.getElementById('update-detail-spinner');
+    const resultDiv = document.getElementById('detail-update-result');
+    btn.disabled = true;
+    spinner.classList.remove('d-none');
+    resultDiv.innerHTML = `<div class="alert alert-info py-2 mt-2"><span class="spinner-border spinner-border-sm me-2"></span>${t('customer.updateInProgress')}</div>`;
+    try {
+        const data = await api('POST', `/customers/${id}/update-images`);
+        resultDiv.innerHTML = `<div class="alert alert-success py-2 mt-2"><i class="bi bi-check-circle me-1"></i>${esc(data.message)}</div>`;
+        setTimeout(() => { resultDiv.innerHTML = ''; }, 6000);
+    } catch (err) {
+        resultDiv.innerHTML = `<div class="alert alert-danger py-2 mt-2"><i class="bi bi-exclamation-circle me-1"></i>${esc(err.message)}</div>`;
+    } finally {
+        btn.disabled = false;
+        spinner.classList.add('d-none');
+    }
+}
+
+async function updateCustomerImages(customerId) {
+    // Find the update button for this customer row and show a spinner
+    const btn = document.querySelector(`tr[data-customer-id="${customerId}"] .btn-update-customer`);
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    }
+    try {
+        await api('POST', `/customers/${customerId}/update-images`);
+        showToast(t('monitoring.updateDone'));
+        setTimeout(() => checkImageUpdates(), 2000);
+    } catch (err) {
+        showMonitoringAlert('danger', err.message);
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-arrow-repeat"></i>';
+        }
+    }
+}
+
+async function updateAllCustomers() {
+    if (!confirm(t('monitoring.confirmUpdateAll'))) return;
+    const btn = document.getElementById('btn-update-all');
+    const body = document.getElementById('image-updates-body');
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>${t('monitoring.updating')}`;
+
+    const progressDiv = document.createElement('div');
+    progressDiv.className = 'alert alert-info mt-3';
+    progressDiv.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>${t('monitoring.updateAllProgress')}`;
+    body.appendChild(progressDiv);
+
+    try {
+        const data = await api('POST', '/monitoring/customers/update-all');
+        progressDiv.remove();
+
+        if (data.results && data.results.length > 0) {
+            const allOk = data.updated === data.results.length;
+            const rows = data.results.map(r => `<tr>
+                <td>${esc(r.customer_name)}</td>
+                <td>${r.success
+                    ? '<span class="badge bg-success"><i class="bi bi-check-lg"></i> OK</span>'
+                    : '<span class="badge bg-danger"><i class="bi bi-x-lg"></i> Error</span>'}</td>
+                <td class="small text-muted">${esc(r.error || '')}</td>
+            </tr>`).join('');
+            const resultHtml = `<div class="alert alert-${allOk ? 'success' : 'warning'} mt-3">
+                <strong>${esc(data.message)}</strong>
+                <table class="table table-sm mb-0 mt-2">
+                    <thead><tr><th>${t('monitoring.thName')}</th><th>${t('monitoring.thStatus')}</th><th></th></tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>`;
+            body.insertAdjacentHTML('beforeend', resultHtml);
+        } else {
+            showToast(data.message);
+        }
+        setTimeout(() => checkImageUpdates(), 2000);
+    } catch (err) {
+        progressDiv.remove();
+        showMonitoringAlert('danger', err.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<i class="bi bi-lightning-charge-fill me-1"></i>${t('monitoring.updateAll')}`;
+    }
+}
+
+async function pullAllImagesSettings() {
+    if (!confirm(t('monitoring.confirmPull'))) return;
+    const btn = document.getElementById('btn-pull-images-settings');
+    const statusEl = document.getElementById('pull-images-settings-status');
+    btn.disabled = true;
+    statusEl.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>${t('monitoring.pulling')}`;
+    try {
+        await api('POST', '/monitoring/images/pull');
+        statusEl.innerHTML = `<i class="bi bi-check-circle text-success me-1"></i>${t('monitoring.pullStartedShort')}`;
+        setTimeout(() => { statusEl.innerHTML = ''; }, 8000);
+    } catch (err) {
+        statusEl.innerHTML = `<span class="text-danger"><i class="bi bi-exclamation-circle me-1"></i>${esc(err.message)}</span>`;
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+function showMonitoringAlert(type, msg) {
+    const body = document.getElementById('image-updates-body');
+    const existing = body.querySelector('.alert');
+    if (existing) existing.remove();
+    const div = document.createElement('div');
+    div.className = `alert alert-${type} mt-2`;
+    div.textContent = msg;
+    body.prepend(div);
 }
 
 // ---------------------------------------------------------------------------

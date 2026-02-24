@@ -51,6 +51,22 @@ def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     _run_migrations()
 
+    # Insert default SystemConfig row (id=1) if it doesn't exist yet
+    db = SessionLocal()
+    try:
+        if not db.query(SystemConfig).filter(SystemConfig.id == 1).first():
+            db.add(SystemConfig(
+                id=1,
+                base_domain="example.com",
+                admin_email="admin@example.com",
+                npm_api_url="http://localhost:81",
+                npm_api_email_encrypted="",
+                npm_api_password_encrypted="",
+            ))
+            db.commit()
+    finally:
+        db.close()
+
 
 def _run_migrations() -> None:
     """Add columns that may be missing from older database versions."""
@@ -83,6 +99,29 @@ def _run_migrations() -> None:
         ("system_config", "mfa_enabled", "BOOLEAN DEFAULT 0"),
         ("users", "totp_secret_encrypted", "TEXT"),
         ("users", "totp_enabled", "BOOLEAN DEFAULT 0"),
+        ("system_config", "ssl_mode", "TEXT DEFAULT 'letsencrypt'"),
+        ("system_config", "wildcard_cert_id", "INTEGER"),
+        # Windows DNS
+        ("system_config", "dns_enabled", "BOOLEAN DEFAULT 0"),
+        ("system_config", "dns_server", "TEXT"),
+        ("system_config", "dns_username", "TEXT"),
+        ("system_config", "dns_password_encrypted", "TEXT"),
+        ("system_config", "dns_zone", "TEXT"),
+        ("system_config", "dns_record_ip", "TEXT"),
+        # LDAP
+        ("system_config", "ldap_enabled", "BOOLEAN DEFAULT 0"),
+        ("system_config", "ldap_server", "TEXT"),
+        ("system_config", "ldap_port", "INTEGER DEFAULT 389"),
+        ("system_config", "ldap_use_ssl", "BOOLEAN DEFAULT 0"),
+        ("system_config", "ldap_bind_dn", "TEXT"),
+        ("system_config", "ldap_bind_password_encrypted", "TEXT"),
+        ("system_config", "ldap_base_dn", "TEXT"),
+        ("system_config", "ldap_user_filter", "TEXT DEFAULT '(sAMAccountName={username})'"),
+        ("system_config", "ldap_group_dn", "TEXT"),
+        # Update management
+        ("system_config", "git_repo_url", "TEXT"),
+        ("system_config", "git_branch", "TEXT DEFAULT 'main'"),
+        ("system_config", "git_token_encrypted", "TEXT"),
     ]
     for table, column, col_type in migrations:
         if not _has_column(table, column):

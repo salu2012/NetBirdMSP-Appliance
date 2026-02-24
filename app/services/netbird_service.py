@@ -30,7 +30,7 @@ from jinja2 import Environment, FileSystemLoader
 from sqlalchemy.orm import Session
 
 from app.models import Customer, Deployment, DeploymentLog
-from app.services import docker_service, npm_service, port_manager
+from app.services import dns_service, docker_service, npm_service, port_manager
 from app.utils.config import get_system_config
 from app.utils.security import encrypt_value, generate_datastore_encryption_key, generate_relay_secret
 
@@ -118,7 +118,7 @@ async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
 
     allocated_port = None
     instance_dir = None
-    container_prefix = f"netbird-kunde{customer_id}"
+    container_prefix = f"netbird-{customer.subdomain}"
     local_mode = _is_local_domain(config.base_domain)
     existing_deployment = db.query(Deployment).filter(Deployment.customer_id == customer_id).first()
 
@@ -135,7 +135,7 @@ async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
         # Step 2: Generate secrets (reuse existing key if instance data exists)
         relay_secret = generate_relay_secret()
         datastore_key = _get_existing_datastore_key(
-            os.path.join(config.data_dir, f"kunde{customer_id}", "management.json")
+            os.path.join(config.data_dir, customer.subdomain, "management.json")
         )
         if datastore_key:
             _log_action(db, customer_id, "deploy", "info",
@@ -159,7 +159,7 @@ async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
             relay_ws_protocol = "rels"
 
         # Step 4: Create instance directory
-        instance_dir = os.path.join(config.data_dir, f"kunde{customer_id}")
+        instance_dir = os.path.join(config.data_dir, customer.subdomain)
         os.makedirs(instance_dir, exist_ok=True)
         os.makedirs(os.path.join(instance_dir, "data", "management"), exist_ok=True)
         os.makedirs(os.path.join(instance_dir, "data", "signal"), exist_ok=True)
@@ -204,14 +204,14 @@ async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
         # Step 5b: Stop existing containers if re-deploying
         if existing_deployment:
             try:
-                docker_service.compose_down(instance_dir, container_prefix, remove_volumes=False)
+                await docker_service.compose_down(instance_dir, container_prefix, remove_volumes=False)
                 _log_action(db, customer_id, "deploy", "info",
                             "Stopped existing containers for re-deployment.")
             except Exception as exc:
                 logger.warning("Could not stop existing containers: %s", exc)
 
         # Step 6: Start all Docker containers
-        docker_service.compose_up(instance_dir, container_prefix, timeout=120)
+        await docker_service.compose_up(instance_dir, container_prefix, timeout=120)
         _log_action(db, customer_id, "deploy", "info", "Docker containers started.")
 
         # Step 7: Wait for containers to be healthy
@@ -225,7 +225,7 @@ async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
         # Step 8: Auto-create admin user via NetBird setup API
         admin_email = customer.email
         admin_password = secrets.token_urlsafe(16)
-        management_container = f"netbird-kunde{customer_id}-management"
+        management_container = f"netbird-{customer.subdomain}-management"
         setup_api_url = f"http://{management_container}:80/api/setup"
         setup_payload = json.dumps({
             "name": customer.name,
@@ -264,7 +264,7 @@ async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
             _log_action(db, customer_id, "deploy", "info",
                         "Auto-setup failed — admin must complete setup manually.")
 
-        # Step 9: Create NPM proxy host + stream (production only)
+        # Step 9: Create NPM proxy host (production only)
         npm_proxy_id = None
         npm_stream_id = None
         if not local_mode:
@@ -277,6 +277,8 @@ async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
                 forward_host=forward_host,
                 forward_port=dashboard_port,
                 admin_email=config.admin_email,
+                ssl_mode=config.ssl_mode,
+                wildcard_cert_id=config.wildcard_cert_id,
             )
             npm_proxy_id = npm_result.get("proxy_id")
             if npm_result.get("error"):
@@ -292,27 +294,6 @@ async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
                     f"(SSL: {'OK' if ssl_ok else 'FAILED — check DNS and port 80 accessibility'})",
                 )
 
-            # Create NPM UDP stream for relay STUN port
-            stream_result = await npm_service.create_stream(
-                api_url=config.npm_api_url,
-                npm_email=config.npm_api_email,
-                npm_password=config.npm_api_password,
-                incoming_port=allocated_port,
-                forwarding_host=forward_host,
-                forwarding_port=allocated_port,
-            )
-            npm_stream_id = stream_result.get("stream_id")
-            if stream_result.get("error"):
-                _log_action(
-                    db, customer_id, "deploy", "error",
-                    f"NPM stream creation failed: {stream_result['error']}",
-                )
-            else:
-                _log_action(
-                    db, customer_id, "deploy", "info",
-                    f"NPM UDP stream created: port {allocated_port} -> {forward_host}:{allocated_port}",
-                )
-
             # Note: Keep HTTPS configs even if SSL cert creation failed.
             # SSL can be set up manually in NPM later. Switching to HTTP
             # would break the dashboard when the user accesses via HTTPS.
@@ -324,7 +305,20 @@ async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
                     "Please create it manually in NPM or ensure DNS resolves and port 80 is reachable, then re-deploy.",
                 )
 
-        # Step 10: Create or update deployment record
+        # Step 10: Create Windows DNS A-record (non-fatal — failure does not abort deployment)
+        if config.dns_enabled and config.dns_server and config.dns_zone and config.dns_record_ip:
+            try:
+                dns_result = await dns_service.create_dns_record(customer.subdomain, config)
+                if dns_result["ok"]:
+                    _log_action(db, customer_id, "dns_create", "success", dns_result["message"])
+                else:
+                    _log_action(db, customer_id, "dns_create", "error", dns_result["message"])
+                    logger.warning("DNS record creation failed (non-fatal): %s", dns_result["message"])
+            except Exception as exc:
+                logger.error("DNS service error (non-fatal): %s", exc)
+                _log_action(db, customer_id, "dns_create", "error", str(exc))
+
+        # Step 11: Create or update deployment record
         setup_url = external_url
 
         deployment = db.query(Deployment).filter(Deployment.customer_id == customer_id).first()
@@ -371,8 +365,8 @@ async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
 
         # Rollback: stop containers if they were started
         try:
-            docker_service.compose_down(
-                instance_dir or os.path.join(config.data_dir, f"kunde{customer_id}"),
+            await docker_service.compose_down(
+                instance_dir or os.path.join(config.data_dir, customer.subdomain),
                 container_prefix,
                 remove_volumes=True,
             )
@@ -408,11 +402,11 @@ async def undeploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
     config = get_system_config(db)
 
     if deployment and config:
-        instance_dir = os.path.join(config.data_dir, f"kunde{customer_id}")
+        instance_dir = os.path.join(config.data_dir, customer.subdomain)
 
         # Stop and remove containers
         try:
-            docker_service.compose_down(instance_dir, deployment.container_prefix, remove_volumes=True)
+            await docker_service.compose_down(instance_dir, deployment.container_prefix, remove_volumes=True)
             _log_action(db, customer_id, "undeploy", "info", "Containers removed.")
         except Exception as exc:
             _log_action(db, customer_id, "undeploy", "error", f"Container removal error: {exc}")
@@ -428,16 +422,16 @@ async def undeploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
             except Exception as exc:
                 _log_action(db, customer_id, "undeploy", "error", f"NPM removal error: {exc}")
 
-        # Remove NPM stream
-        if deployment.npm_stream_id and config.npm_api_email:
+        # Remove Windows DNS A-record (non-fatal)
+        if config and config.dns_enabled and config.dns_server and config.dns_zone:
             try:
-                await npm_service.delete_stream(
-                    config.npm_api_url, config.npm_api_email, config.npm_api_password,
-                    deployment.npm_stream_id,
-                )
-                _log_action(db, customer_id, "undeploy", "info", "NPM stream removed.")
+                dns_result = await dns_service.delete_dns_record(customer.subdomain, config)
+                if dns_result["ok"]:
+                    _log_action(db, customer_id, "undeploy", "info", dns_result["message"])
+                else:
+                    _log_action(db, customer_id, "undeploy", "error", f"DNS removal: {dns_result['message']}")
             except Exception as exc:
-                _log_action(db, customer_id, "undeploy", "error", f"NPM stream removal error: {exc}")
+                logger.error("DNS record deletion failed (non-fatal): %s", exc)
 
         # Remove instance directory
         if os.path.isdir(instance_dir):
@@ -455,20 +449,19 @@ async def undeploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
     return {"success": True}
 
 
-def stop_customer(db: Session, customer_id: int) -> dict[str, Any]:
+async def stop_customer(db: Session, customer_id: int) -> dict[str, Any]:
     """Stop containers for a customer."""
     deployment = db.query(Deployment).filter(Deployment.customer_id == customer_id).first()
+    customer = db.query(Customer).filter(Customer.id == customer_id).first()
     config = get_system_config(db)
-    if not deployment or not config:
-        return {"success": False, "error": "Deployment or config not found."}
+    if not deployment or not config or not customer:
+        return {"success": False, "error": "Deployment, customer or config not found."}
 
-    instance_dir = os.path.join(config.data_dir, f"kunde{customer_id}")
-    ok = docker_service.compose_stop(instance_dir, deployment.container_prefix)
+    instance_dir = os.path.join(config.data_dir, customer.subdomain)
+    ok = await docker_service.compose_stop(instance_dir, deployment.container_prefix)
     if ok:
         deployment.deployment_status = "stopped"
-        customer = db.query(Customer).filter(Customer.id == customer_id).first()
-        if customer:
-            customer.status = "inactive"
+        customer.status = "inactive"
         db.commit()
         _log_action(db, customer_id, "stop", "success", "Containers stopped.")
     else:
@@ -476,20 +469,19 @@ def stop_customer(db: Session, customer_id: int) -> dict[str, Any]:
     return {"success": ok}
 
 
-def start_customer(db: Session, customer_id: int) -> dict[str, Any]:
+async def start_customer(db: Session, customer_id: int) -> dict[str, Any]:
     """Start containers for a customer."""
     deployment = db.query(Deployment).filter(Deployment.customer_id == customer_id).first()
+    customer = db.query(Customer).filter(Customer.id == customer_id).first()
     config = get_system_config(db)
-    if not deployment or not config:
-        return {"success": False, "error": "Deployment or config not found."}
+    if not deployment or not config or not customer:
+        return {"success": False, "error": "Deployment, customer or config not found."}
 
-    instance_dir = os.path.join(config.data_dir, f"kunde{customer_id}")
-    ok = docker_service.compose_start(instance_dir, deployment.container_prefix)
+    instance_dir = os.path.join(config.data_dir, customer.subdomain)
+    ok = await docker_service.compose_start(instance_dir, deployment.container_prefix)
     if ok:
         deployment.deployment_status = "running"
-        customer = db.query(Customer).filter(Customer.id == customer_id).first()
-        if customer:
-            customer.status = "active"
+        customer.status = "active"
         db.commit()
         _log_action(db, customer_id, "start", "success", "Containers started.")
     else:
@@ -497,20 +489,19 @@ def start_customer(db: Session, customer_id: int) -> dict[str, Any]:
     return {"success": ok}
 
 
-def restart_customer(db: Session, customer_id: int) -> dict[str, Any]:
+async def restart_customer(db: Session, customer_id: int) -> dict[str, Any]:
     """Restart containers for a customer."""
     deployment = db.query(Deployment).filter(Deployment.customer_id == customer_id).first()
+    customer = db.query(Customer).filter(Customer.id == customer_id).first()
     config = get_system_config(db)
-    if not deployment or not config:
-        return {"success": False, "error": "Deployment or config not found."}
+    if not deployment or not config or not customer:
+        return {"success": False, "error": "Deployment, customer or config not found."}
 
-    instance_dir = os.path.join(config.data_dir, f"kunde{customer_id}")
-    ok = docker_service.compose_restart(instance_dir, deployment.container_prefix)
+    instance_dir = os.path.join(config.data_dir, customer.subdomain)
+    ok = await docker_service.compose_restart(instance_dir, deployment.container_prefix)
     if ok:
         deployment.deployment_status = "running"
-        customer = db.query(Customer).filter(Customer.id == customer_id).first()
-        if customer:
-            customer.status = "active"
+        customer.status = "active"
         db.commit()
         _log_action(db, customer_id, "restart", "success", "Containers restarted.")
     else:

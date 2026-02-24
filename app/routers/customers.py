@@ -211,12 +211,14 @@ async def update_customer(
 @router.delete("/{customer_id}")
 async def delete_customer(
     customer_id: int,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Delete a customer and clean up all resources.
 
     Removes containers, NPM proxy, instance directory, and database records.
+    Cleanup runs in background so the response returns immediately.
 
     Args:
         customer_id: Customer ID.
@@ -231,15 +233,23 @@ async def delete_customer(
             detail="Customer not found.",
         )
 
-    # Undeploy first (containers, NPM, files)
-    try:
-        await netbird_service.undeploy_customer(db, customer_id)
-    except Exception:
-        logger.exception("Undeploy error for customer %d (continuing with delete)", customer_id)
-
-    # Delete customer record (cascades to deployment + logs)
-    db.delete(customer)
+    # Mark as deleting immediately so UI reflects the state
+    customer.status = "inactive"
     db.commit()
 
-    logger.info("Customer %d deleted by %s.", customer_id, current_user.username)
-    return {"message": f"Customer {customer_id} deleted successfully."}
+    async def _delete_in_background(cid: int) -> None:
+        bg_db = SessionLocal()
+        try:
+            await netbird_service.undeploy_customer(bg_db, cid)
+            c = bg_db.query(Customer).filter(Customer.id == cid).first()
+            if c:
+                bg_db.delete(c)
+                bg_db.commit()
+            logger.info("Customer %d deleted by %s.", cid, current_user.username)
+        except Exception:
+            logger.exception("Background delete failed for customer %d", cid)
+        finally:
+            bg_db.close()
+
+    background_tasks.add_task(_delete_in_background, customer_id)
+    return {"message": f"Customer {customer_id} deletion started."}

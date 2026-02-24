@@ -126,11 +126,49 @@ class SystemConfigUpdate(BaseModel):
     branding_name: Optional[str] = Field(None, max_length=255)
     branding_subtitle: Optional[str] = Field(None, max_length=255)
     default_language: Optional[str] = Field(None, max_length=10)
+    ssl_mode: Optional[str] = Field(None, max_length=20)
+    wildcard_cert_id: Optional[int] = Field(None, ge=0)
     mfa_enabled: Optional[bool] = None
     azure_enabled: Optional[bool] = None
     azure_tenant_id: Optional[str] = Field(None, max_length=255)
     azure_client_id: Optional[str] = Field(None, max_length=255)
     azure_client_secret: Optional[str] = None  # encrypted before storage
+    azure_allowed_group_id: Optional[str] = Field(
+        None, max_length=255,
+        description="Azure AD group object ID. If set, only members of this group can log in."
+    )
+    # Windows DNS
+    dns_enabled: Optional[bool] = None
+    dns_server: Optional[str] = Field(None, max_length=255)
+    dns_username: Optional[str] = Field(None, max_length=255)
+    dns_password: Optional[str] = None  # plaintext, encrypted before storage
+    dns_zone: Optional[str] = Field(None, max_length=255)
+    dns_record_ip: Optional[str] = Field(None, max_length=45)
+    # LDAP
+    ldap_enabled: Optional[bool] = None
+    ldap_server: Optional[str] = Field(None, max_length=255)
+    ldap_port: Optional[int] = Field(None, ge=1, le=65535)
+    ldap_use_ssl: Optional[bool] = None
+    ldap_bind_dn: Optional[str] = Field(None, max_length=500)
+    ldap_bind_password: Optional[str] = None  # plaintext, encrypted before storage
+    ldap_base_dn: Optional[str] = Field(None, max_length=500)
+    ldap_user_filter: Optional[str] = Field(None, max_length=255)
+    ldap_group_dn: Optional[str] = Field(None, max_length=500)
+    # Update management
+    git_repo_url: Optional[str] = Field(None, max_length=500)
+    git_branch: Optional[str] = Field(None, max_length=100)
+    git_token: Optional[str] = None  # plaintext, encrypted before storage
+
+    @field_validator("ssl_mode")
+    @classmethod
+    def validate_ssl_mode(cls, v: Optional[str]) -> Optional[str]:
+        """SSL mode must be 'letsencrypt' or 'wildcard'."""
+        if v is None:
+            return v
+        allowed = {"letsencrypt", "wildcard"}
+        if v not in allowed:
+            raise ValueError(f"ssl_mode must be one of: {', '.join(sorted(allowed))}")
+        return v
 
     @field_validator("base_domain")
     @classmethod

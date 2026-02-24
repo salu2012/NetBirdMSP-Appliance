@@ -31,10 +31,59 @@ class AppConfig:
     docker_network: str
     relay_base_port: int
     dashboard_base_port: int
+    ssl_mode: str
+    wildcard_cert_id: int | None
+    # Windows DNS
+    dns_enabled: bool = False
+    dns_server: str = ""
+    dns_username: str = ""
+    dns_password: str = ""  # decrypted
+    dns_zone: str = ""
+    dns_record_ip: str = ""
+    # LDAP
+    ldap_enabled: bool = False
+    ldap_server: str = ""
+    ldap_port: int = 389
+    ldap_use_ssl: bool = False
+    ldap_bind_dn: str = ""
+    ldap_bind_password: str = ""  # decrypted
+    ldap_base_dn: str = ""
+    ldap_user_filter: str = "(sAMAccountName={username})"
+    ldap_group_dn: str = ""
+    # Update management
+    git_repo_url: str = ""
+    git_branch: str = "main"
+    git_token: str = ""  # decrypted
 
 
+# ---------------------------------------------------------------------------
 # Environment-level settings (not stored in DB)
-SECRET_KEY: str = os.environ.get("SECRET_KEY", "change-me-in-production")
+# ---------------------------------------------------------------------------
+
+# Known insecure default values that must never be used in production.
+_INSECURE_KEY_VALUES: set[str] = {
+    "change-me-in-production",
+    "local-test-secret-key-not-for-production-1234",
+    "secret",
+    "changeme",
+    "",
+}
+
+SECRET_KEY: str = os.environ.get("SECRET_KEY", "")
+
+# --- Startup security gate ---
+# Abort immediately if the key is missing, too short, or a known default.
+_MIN_KEY_LENGTH = 32
+if SECRET_KEY in _INSECURE_KEY_VALUES or len(SECRET_KEY) < _MIN_KEY_LENGTH:
+    raise RuntimeError(
+        "FATAL: SECRET_KEY is insecure, missing, or too short.\n"
+        f"  Current length : {len(SECRET_KEY)} characters (minimum: {_MIN_KEY_LENGTH})\n"
+        "  The key must be at least 32 random characters and must not be a known default value.\n"
+        "  Generate a secure key with:\n"
+        "    python3 -c \"import secrets; print(secrets.token_hex(32))\"\n"
+        "  Then set it in your .env file as: SECRET_KEY=<generated-value>"
+    )
+
 DATABASE_PATH: str = os.environ.get("DATABASE_PATH", "/app/data/netbird_msp.db")
 LOG_LEVEL: str = os.environ.get("LOG_LEVEL", "INFO")
 JWT_ALGORITHM: str = "HS256"
@@ -64,6 +113,18 @@ def get_system_config(db: Session) -> Optional[AppConfig]:
         npm_password = decrypt_value(row.npm_api_password_encrypted)
     except Exception:
         npm_password = ""
+    try:
+        dns_password = decrypt_value(row.dns_password_encrypted) if row.dns_password_encrypted else ""
+    except Exception:
+        dns_password = ""
+    try:
+        ldap_bind_password = decrypt_value(row.ldap_bind_password_encrypted) if row.ldap_bind_password_encrypted else ""
+    except Exception:
+        ldap_bind_password = ""
+    try:
+        git_token = decrypt_value(row.git_token_encrypted) if row.git_token_encrypted else ""
+    except Exception:
+        git_token = ""
 
     return AppConfig(
         base_domain=row.base_domain,
@@ -79,4 +140,24 @@ def get_system_config(db: Session) -> Optional[AppConfig]:
         docker_network=row.docker_network,
         relay_base_port=row.relay_base_port,
         dashboard_base_port=getattr(row, "dashboard_base_port", 9000) or 9000,
+        ssl_mode=getattr(row, "ssl_mode", "letsencrypt") or "letsencrypt",
+        wildcard_cert_id=getattr(row, "wildcard_cert_id", None),
+        dns_enabled=bool(getattr(row, "dns_enabled", False)),
+        dns_server=getattr(row, "dns_server", "") or "",
+        dns_username=getattr(row, "dns_username", "") or "",
+        dns_password=dns_password,
+        dns_zone=getattr(row, "dns_zone", "") or "",
+        dns_record_ip=getattr(row, "dns_record_ip", "") or "",
+        ldap_enabled=bool(getattr(row, "ldap_enabled", False)),
+        ldap_server=getattr(row, "ldap_server", "") or "",
+        ldap_port=getattr(row, "ldap_port", 389) or 389,
+        ldap_use_ssl=bool(getattr(row, "ldap_use_ssl", False)),
+        ldap_bind_dn=getattr(row, "ldap_bind_dn", "") or "",
+        ldap_bind_password=ldap_bind_password,
+        ldap_base_dn=getattr(row, "ldap_base_dn", "") or "",
+        ldap_user_filter=getattr(row, "ldap_user_filter", "(sAMAccountName={username})") or "(sAMAccountName={username})",
+        ldap_group_dn=getattr(row, "ldap_group_dn", "") or "",
+        git_repo_url=getattr(row, "git_repo_url", "") or "",
+        git_branch=getattr(row, "git_branch", "main") or "main",
+        git_token=git_token,
     )

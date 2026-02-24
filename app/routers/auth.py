@@ -6,13 +6,15 @@ import logging
 import secrets
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import create_access_token, create_mfa_token, get_current_user, verify_mfa_token
 from app.models import SystemConfig, User
+from app.services import ldap_service
+from app.utils.config import get_system_config
 from app.utils.security import (
     decrypt_value,
     encrypt_value,
@@ -27,26 +29,102 @@ from app.utils.validators import ChangePasswordRequest, LoginRequest, MfaTokenRe
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+from app.limiter import limiter
+
 
 @router.post("/login")
-async def login(payload: LoginRequest, db: Session = Depends(get_db)):
-    """Authenticate with username/password. May require MFA as a second step."""
-    user = db.query(User).filter(User.username == payload.username).first()
-    if not user or not verify_password(payload.password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid username or password.",
-        )
+@limiter.limit("10/minute")
+async def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)):
+    """Authenticate with username/password. May require MFA as a second step.
+
+    Auth flow:
+    1. If LDAP is enabled: try LDAP authentication first.
+       - Success → find or auto-create local User with auth_provider="ldap"
+       - Wrong password (user found in LDAP) → HTTP 401
+       - User not found in LDAP → fall through to local auth
+    2. Local auth: verify bcrypt hash for users with auth_provider="local"
+    3. On success: check MFA requirement (local users only) then issue JWT
+
+    Rate-limited to 10 attempts per minute per IP address.
+    """
+    config = get_system_config(db)
+    user: User | None = None
+
+    # ------------------------------------------------------------------
+    # Step 1: LDAP authentication (if enabled)
+    # ------------------------------------------------------------------
+    if config and config.ldap_enabled and config.ldap_server:
+        try:
+            ldap_info = await ldap_service.authenticate_ldap(
+                payload.username, payload.password, config
+            )
+            if ldap_info is not None:
+                # User authenticated via LDAP — find or create local record
+                user = db.query(User).filter(User.username == ldap_info["username"]).first()
+                if not user:
+                    user = User(
+                        username=ldap_info["username"],
+                        password_hash=hash_password(secrets.token_urlsafe(32)),
+                        email=ldap_info.get("email", ""),
+                        is_active=True,
+                        role="viewer",
+                        auth_provider="ldap",
+                    )
+                    db.add(user)
+                    db.commit()
+                    db.refresh(user)
+                    logger.info("LDAP user '%s' auto-created with role 'viewer'.", ldap_info["username"])
+                elif not user.is_active:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Account is disabled.",
+                    )
+                else:
+                    # Keep auth_provider in sync in case it was changed
+                    if user.auth_provider != "ldap":
+                        user.auth_provider = "ldap"
+                        db.commit()
+        except ValueError as exc:
+            # User found in LDAP but wrong password or group denied
+            logger.warning("LDAP login failed for '%s': %s", payload.username, exc)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid username or password.",
+            )
+        except RuntimeError as exc:
+            # LDAP server unreachable — log and fall through to local auth
+            logger.error("LDAP server error, falling back to local auth: %s", exc)
+
+    # ------------------------------------------------------------------
+    # Step 2: Local authentication (if LDAP didn't produce a user)
+    # ------------------------------------------------------------------
+    if user is None:
+        local_user = db.query(User).filter(User.username == payload.username).first()
+        if local_user and local_user.auth_provider == "local":
+            if not verify_password(payload.password, local_user.password_hash):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid username or password.",
+                )
+            user = local_user
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid username or password.",
+            )
+
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account is disabled.",
         )
 
-    # Check if MFA is required (only for local users)
+    # ------------------------------------------------------------------
+    # Step 3: MFA check (local users only)
+    # ------------------------------------------------------------------
     if user.auth_provider == "local":
-        config = db.query(SystemConfig).filter(SystemConfig.id == 1).first()
-        if config and getattr(config, "mfa_enabled", False):
+        sys_config = db.query(SystemConfig).filter(SystemConfig.id == 1).first()
+        if sys_config and getattr(sys_config, "mfa_enabled", False):
             mfa_token = create_mfa_token(user.username)
             return {
                 "mfa_required": True,
@@ -55,7 +133,7 @@ async def login(payload: LoginRequest, db: Session = Depends(get_db)):
             }
 
     token = create_access_token(user.username)
-    logger.info("User %s logged in.", user.username)
+    logger.info("User %s logged in (provider: %s).", user.username, user.auth_provider)
     return {
         "access_token": token,
         "token_type": "bearer",
@@ -129,8 +207,12 @@ async def mfa_setup_complete(payload: MfaVerifyRequest, db: Session = Depends(ge
 
 
 @router.post("/mfa/verify")
-async def mfa_verify(payload: MfaVerifyRequest, db: Session = Depends(get_db)):
-    """Verify a TOTP code for users who already have MFA set up."""
+@limiter.limit("10/minute")
+async def mfa_verify(request: Request, payload: MfaVerifyRequest, db: Session = Depends(get_db)):
+    """Verify a TOTP code for users who already have MFA set up.
+
+    Rate-limited to 10 attempts per minute per IP address.
+    """
     username = verify_mfa_token(payload.mfa_token)
     user = db.query(User).filter(User.username == username).first()
     if not user:
@@ -262,17 +344,18 @@ async def azure_callback(
 
     try:
         import msal
+        import httpx as _httpx
 
         client_secret = decrypt_value(config.azure_client_secret_encrypted)
         authority = f"https://login.microsoftonline.com/{config.azure_tenant_id}"
 
-        app = msal.ConfidentialClientApplication(
+        msal_app = msal.ConfidentialClientApplication(
             config.azure_client_id,
             authority=authority,
             client_credential=client_secret,
         )
 
-        result = app.acquire_token_by_authorization_code(
+        result = msal_app.acquire_token_by_authorization_code(
             payload.code,
             scopes=["User.Read"],
             redirect_uri=payload.redirect_uri,
@@ -287,12 +370,61 @@ async def azure_callback(
 
         id_token_claims = result.get("id_token_claims", {})
         email = id_token_claims.get("preferred_username") or id_token_claims.get("email", "")
-        display_name = id_token_claims.get("name", email)
+        display_name = id_token_claims.get("name", email)  # noqa: F841
+        user_access_token = result.get("access_token", "")
 
         if not email:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Could not determine email from Azure AD token.",
+            )
+
+        # -----------------------------------------------------------------
+        # Group membership check (Fix #3 – Azure AD group whitelist)
+        # -----------------------------------------------------------------
+        allowed_group_id = getattr(config, "azure_allowed_group_id", None)
+        if allowed_group_id:
+            # Use the user's own access token to check their group membership
+            # via the Microsoft Graph API (requires GroupMember.Read.All or
+            # the user's own memberOf delegated permission).
+            graph_url = "https://graph.microsoft.com/v1.0/me/memberOf"
+            is_member = False
+            try:
+                async with _httpx.AsyncClient(timeout=10) as http:
+                    resp = await http.get(
+                        graph_url,
+                        headers={"Authorization": f"Bearer {user_access_token}"},
+                    )
+                    if resp.status_code == 200:
+                        groups = resp.json().get("value", [])
+                        is_member = any(
+                            g.get("id") == allowed_group_id for g in groups
+                        )
+                    else:
+                        logger.warning(
+                            "Graph API group check returned %s for user '%s'.",
+                            resp.status_code, email,
+                        )
+            except Exception as graph_exc:
+                logger.error("Graph API group check failed: %s", graph_exc)
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Could not verify Azure AD group membership. Please try again.",
+                )
+
+            if not is_member:
+                logger.warning(
+                    "Azure AD login denied for '%s': not a member of required group '%s'.",
+                    email, allowed_group_id,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Access denied: you are not a member of the required Azure AD group.",
+                )
+        else:
+            logger.warning(
+                "azure_allowed_group_id is not configured. All Azure AD tenant users can log in. "
+                "Set azure_allowed_group_id in Settings to restrict access."
             )
 
         # Find or create user
@@ -303,13 +435,13 @@ async def azure_callback(
                 password_hash=hash_password(secrets.token_urlsafe(32)),
                 email=email,
                 is_active=True,
-                role="admin",
+                role="viewer",  # New Azure users start as viewer; promote manually
                 auth_provider="azure",
             )
             db.add(user)
             db.commit()
             db.refresh(user)
-            logger.info("Azure AD user '%s' auto-created.", email)
+            logger.info("Azure AD user '%s' auto-created with role 'viewer'.", email)
         elif not user.is_active:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -326,9 +458,9 @@ async def azure_callback(
 
     except HTTPException:
         raise
-    except Exception as exc:
+    except Exception:
         logger.exception("Azure AD authentication error")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Azure AD authentication error: {exc}",
+            detail="Azure AD authentication failed. Please try again or contact support.",
         )

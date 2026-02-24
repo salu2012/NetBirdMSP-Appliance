@@ -161,11 +161,44 @@ class SystemConfig(Base):
     )
     branding_logo_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     default_language: Mapped[Optional[str]] = mapped_column(String(10), default="en")
+    ssl_mode: Mapped[str] = mapped_column(String(20), default="letsencrypt")
+    wildcard_cert_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     azure_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     azure_tenant_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     azure_client_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     azure_client_secret_encrypted: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    azure_allowed_group_id: Mapped[Optional[str]] = mapped_column(
+        String(255), nullable=True,
+        comment="If set, only Azure AD users in this group (object ID) are allowed to log in."
+    )
+
+    # Windows DNS integration
+    dns_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    dns_server: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    dns_username: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    dns_password_encrypted: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    dns_zone: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    dns_record_ip: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
+
+    # LDAP / Active Directory authentication
+    ldap_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    ldap_server: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    ldap_port: Mapped[int] = mapped_column(Integer, default=389)
+    ldap_use_ssl: Mapped[bool] = mapped_column(Boolean, default=False)
+    ldap_bind_dn: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    ldap_bind_password_encrypted: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    ldap_base_dn: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    ldap_user_filter: Mapped[Optional[str]] = mapped_column(
+        String(255), default="(sAMAccountName={username})"
+    )
+    ldap_group_dn: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+
+    # Update management
+    git_repo_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    git_branch: Mapped[Optional[str]] = mapped_column(String(100), default="main")
+    git_token_encrypted: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
@@ -194,11 +227,32 @@ class SystemConfig(Base):
             "branding_subtitle": self.branding_subtitle or "Multi-Tenant Management Platform",
             "branding_logo_path": self.branding_logo_path,
             "default_language": self.default_language or "en",
+            "ssl_mode": self.ssl_mode or "letsencrypt",
+            "wildcard_cert_id": self.wildcard_cert_id,
             "mfa_enabled": bool(self.mfa_enabled),
             "azure_enabled": bool(self.azure_enabled),
             "azure_tenant_id": self.azure_tenant_id or "",
             "azure_client_id": self.azure_client_id or "",
             "azure_client_secret_set": bool(self.azure_client_secret_encrypted),
+            "azure_allowed_group_id": self.azure_allowed_group_id or "",
+            "dns_enabled": bool(self.dns_enabled),
+            "dns_server": self.dns_server or "",
+            "dns_username": self.dns_username or "",
+            "dns_password_set": bool(self.dns_password_encrypted),
+            "dns_zone": self.dns_zone or "",
+            "dns_record_ip": self.dns_record_ip or "",
+            "ldap_enabled": bool(self.ldap_enabled),
+            "ldap_server": self.ldap_server or "",
+            "ldap_port": self.ldap_port or 389,
+            "ldap_use_ssl": bool(self.ldap_use_ssl),
+            "ldap_bind_dn": self.ldap_bind_dn or "",
+            "ldap_bind_password_set": bool(self.ldap_bind_password_encrypted),
+            "ldap_base_dn": self.ldap_base_dn or "",
+            "ldap_user_filter": self.ldap_user_filter or "(sAMAccountName={username})",
+            "ldap_group_dn": self.ldap_group_dn or "",
+            "git_repo_url": self.git_repo_url or "",
+            "git_branch": self.git_branch or "main",
+            "git_token_set": bool(self.git_token_encrypted),
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

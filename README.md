@@ -34,6 +34,7 @@ A management solution for running isolated NetBird instances for your MSP busine
 - **Complete Isolation** — Each customer gets their own NetBird stack with separate data
 - **One-Click Deployment** — Deploy new customer instances in under 2 minutes
 - **Nginx Proxy Manager Integration** — Automatic SSL certificates and reverse proxy setup
+- **SSL Certificate Modes** — Choose between per-customer Let's Encrypt certificates or a shared wildcard certificate
 - **Docker-Based** — Everything runs in containers for easy deployment
 
 ### Dashboard
@@ -94,8 +95,8 @@ A management solution for running isolated NetBird instances for your MSP busine
 |  | Caddy      |  |                  |  | Caddy      |  |
 |  +------------+  |                  |  +------------+  |
 +------------------+                  +------------------+
-  kunde1.domain.de                      kundeN.domain.de
-  UDP 3478                              UDP 3478+N-1
+  customer-a.domain.de                  customer-x.domain.de
+         |                                     |3478+N-1
 ```
 
 ### Components per Customer Instance (5 containers):
@@ -139,9 +140,9 @@ Example for 3 customers:
 
 | Customer | Dashboard (TCP) | Relay (UDP) |
 |----------|----------------|-------------|
-| Kunde 1  | 9001           | 3478        |
-| Kunde 2  | 9002           | 3479        |
-| Kunde 3  | 9003           | 3480        |
+| Customer-A | 9001           | 3478        |
+| Customer-C | 9002           | 3479        |
+| Customer-X | 9003           | 3480        |
 
 **Your firewall must allow both the TCP dashboard ports and the UDP relay ports!**
 
@@ -269,7 +270,8 @@ Available under **Settings** in the web interface:
 
 | Tab | Settings |
 |-----|----------|
-| **System** | Base domain, admin email, NPM credentials, Docker images, port ranges, data directory |
+| **System** | Base domain, admin email, Docker images, port ranges, data directory |
+| **NPM Integration** | NPM API URL, login credentials, SSL certificate mode (Let's Encrypt / Wildcard), wildcard certificate selection |
 | **Branding** | Platform name, subtitle, logo upload, default language |
 | **Users** | Create/edit/delete admin users, per-user language preference, MFA reset |
 | **Azure AD** | Azure AD / Entra ID SSO configuration |
@@ -342,6 +344,26 @@ When MFA is enabled and a user logs in for the first time:
 - **Disable own TOTP** — In Settings > Security, click "Disable my TOTP" to remove your own MFA setup
 - **Disable MFA globally** — Uncheck the toggle in Settings > Security to allow login without MFA
 
+### SSL Certificate Mode
+
+The appliance supports two SSL certificate modes for customer proxy hosts, configurable under **Settings > NPM Integration**:
+
+#### Let's Encrypt (default)
+Each customer gets an individual Let's Encrypt certificate via HTTP-01 validation. This is the default behavior and requires no additional setup beyond a valid admin email.
+
+#### Wildcard Certificate
+Use a pre-existing wildcard certificate (e.g. `*.yourdomain.com`) already uploaded in NPM. All customer proxy hosts share this certificate — no per-customer LE validation needed.
+
+**Setup:**
+1. Upload a wildcard certificate in Nginx Proxy Manager (e.g. via DNS challenge)
+2. Go to **Settings > NPM Integration**
+3. Set **SSL Mode** to "Wildcard Certificate"
+4. Click the refresh button to load certificates from NPM
+5. Select your wildcard certificate from the dropdown
+6. Click **Save NPM Settings**
+
+New customer deployments will automatically use the selected wildcard certificate.
+
 ---
 
 ## API Documentation
@@ -376,6 +398,7 @@ GET    /api/customers/{id}/logs    # Get container logs
 GET    /api/customers/{id}/health  # Health check
 
 GET    /api/settings/branding      # Get branding (public, no auth)
+GET    /api/settings/npm-certificates # List NPM SSL certificates
 PUT    /api/settings               # Update system settings
 GET    /api/users                  # List users
 POST   /api/users                  # Create user

@@ -7,8 +7,8 @@ from sqlalchemy.orm import Session
 
 from app.database import SessionLocal, get_db
 from app.dependencies import get_current_user
-from app.models import Customer, Deployment, User
-from app.services import docker_service, netbird_service
+from app.models import Customer, Deployment, SystemConfig, User
+from app.services import docker_service, image_service, netbird_service
 from app.utils.security import decrypt_value
 
 logger = logging.getLogger(__name__)
@@ -72,7 +72,7 @@ async def start_customer(
         Result dict.
     """
     _require_customer(db, customer_id)
-    result = netbird_service.start_customer(db, customer_id)
+    result = await netbird_service.start_customer(db, customer_id)
     if not result.get("success"):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -96,7 +96,7 @@ async def stop_customer(
         Result dict.
     """
     _require_customer(db, customer_id)
-    result = netbird_service.stop_customer(db, customer_id)
+    result = await netbird_service.stop_customer(db, customer_id)
     if not result.get("success"):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -120,7 +120,7 @@ async def restart_customer(
         Result dict.
     """
     _require_customer(db, customer_id)
-    result = netbird_service.restart_customer(db, customer_id)
+    result = await netbird_service.restart_customer(db, customer_id)
     if not result.get("success"):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -205,6 +205,50 @@ async def get_customer_credentials(
         "email": decrypt_value(deployment.netbird_admin_email),
         "password": decrypt_value(deployment.netbird_admin_password),
     }
+
+
+@router.post("/{customer_id}/update-images")
+async def update_customer_images(
+    customer_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Recreate a customer's containers to pick up newly pulled images.
+
+    Images must already be pulled via POST /monitoring/images/pull.
+    Bind-mounted data is preserved — no data loss.
+    """
+    if current_user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only.")
+
+    customer = _require_customer(db, customer_id)
+    deployment = db.query(Deployment).filter(Deployment.customer_id == customer_id).first()
+    if not deployment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No deployment found for this customer.",
+        )
+
+    config = db.query(SystemConfig).filter(SystemConfig.id == 1).first()
+    if not config:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="System not configured."
+        )
+
+    instance_dir = f"{config.data_dir}/{customer.subdomain}"
+    result = await image_service.update_customer_containers(instance_dir, deployment.container_prefix)
+
+    if not result["success"]:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=result.get("error", "Failed to update containers."),
+        )
+
+    logger.info(
+        "Containers updated for customer '%s' (prefix: %s) by '%s'.",
+        customer.name, deployment.container_prefix, current_user.username,
+    )
+    return {"message": f"Containers updated for '{customer.name}'."}
 
 
 def _require_customer(db: Session, customer_id: int) -> Customer:
