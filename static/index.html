@@ -1152,7 +1152,7 @@
                 </div>
 
                 <!-- Customer Statuses -->
-                <div class="card shadow-sm">
+                <div class="card shadow-sm mb-4">
                     <div class="card-header" data-i18n="monitoring.allCustomerDeployments">All Customer Deployments
                     </div>
                     <div class="table-responsive">
@@ -1176,6 +1176,27 @@
                                 </tr>
                             </tbody>
                         </table>
+                    </div>
+                </div>
+
+                <!-- NetBird Container Updates -->
+                <div class="card shadow-sm">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-arrow-repeat me-2"></i><span data-i18n="monitoring.imageUpdates">NetBird Container Updates</span></span>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-outline-secondary btn-sm" onclick="checkImageUpdates()" id="btn-check-updates">
+                                <i class="bi bi-search me-1"></i><span data-i18n="monitoring.checkUpdates">Check for Updates</span>
+                            </button>
+                            <button class="btn btn-outline-primary btn-sm" onclick="pullAllImages()" id="btn-pull-images">
+                                <i class="bi bi-cloud-download me-1"></i><span data-i18n="monitoring.pullImages">Pull Latest Images</span>
+                            </button>
+                            <button class="btn btn-warning btn-sm d-none" onclick="updateAllCustomers()" id="btn-update-all">
+                                <i class="bi bi-lightning-charge-fill me-1"></i><span data-i18n="monitoring.updateAll">Update All</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body" id="image-updates-body">
+                        <p class="text-muted mb-0" data-i18n="monitoring.clickCheckUpdates">Click "Check for Updates" to compare local images with Docker Hub.</p>
                     </div>
                 </div>
             </div>

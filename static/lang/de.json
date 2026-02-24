@@ -373,6 +373,25 @@
     "thDashboard": "Dashboard",
     "thRelayPort": "Relay-Port",
     "thContainers": "Container",
-    "noCustomers": "Keine Kunden."
+    "noCustomers": "Keine Kunden.",
+    "imageUpdates": "NetBird Container Updates",
+    "checkUpdates": "Auf Updates prüfen",
+    "pullImages": "Neueste Images laden",
+    "updateAll": "Alle aktualisieren",
+    "clickCheckUpdates": "Klicken Sie auf \"Auf Updates prüfen\" um lokale Images mit Docker Hub zu vergleichen.",
+    "updateAvailable": "Update verfügbar",
+    "upToDate": "Aktuell",
+    "needsUpdate": "Update erforderlich",
+    "updateCustomer": "Diesen Kunden aktualisieren",
+    "imageStatusTitle": "Image-Status (vs. Docker Hub)",
+    "customerImageTitle": "Kunden-Container Status",
+    "thImage": "Image",
+    "thLocalDigest": "Lokaler Digest",
+    "thHubDigest": "Hub Digest",
+    "confirmPull": "Neueste NetBird Images von Docker Hub laden? Dies kann einige Minuten dauern.",
+    "pullStarted": "Image-Download im Hintergrund gestartet. Prüfung in 5 Sekunden…",
+    "confirmUpdateAll": "Container aller Kunden mit veralteten Images neu erstellen? Laufende Dienste werden kurz neu gestartet.",
+    "updateAllStarted": "Aktualisierung im Hintergrund gestartet.",
+    "updateDone": "Kunden-Container aktualisiert."
   }
 }

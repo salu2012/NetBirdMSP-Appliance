@@ -1634,6 +1634,144 @@ async function loadAllCustomerStatuses() {
 }
 
 // ---------------------------------------------------------------------------
+// Image Updates
+// ---------------------------------------------------------------------------
+async function checkImageUpdates() {
+    const btn = document.getElementById('btn-check-updates');
+    const body = document.getElementById('image-updates-body');
+    btn.disabled = true;
+    body.innerHTML = `<div class="text-muted"><span class="spinner-border spinner-border-sm me-2"></span>${t('common.loading')}</div>`;
+
+    try {
+        const data = await api('GET', '/monitoring/images/check');
+
+        // Image status table
+        const imageRows = Object.values(data.images).map(img => {
+            const badge = img.update_available
+                ? `<span class="badge bg-warning text-dark">${t('monitoring.updateAvailable')}</span>`
+                : `<span class="badge bg-success">${t('monitoring.upToDate')}</span>`;
+            const shortDigest = d => d ? d.substring(7, 19) + '…' : '-';
+            return `<tr>
+                <td><code class="small">${esc(img.image)}</code></td>
+                <td class="small text-muted">${shortDigest(img.local_digest)}</td>
+                <td class="small text-muted">${shortDigest(img.hub_digest)}</td>
+                <td>${badge}</td>
+            </tr>`;
+        }).join('');
+
+        // Customer status table
+        const customerRows = data.customer_status.length === 0
+            ? `<tr><td colspan="3" class="text-center text-muted py-3">${t('monitoring.noCustomers')}</td></tr>`
+            : data.customer_status.map(c => {
+                const badge = c.needs_update
+                    ? `<span class="badge bg-warning text-dark">${t('monitoring.needsUpdate')}</span>`
+                    : `<span class="badge bg-success">${t('monitoring.upToDate')}</span>`;
+                const updateBtn = c.needs_update
+                    ? `<button class="btn btn-sm btn-outline-warning ms-2" onclick="updateCustomerImages(${c.customer_id})"
+                        title="${t('monitoring.updateCustomer')}"><i class="bi bi-arrow-repeat"></i></button>`
+                    : '';
+                return `<tr>
+                    <td>${c.customer_id}</td>
+                    <td>${esc(c.customer_name)} <code class="small text-muted">${esc(c.subdomain)}</code></td>
+                    <td>${badge}${updateBtn}</td>
+                </tr>`;
+            }).join('');
+
+        // Show "Update All" button if any customer needs update
+        const updateAllBtn = document.getElementById('btn-update-all');
+        if (data.customer_status.some(c => c.needs_update)) {
+            updateAllBtn.classList.remove('d-none');
+        } else {
+            updateAllBtn.classList.add('d-none');
+        }
+
+        body.innerHTML = `
+            <h6 class="mb-2">${t('monitoring.imageStatusTitle')}</h6>
+            <div class="table-responsive mb-4">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>${t('monitoring.thImage')}</th>
+                            <th>${t('monitoring.thLocalDigest')}</th>
+                            <th>${t('monitoring.thHubDigest')}</th>
+                            <th>${t('monitoring.thStatus')}</th>
+                        </tr>
+                    </thead>
+                    <tbody>${imageRows}</tbody>
+                </table>
+            </div>
+            <h6 class="mb-2">${t('monitoring.customerImageTitle')}</h6>
+            <div class="table-responsive">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>${t('monitoring.thId')}</th>
+                            <th>${t('monitoring.thName')}</th>
+                            <th>${t('monitoring.thStatus')}</th>
+                        </tr>
+                    </thead>
+                    <tbody>${customerRows}</tbody>
+                </table>
+            </div>`;
+    } catch (err) {
+        body.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function pullAllImages() {
+    if (!confirm(t('monitoring.confirmPull'))) return;
+    const btn = document.getElementById('btn-pull-images');
+    btn.disabled = true;
+    try {
+        await api('POST', '/monitoring/images/pull');
+        showToast(t('monitoring.pullStarted'));
+        // Re-check after a few seconds to let pull finish
+        setTimeout(() => checkImageUpdates(), 5000);
+    } catch (err) {
+        showMonitoringAlert('danger', err.message);
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function updateCustomerImages(customerId) {
+    try {
+        await api('POST', `/customers/${customerId}/update-images`);
+        showToast(t('monitoring.updateDone'));
+        setTimeout(() => checkImageUpdates(), 2000);
+    } catch (err) {
+        showMonitoringAlert('danger', err.message);
+    }
+}
+
+async function updateAllCustomers() {
+    if (!confirm(t('monitoring.confirmUpdateAll'))) return;
+    const btn = document.getElementById('btn-update-all');
+    btn.disabled = true;
+    try {
+        const data = await api('POST', '/monitoring/customers/update-all');
+        showToast(data.message || t('monitoring.updateAllStarted'));
+        setTimeout(() => checkImageUpdates(), 5000);
+    } catch (err) {
+        showMonitoringAlert('danger', err.message);
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+function showMonitoringAlert(type, msg) {
+    const body = document.getElementById('image-updates-body');
+    const existing = body.querySelector('.alert');
+    if (existing) existing.remove();
+    const div = document.createElement('div');
+    div.className = `alert alert-${type} mt-2`;
+    div.textContent = msg;
+    body.prepend(div);
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 function statusBadge(status) {
