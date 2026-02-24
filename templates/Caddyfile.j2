@@ -29,6 +29,11 @@
 		}
 	}
 
+	# NetBird Relay WebSocket (rels://)
+	handle /relay* {
+		reverse_proxy netbird-{{ subdomain }}-relay:80
+	}
+
 	# Default: NetBird Dashboard
 	handle {
 		reverse_proxy netbird-{{ subdomain }}-dashboard:80
