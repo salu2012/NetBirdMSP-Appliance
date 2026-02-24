@@ -264,7 +264,7 @@ async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
             _log_action(db, customer_id, "deploy", "info",
                         "Auto-setup failed — admin must complete setup manually.")
 
-        # Step 9: Create NPM proxy host + stream (production only)
+        # Step 9: Create NPM proxy host (production only)
         npm_proxy_id = None
         npm_stream_id = None
         if not local_mode:
@@ -292,27 +292,6 @@ async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
                     db, customer_id, "deploy", "info",
                     f"NPM proxy host created: {netbird_domain} -> {forward_host}:{dashboard_port} "
                     f"(SSL: {'OK' if ssl_ok else 'FAILED — check DNS and port 80 accessibility'})",
-                )
-
-            # Create NPM UDP stream for relay STUN port
-            stream_result = await npm_service.create_stream(
-                api_url=config.npm_api_url,
-                npm_email=config.npm_api_email,
-                npm_password=config.npm_api_password,
-                incoming_port=allocated_port,
-                forwarding_host=forward_host,
-                forwarding_port=allocated_port,
-            )
-            npm_stream_id = stream_result.get("stream_id")
-            if stream_result.get("error"):
-                _log_action(
-                    db, customer_id, "deploy", "error",
-                    f"NPM stream creation failed: {stream_result['error']}",
-                )
-            else:
-                _log_action(
-                    db, customer_id, "deploy", "info",
-                    f"NPM UDP stream created: port {allocated_port} -> {forward_host}:{allocated_port}",
                 )
 
             # Note: Keep HTTPS configs even if SSL cert creation failed.
@@ -442,17 +421,6 @@ async def undeploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
                 _log_action(db, customer_id, "undeploy", "info", "NPM proxy host removed.")
             except Exception as exc:
                 _log_action(db, customer_id, "undeploy", "error", f"NPM removal error: {exc}")
-
-        # Remove NPM stream
-        if deployment.npm_stream_id and config.npm_api_email:
-            try:
-                await npm_service.delete_stream(
-                    config.npm_api_url, config.npm_api_email, config.npm_api_password,
-                    deployment.npm_stream_id,
-                )
-                _log_action(db, customer_id, "undeploy", "info", "NPM stream removed.")
-            except Exception as exc:
-                _log_action(db, customer_id, "undeploy", "error", f"NPM stream removal error: {exc}")
 
         # Remove Windows DNS A-record (non-fatal)
         if config and config.dns_enabled and config.dns_server and config.dns_zone:
