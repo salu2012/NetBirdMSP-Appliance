@@ -634,6 +634,13 @@
                                                         Settings</span></button>
                                             </div>
                                         </form>
+                                        <hr>
+                                        <h6 data-i18n="settings.pullImagesTitle">Pull Latest Images from Docker Hub</h6>
+                                        <p class="text-muted small" data-i18n="settings.pullImagesHint">Downloads the latest versions of all configured NetBird images. After pulling, use Monitoring to update customer containers.</p>
+                                        <button class="btn btn-outline-primary" onclick="pullAllImagesSettings()" id="btn-pull-images-settings">
+                                            <i class="bi bi-cloud-download me-1"></i><span data-i18n="settings.pullImages">Pull from Docker Hub</span>
+                                        </button>
+                                        <span id="pull-images-settings-status" class="ms-2 text-muted small"></span>
                                     </div>
                                 </div>
                             </div>

@@ -196,16 +196,37 @@ async def pull_all_netbird_images(
     return {"message": "Image pull started in background.", "images": images}
 
 
+@router.get("/customers/local-update-status")
+async def customers_local_update_status(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[dict[str, Any]]:
+    """Fast local-only check for outdated customer containers.
+
+    Compares running container image IDs against locally stored images.
+    No network call — safe to call on every dashboard load.
+    """
+    config = db.query(SystemConfig).filter(SystemConfig.id == 1).first()
+    if not config:
+        return []
+    deployments = db.query(Deployment).all()
+    results = []
+    for dep in deployments:
+        cs = image_service.get_customer_container_image_status(dep.container_prefix, config)
+        results.append({"customer_id": dep.customer_id, "needs_update": cs["needs_update"]})
+    return results
+
+
 @router.post("/customers/update-all")
 async def update_all_customers(
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
-    """Recreate containers for all customers that have outdated images.
+    """Recreate containers for all customers with outdated images — sequential, synchronous.
 
-    Only customers where at least one container runs an outdated image are updated.
+    Updates customers one at a time so a failing customer does not block others.
     Images must already be pulled. Data is preserved (bind mounts).
+    Returns detailed per-customer results.
     """
     if current_user.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only.")
@@ -214,38 +235,40 @@ async def update_all_customers(
     if not config:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="System not configured.")
 
-    # Collect customers that need updating
     deployments = db.query(Deployment).all()
     to_update = []
     for dep in deployments:
         cs = image_service.get_customer_container_image_status(dep.container_prefix, config)
         if cs["needs_update"]:
             customer = dep.customer
-            instance_dir = str(dep.container_prefix).replace(
-                "netbird-", "", 1
-            )  # subdomain
             to_update.append({
                 "instance_dir": f"{config.data_dir}/{customer.subdomain}",
                 "project_name": dep.container_prefix,
                 "customer_name": customer.name,
+                "customer_id": customer.id,
             })
 
     if not to_update:
-        return {"message": "All customers are already up to date.", "updated": 0}
+        return {"message": "All customers are already up to date.", "updated": 0, "results": []}
 
-    async def _update_all_bg() -> None:
-        for entry in to_update:
-            try:
-                await image_service.update_customer_containers(
-                    entry["instance_dir"], entry["project_name"]
-                )
-                logger.info("Updated containers for %s", entry["project_name"])
-            except Exception:
-                logger.exception("Failed to update %s", entry["project_name"])
+    # Update customers sequentially — one at a time
+    update_results = []
+    for entry in to_update:
+        res = await image_service.update_customer_containers(
+            entry["instance_dir"], entry["project_name"]
+        )
+        ok = res["success"]
+        logger.info("Updated %s: %s", entry["project_name"], "OK" if ok else res.get("error"))
+        update_results.append({
+            "customer_name": entry["customer_name"],
+            "customer_id": entry["customer_id"],
+            "success": ok,
+            "error": res.get("error"),
+        })
 
-    background_tasks.add_task(_update_all_bg)
-    names = [e["customer_name"] for e in to_update]
+    success_count = sum(1 for r in update_results if r["success"])
     return {
-        "message": f"Updating {len(to_update)} customer(s) in background.",
-        "customers": names,
+        "message": f"Updated {success_count} of {len(update_results)} customer(s).",
+        "updated": success_count,
+        "results": update_results,
     }

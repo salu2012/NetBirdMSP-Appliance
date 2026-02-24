@@ -89,7 +89,9 @@
     "thHealth": "Zustand",
     "thImage": "Image",
     "lastCheck": "Letzte Prüfung: {time}",
-    "openDashboard": "Dashboard öffnen"
+    "openDashboard": "Dashboard öffnen",
+    "updateImages": "Images aktualisieren",
+    "updateInProgress": "Container werden aktualisiert — bitte warten…"
   },
   "settings": {
     "title": "Systemeinstellungen",
@@ -152,6 +154,9 @@
     "dashboardImage": "Dashboard Image",
     "dashboardImagePlaceholder": "netbirdio/dashboard:latest",
     "saveImageSettings": "Image-Einstellungen speichern",
+    "pullImagesTitle": "Neueste Images von Docker Hub laden",
+    "pullImagesHint": "Lädt die neuesten Versionen aller konfigurierten NetBird Images. Danach können Kunden-Container über das Monitoring aktualisiert werden.",
+    "pullImages": "Von Docker Hub laden",
     "brandingTitle": "Branding-Einstellungen",
     "companyName": "Firmen- / Anwendungsname",
     "companyNamePlaceholder": "NetBird MSP Appliance",
@@ -392,6 +397,10 @@
     "pullStarted": "Image-Download im Hintergrund gestartet. Prüfung in 5 Sekunden…",
     "confirmUpdateAll": "Container aller Kunden mit veralteten Images neu erstellen? Laufende Dienste werden kurz neu gestartet.",
     "updateAllStarted": "Aktualisierung im Hintergrund gestartet.",
-    "updateDone": "Kunden-Container aktualisiert."
+    "updateDone": "Kunden-Container aktualisiert.",
+    "updating": "Wird aktualisiert…",
+    "updateAllProgress": "Kunden-Container werden nacheinander aktualisiert — bitte warten…",
+    "pulling": "Wird geladen…",
+    "pullStartedShort": "Download im Hintergrund gestartet."
   }
 }

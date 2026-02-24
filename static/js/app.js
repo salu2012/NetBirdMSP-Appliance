@@ -485,11 +485,11 @@ function renderCustomersTable(data) {
         const dashLink = dPort
             ? `<a href="${esc(dashUrl || 'http://localhost:' + dPort)}" target="_blank" class="text-decoration-none" title="${t('customer.openDashboard')}">:${dPort} <i class="bi bi-box-arrow-up-right"></i></a>`
             : '-';
-        return `<tr>
+        return `<tr data-customer-id="${c.id}">
             <td>${c.id}</td>
             <td><a href="#" onclick="viewCustomer(${c.id})" class="text-decoration-none fw-semibold">${esc(c.name)}</a></td>
             <td><code>${esc(c.subdomain)}</code></td>
-            <td>${statusBadge(c.status)}</td>
+            <td><span class="customer-status-cell">${statusBadge(c.status)}</span></td>
             <td>${dashLink}</td>
             <td>${c.max_devices}</td>
             <td>${formatDate(c.created_at)}</td>
@@ -517,6 +517,26 @@ function renderCustomersTable(data) {
         paginationHtml += `<li class="page-item ${i === data.page ? 'active' : ''}"><a class="page-link" href="#" onclick="goToPage(${i})">${i}</a></li>`;
     }
     document.getElementById('pagination-controls').innerHTML = paginationHtml;
+
+    // Lazy-load update badges after table renders (best-effort, silent fail)
+    loadCustomerUpdateBadges().catch(() => {});
+}
+
+async function loadCustomerUpdateBadges() {
+    const data = await api('GET', '/monitoring/customers/local-update-status');
+    data.forEach(s => {
+        if (!s.needs_update) return;
+        const tr = document.querySelector(`tr[data-customer-id="${s.customer_id}"]`);
+        if (!tr) return;
+        const cell = tr.querySelector('.customer-status-cell');
+        if (cell && !cell.querySelector('.update-badge')) {
+            const badge = document.createElement('span');
+            badge.className = 'badge bg-warning text-dark update-badge ms-1';
+            badge.title = t('monitoring.updateAvailable');
+            badge.innerHTML = '<i class="bi bi-arrow-repeat"></i> Update';
+            cell.appendChild(badge);
+        }
+    });
 }
 
 function goToPage(page) {
@@ -742,8 +762,13 @@ async function viewCustomer(id) {
                     <button class="btn btn-success btn-sm me-1" onclick="customerAction(${id},'start')"><i class="bi bi-play-circle me-1"></i>${t('customer.start')}</button>
                     <button class="btn btn-warning btn-sm me-1" onclick="customerAction(${id},'stop')"><i class="bi bi-stop-circle me-1"></i>${t('customer.stop')}</button>
                     <button class="btn btn-info btn-sm me-1" onclick="customerAction(${id},'restart')"><i class="bi bi-arrow-repeat me-1"></i>${t('customer.restart')}</button>
-                    <button class="btn btn-outline-primary btn-sm" onclick="customerAction(${id},'deploy')"><i class="bi bi-rocket me-1"></i>${t('customer.reDeploy')}</button>
+                    <button class="btn btn-outline-primary btn-sm me-1" onclick="customerAction(${id},'deploy')"><i class="bi bi-rocket me-1"></i>${t('customer.reDeploy')}</button>
+                    <button class="btn btn-outline-warning btn-sm" id="btn-update-images-detail" onclick="updateCustomerImagesFromDetail(${id})">
+                        <span id="update-detail-spinner" class="spinner-border spinner-border-sm d-none me-1"></span>
+                        <i class="bi bi-arrow-repeat me-1"></i>${t('customer.updateImages')}
+                    </button>
                 </div>
+                <div id="detail-update-result"></div>
             `;
         } else {
             document.getElementById('detail-deployment-content').innerHTML = `
@@ -1667,7 +1692,7 @@ async function checkImageUpdates() {
                     ? `<span class="badge bg-warning text-dark">${t('monitoring.needsUpdate')}</span>`
                     : `<span class="badge bg-success">${t('monitoring.upToDate')}</span>`;
                 const updateBtn = c.needs_update
-                    ? `<button class="btn btn-sm btn-outline-warning ms-2" onclick="updateCustomerImages(${c.customer_id})"
+                    ? `<button class="btn btn-sm btn-outline-warning ms-2 btn-update-customer" onclick="updateCustomerImages(${c.customer_id})"
                         title="${t('monitoring.updateCustomer')}"><i class="bi bi-arrow-repeat"></i></button>`
                     : '';
                 return `<tr>
@@ -1736,26 +1761,103 @@ async function pullAllImages() {
     }
 }
 
+async function updateCustomerImagesFromDetail(id) {
+    const btn = document.getElementById('btn-update-images-detail');
+    const spinner = document.getElementById('update-detail-spinner');
+    const resultDiv = document.getElementById('detail-update-result');
+    btn.disabled = true;
+    spinner.classList.remove('d-none');
+    resultDiv.innerHTML = `<div class="alert alert-info py-2 mt-2"><span class="spinner-border spinner-border-sm me-2"></span>${t('customer.updateInProgress')}</div>`;
+    try {
+        const data = await api('POST', `/customers/${id}/update-images`);
+        resultDiv.innerHTML = `<div class="alert alert-success py-2 mt-2"><i class="bi bi-check-circle me-1"></i>${esc(data.message)}</div>`;
+        setTimeout(() => { resultDiv.innerHTML = ''; }, 6000);
+    } catch (err) {
+        resultDiv.innerHTML = `<div class="alert alert-danger py-2 mt-2"><i class="bi bi-exclamation-circle me-1"></i>${esc(err.message)}</div>`;
+    } finally {
+        btn.disabled = false;
+        spinner.classList.add('d-none');
+    }
+}
+
 async function updateCustomerImages(customerId) {
+    // Find the update button for this customer row and show a spinner
+    const btn = document.querySelector(`tr[data-customer-id="${customerId}"] .btn-update-customer`);
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    }
     try {
         await api('POST', `/customers/${customerId}/update-images`);
         showToast(t('monitoring.updateDone'));
         setTimeout(() => checkImageUpdates(), 2000);
     } catch (err) {
         showMonitoringAlert('danger', err.message);
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-arrow-repeat"></i>';
+        }
     }
 }
 
 async function updateAllCustomers() {
     if (!confirm(t('monitoring.confirmUpdateAll'))) return;
     const btn = document.getElementById('btn-update-all');
+    const body = document.getElementById('image-updates-body');
     btn.disabled = true;
+    btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>${t('monitoring.updating')}`;
+
+    const progressDiv = document.createElement('div');
+    progressDiv.className = 'alert alert-info mt-3';
+    progressDiv.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>${t('monitoring.updateAllProgress')}`;
+    body.appendChild(progressDiv);
+
     try {
         const data = await api('POST', '/monitoring/customers/update-all');
-        showToast(data.message || t('monitoring.updateAllStarted'));
-        setTimeout(() => checkImageUpdates(), 5000);
+        progressDiv.remove();
+
+        if (data.results && data.results.length > 0) {
+            const allOk = data.updated === data.results.length;
+            const rows = data.results.map(r => `<tr>
+                <td>${esc(r.customer_name)}</td>
+                <td>${r.success
+                    ? '<span class="badge bg-success"><i class="bi bi-check-lg"></i> OK</span>'
+                    : '<span class="badge bg-danger"><i class="bi bi-x-lg"></i> Error</span>'}</td>
+                <td class="small text-muted">${esc(r.error || '')}</td>
+            </tr>`).join('');
+            const resultHtml = `<div class="alert alert-${allOk ? 'success' : 'warning'} mt-3">
+                <strong>${esc(data.message)}</strong>
+                <table class="table table-sm mb-0 mt-2">
+                    <thead><tr><th>${t('monitoring.thName')}</th><th>${t('monitoring.thStatus')}</th><th></th></tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>`;
+            body.insertAdjacentHTML('beforeend', resultHtml);
+        } else {
+            showToast(data.message);
+        }
+        setTimeout(() => checkImageUpdates(), 2000);
     } catch (err) {
+        progressDiv.remove();
         showMonitoringAlert('danger', err.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<i class="bi bi-lightning-charge-fill me-1"></i>${t('monitoring.updateAll')}`;
+    }
+}
+
+async function pullAllImagesSettings() {
+    if (!confirm(t('monitoring.confirmPull'))) return;
+    const btn = document.getElementById('btn-pull-images-settings');
+    const statusEl = document.getElementById('pull-images-settings-status');
+    btn.disabled = true;
+    statusEl.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>${t('monitoring.pulling')}`;
+    try {
+        await api('POST', '/monitoring/images/pull');
+        statusEl.innerHTML = `<i class="bi bi-check-circle text-success me-1"></i>${t('monitoring.pullStartedShort')}`;
+        setTimeout(() => { statusEl.innerHTML = ''; }, 8000);
+    } catch (err) {
+        statusEl.innerHTML = `<span class="text-danger"><i class="bi bi-exclamation-circle me-1"></i>${esc(err.message)}</span>`;
     } finally {
         btn.disabled = false;
     }
