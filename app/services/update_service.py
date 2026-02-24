@@ -15,8 +15,43 @@ import httpx
 SOURCE_DIR = "/app-source"
 VERSION_FILE = "/app/version.json"
 BACKUP_DIR = "/app/backups"
+CONTAINER_NAME = "netbird-msp-appliance"
+SERVICE_NAME = "netbird-msp-appliance"
 
 logger = logging.getLogger(__name__)
+
+
+def _get_compose_project_name() -> str:
+    """Detect the compose project name from the running container's labels.
+
+    Docker Compose sets the label ``com.docker.compose.project`` on every
+    managed container.  Reading it at runtime avoids hard-coding a project
+    name that may differ from the directory name used at deploy time.
+
+    Returns:
+        The compose project name (e.g. ``netbird-msp``).
+    """
+    try:
+        result = subprocess.run(
+            [
+                "docker", "inspect", CONTAINER_NAME,
+                "--format",
+                '{{index .Config.Labels "com.docker.compose.project"}}',
+            ],
+            capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode == 0:
+            project = result.stdout.strip()
+            if project:
+                logger.info("Detected compose project name: %s", project)
+                return project
+    except Exception as exc:
+        logger.warning("Could not detect compose project name: %s", exc)
+
+    # Fallback: derive from SOURCE_DIR basename (mirrors Compose default behaviour)
+    fallback = Path(SOURCE_DIR).name
+    logger.warning("Using fallback compose project name: %s", fallback)
+    return fallback
 
 
 def get_current_version() -> dict:
@@ -278,13 +313,20 @@ def trigger_update(config: Any, db_path: str) -> dict:
     #    ensure the compose-up runs detached on the Docker host via a wrapper.
     log_path = Path(BACKUP_DIR) / "update_rebuild.log"
 
+    # Detect compose project name at runtime — avoids hard-coding a name that
+    # may differ from the directory used at deploy time.
+    project_name = _get_compose_project_name()
+    # Image name follows Docker Compose convention: {project}-{service}
+    service_image = f"{project_name}-{SERVICE_NAME}:latest"
+    logger.info("Using project=%s  image=%s", project_name, service_image)
+
     # Phase A — build the new image (does NOT stop anything)
     build_cmd = [
         "docker", "compose",
-        "-p", "netbirdmsp-appliance",
+        "-p", project_name,
         "-f", f"{SOURCE_DIR}/docker-compose.yml",
         "build", "--no-cache",
-        "netbird-msp-appliance",
+        SERVICE_NAME,
     ]
     logger.info("Phase A: building new image …")
     try:
@@ -336,22 +378,19 @@ def trigger_update(config: Any, db_path: str) -> dict:
         val = build_env.get(key, "unknown")
         env_flags.extend(["-e", f"{key}={val}"])
 
-    # Use the same image we're already running (it has docker CLI + compose plugin)
-    own_image = "netbirdmsp-appliance-netbird-msp-appliance:latest"
-
     helper_cmd = [
         "docker", "run", "--rm", "-d", "--privileged",
         "--name", "msp-updater",
         "-v", "/var/run/docker.sock:/var/run/docker.sock:z",
         "-v", f"{host_source_dir}:{host_source_dir}:ro,z",
         *env_flags,
-        own_image,
+        service_image,  # freshly built image — has docker CLI + compose plugin
         "sh", "-c",
         (
             "sleep 3 && "
-            "docker compose -p netbirdmsp-appliance "
+            f"docker compose -p {project_name} "
             f"-f {host_source_dir}/docker-compose.yml "
-            "up --force-recreate --no-deps -d netbird-msp-appliance"
+            f"up --force-recreate --no-deps -d {SERVICE_NAME}"
         ),
     ]
     try:
