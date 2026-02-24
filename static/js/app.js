@@ -67,9 +67,34 @@ async function api(method, path, body = null) {
 }
 
 // ---------------------------------------------------------------------------
+// Dark mode
+// ---------------------------------------------------------------------------
+function toggleDarkMode() {
+    const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+    if (isDark) {
+        document.documentElement.removeAttribute('data-bs-theme');
+        localStorage.setItem('darkMode', 'light');
+        document.getElementById('darkmode-icon').className = 'bi bi-moon-fill';
+    } else {
+        document.documentElement.setAttribute('data-bs-theme', 'dark');
+        localStorage.setItem('darkMode', 'dark');
+        document.getElementById('darkmode-icon').className = 'bi bi-sun-fill';
+    }
+}
+
+function syncDarkmodeIcon() {
+    const icon = document.getElementById('darkmode-icon');
+    if (!icon) return;
+    icon.className = document.documentElement.getAttribute('data-bs-theme') === 'dark'
+        ? 'bi bi-sun-fill'
+        : 'bi bi-moon-fill';
+}
+
+// ---------------------------------------------------------------------------
 // Auth
 // ---------------------------------------------------------------------------
 async function initApp() {
+    syncDarkmodeIcon();
     await initI18n();
     await loadBranding();
     await loadAzureLoginConfig();

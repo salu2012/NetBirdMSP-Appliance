@@ -6,6 +6,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NetBird MSP Appliance</title>
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <script>
+        // Apply dark mode before page renders to prevent flash
+        (function () {
+            const saved = localStorage.getItem('darkMode');
+            if (saved === 'dark') document.documentElement.setAttribute('data-bs-theme', 'dark');
+        })();
+    </script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="/static/css/styles.css" rel="stylesheet">
@@ -109,6 +116,10 @@
                     <span id="nav-brand-name">NetBird MSP</span>
                 </a>
                 <div class="d-flex align-items-center">
+                    <!-- Dark Mode Toggle -->
+                    <button class="btn btn-outline-light btn-sm me-2" id="darkmode-toggle" onclick="toggleDarkMode()" title="Toggle dark mode">
+                        <i id="darkmode-icon" class="bi bi-moon-fill"></i>
+                    </button>
                     <!-- Language Switcher -->
                     <div class="dropdown me-2">
                         <button class="btn btn-outline-light btn-sm dropdown-toggle" id="language-switcher-btn"

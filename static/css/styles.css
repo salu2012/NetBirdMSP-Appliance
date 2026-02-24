@@ -188,3 +188,36 @@ body.i18n-loading #app-page {
     font-weight: 600;
     background: rgba(0, 0, 0, 0.02);
 }
+
+/* ---------------------------------------------------------------------------
+   Dark mode overrides (Bootstrap 5.3 data-bs-theme="dark")
+   Bootstrap handles most components automatically; only custom elements need
+   explicit overrides here.
+--------------------------------------------------------------------------- */
+[data-bs-theme="dark"] .card {
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+[data-bs-theme="dark"] .card-header {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+[data-bs-theme="dark"] .log-entry {
+    border-bottom-color: rgba(255, 255, 255, 0.07);
+}
+
+[data-bs-theme="dark"] .log-time {
+    color: #9ca3af;
+}
+
+[data-bs-theme="dark"] .table th {
+    color: #9ca3af;
+}
+
+[data-bs-theme="dark"] .login-container {
+    background: linear-gradient(135deg, #0d0d1a 0%, #0a1020 50%, #071525 100%);
+}
+
+[data-bs-theme="dark"] .stat-card {
+    background: var(--bs-card-bg);
+}
