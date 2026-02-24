@@ -252,6 +252,16 @@ def trigger_update(config: Any, db_path: str) -> dict:
         pull_cmd = ["git", "-C", SOURCE_DIR, "pull", "origin", branch]
 
     # 3. Git pull (synchronous — must complete before rebuild)
+    # Ensure .git directory is owned by the process user (root inside container).
+    # The .git dir may be owned by the host user after manual operations.
+    try:
+        subprocess.run(
+            ["git", "config", "--global", "--add", "safe.directory", SOURCE_DIR],
+            capture_output=True, timeout=10,
+        )
+    except Exception:
+        pass
+
     try:
         result = subprocess.run(
             pull_cmd,
@@ -274,6 +284,15 @@ def trigger_update(config: Any, db_path: str) -> dict:
         }
 
     logger.info("git pull succeeded: %s", result.stdout.strip()[:200])
+
+    # Fetch tags separately — git pull does not always pull all tags
+    try:
+        subprocess.run(
+            ["git", "-C", SOURCE_DIR, "fetch", "--tags"],
+            capture_output=True, text=True, timeout=30,
+        )
+    except Exception as exc:
+        logger.warning("git fetch --tags failed (non-fatal): %s", exc)
 
     # 4. Read version info from the freshly-pulled source
     build_env = os.environ.copy()
