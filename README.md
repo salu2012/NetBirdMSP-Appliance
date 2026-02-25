@@ -38,11 +38,20 @@ A management solution for running isolated NetBird instances for your MSP busine
 - **Docker-Based** — Everything runs in containers for easy deployment
 
 ### Dashboard
-- **Modern Web UI** — Responsive Bootstrap 5 interface
+- **Modern Web UI** — Responsive Bootstrap 5 interface with dark/light mode toggle
 - **Real-Time Monitoring** — Container status, health checks, resource usage
 - **Container Logs** — View logs per container directly in the browser
 - **Start / Stop / Restart** — Control customer instances from the dashboard
 - **Customer Status Tracking** — Automatic status sync (active / inactive / error)
+- **Update Indicators** — Per-customer badges when container images are outdated
+
+### NetBird Container Updates
+- **Docker Hub Digest Check** — Compare locally pulled image digests against Docker Hub without pulling
+- **One-Click Pull** — Pull all NetBird images from Docker Hub via Settings
+- **Bulk Update** — Update all outdated customer containers at once from the Monitoring page
+- **Per-Customer Update** — Update a single customer's containers from the customer detail view
+- **Zero Data Loss** — Container recreation preserves all bind-mounted volumes
+- **Sequential Updates** — Customers are updated one at a time to minimize risk
 
 ### Multi-Language (i18n)
 - **English and German** — Full UI translation
@@ -55,12 +64,17 @@ A management solution for running isolated NetBird instances for your MSP busine
 - **Login Page** — Branding is applied to the login page automatically
 - **Configurable Docker Images** — Use custom or specific NetBird image versions
 
-### Security
+### Authentication & User Management
 - **JWT Authentication** — Token-based API authentication
 - **Multi-Factor Authentication (MFA)** — Optional TOTP-based MFA for all local users, activatable in Security settings
 - **Azure AD / OIDC** — Optional single sign-on via Microsoft Entra ID (exempt from MFA)
-- **Encrypted Credentials** — NPM passwords, relay secrets, and TOTP secrets are Fernet-encrypted at rest
+- **LDAP / Active Directory** — Allow AD users to authenticate; local admin accounts always work as fallback
+- **Encrypted Credentials** — NPM passwords, relay secrets, TOTP secrets, and LDAP bind passwords are Fernet-encrypted at rest
 - **User Management** — Create, edit, delete admin users, reset passwords and MFA
+
+### Integrations
+- **Windows DNS** — Automatically create and delete DNS A-records when deploying or removing customers
+- **MSP Updates** — In-UI appliance update check with configurable release branch
 
 ---
 
@@ -178,6 +192,18 @@ The following tools and services must be available **before** running the instal
 
 ### Install Prerequisites (Ubuntu/Debian)
 
+> **Note:** On a fresh Debian minimal install, `sudo` is not pre-installed. Install it as root first:
+
+```bash
+# As root — only needed on fresh Debian minimal (sudo not pre-installed):
+apt update && apt install -y sudo
+
+# Install remaining prerequisites:
+sudo apt install -y curl git openssl
+```
+
+If `sudo` is already available (Ubuntu, most standard installs):
+
 ```bash
 sudo apt update
 sudo apt install -y curl git openssl
@@ -266,17 +292,32 @@ HOST_IP=<your-server-ip>
 
 ### Web UI Settings
 
-Available under **Settings** in the web interface:
+Available under **Settings** in the web interface, organized into tabs:
+
+#### User Management
 
 | Tab | Settings |
 |-----|----------|
-| **System** | Base domain, admin email, Docker images, port ranges, data directory |
-| **NPM Integration** | NPM API URL, login credentials, SSL certificate mode (Let's Encrypt / Wildcard), wildcard certificate selection |
-| **Branding** | Platform name, subtitle, logo upload, default language |
+| **Azure AD** | Azure AD / Entra ID SSO configuration (tenant ID, client ID/secret, optional group restriction) |
 | **Users** | Create/edit/delete admin users, per-user language preference, MFA reset |
-| **Azure AD** | Azure AD / Entra ID SSO configuration |
+| **LDAP / AD** | LDAP/Active Directory authentication (server, base DN, bind credentials, group restriction), enable/disable |
 | **Security** | Change admin password, enable/disable MFA globally, manage own TOTP |
-| **Monitoring** | System resources, Docker stats |
+
+#### System
+
+| Tab | Settings |
+|-----|----------|
+| **Branding** | Platform name, subtitle, logo upload, default language |
+| **NetBird Docker Images** | Configured NetBird image tags (management, signal, relay, dashboard), pull images from Docker Hub |
+| **NetBird MSP System** | Base domain, admin email, port ranges, data directory |
+| **NetBird MSP Updates** | Appliance version info, check for updates, switch release branch |
+
+#### External Systems
+
+| Tab | Settings |
+|-----|----------|
+| **NPM Proxy** | NPM API URL, login credentials, SSL certificate mode (Let's Encrypt / Wildcard), wildcard certificate selection |
+| **Windows DNS** | Windows DNS server integration for automatic DNS A-record creation/deletion on customer deploy/delete |
 
 Changes are applied immediately without restart.
 
@@ -308,11 +349,42 @@ Changes are applied immediately without restart.
 
 ### Monitoring
 
-The dashboard shows:
+The **Monitoring** page shows:
 - **System Overview** — Total customers, active/inactive, errors
-- **Resource Usage** — RAM, CPU per container
-- **Container Health** — Running/stopped per container with color-coded status
-- **Deployment Logs** — Action history per customer
+- **Host Resources** — CPU, RAM, disk usage of the host machine
+- **Customer Status** — Container health per customer (running/stopped)
+- **NetBird Container Updates** — Compare local image digests against Docker Hub, pull new images, and update all outdated customer containers
+
+### NetBird Container Updates
+
+#### Workflow
+
+1. **Check for updates** — Go to **Monitoring > NetBird Container Updates**, click **"Check Updates"**
+   - Compares local image digests against Docker Hub
+   - Shows which images have a new version available
+   - Shows which customer containers are running outdated images
+   - An orange badge appears next to customers in the dashboard list that need updating
+
+2. **Pull new images** — Go to **Settings > NetBird Docker Images**, click **"Pull from Docker Hub"**
+   - Pulls all 4 NetBird images (`management`, `signal`, `relay`, `dashboard`) in the background
+   - Wait for the pull to complete before updating customers
+
+3. **Update customers** — Return to **Monitoring > NetBird Container Updates**, click **"Update All Customers"**
+   - Recreates containers for all customers whose running image is outdated
+   - Customers are updated **sequentially** — one at a time
+   - All bind-mounted volumes (database, keys, config) are preserved — **no data loss**
+   - A per-customer results table is shown after completion
+
+#### Per-Customer Update
+
+To update a single customer:
+1. Open the customer detail view
+2. Go to the **Deployment** tab
+3. Click **"Update Images"**
+
+#### Update Badges
+
+The dashboard customer list shows an orange **"Update"** badge next to any customer whose running containers are using an outdated local image. This check is fast (local-only, no network call) and runs automatically when the dashboard loads.
 
 ### Language Settings
 
@@ -320,9 +392,13 @@ The dashboard shows:
 - **Per-user default** — Set in Settings > Users during user creation
 - **System default** — Set in Settings > Branding
 
+### Dark Mode
+
+Toggle dark/light mode using the moon/sun icon in the top navigation bar. The preference is saved in the browser.
+
 ### Multi-Factor Authentication (MFA)
 
-TOTP-based MFA can be enabled globally for all local users. Azure AD users are not affected (they use their own MFA).
+TOTP-based MFA can be enabled globally for all local users. Azure AD and LDAP users are not affected (they use their own authentication systems).
 
 #### Enable MFA
 1. Go to **Settings > Security**
@@ -344,9 +420,30 @@ When MFA is enabled and a user logs in for the first time:
 - **Disable own TOTP** — In Settings > Security, click "Disable my TOTP" to remove your own MFA setup
 - **Disable MFA globally** — Uncheck the toggle in Settings > Security to allow login without MFA
 
+### LDAP / Active Directory Authentication
+
+Active Directory users can log in to the appliance using their AD credentials. Local admin accounts always work as a fallback regardless of LDAP status.
+
+#### Setup
+1. Go to **Settings > LDAP / AD**
+2. Enable **"LDAP / AD Authentication"**
+3. Enter LDAP server, port, bind DN (service account), bind password, and base DN
+4. Optionally restrict access to members of a specific AD group
+5. Click **Save LDAP Settings**
+
+### Windows DNS Integration
+
+Automatically create and delete DNS A-records in a Windows DNS server when customers are deployed or deleted.
+
+#### Setup
+1. Go to **Settings > Windows DNS**
+2. Enable **"Windows DNS Integration"**
+3. Enter the DNS server details
+4. Click **Save DNS Settings**
+
 ### SSL Certificate Mode
 
-The appliance supports two SSL certificate modes for customer proxy hosts, configurable under **Settings > NPM Integration**:
+The appliance supports two SSL certificate modes for customer proxy hosts, configurable under **Settings > NPM Proxy**:
 
 #### Let's Encrypt (default)
 Each customer gets an individual Let's Encrypt certificate via HTTP-01 validation. This is the default behavior and requires no additional setup beyond a valid admin email.
@@ -356,7 +453,7 @@ Use a pre-existing wildcard certificate (e.g. `*.yourdomain.com`) already upload
 
 **Setup:**
 1. Upload a wildcard certificate in Nginx Proxy Manager (e.g. via DNS challenge)
-2. Go to **Settings > NPM Integration**
+2. Go to **Settings > NPM Proxy**
 3. Set **SSL Mode** to "Wildcard Certificate"
 4. Click the refresh button to load certificates from NPM
 5. Select your wildcard certificate from the dropdown
@@ -385,30 +482,37 @@ http://your-server:8000/api/docs
 
 **Common Endpoints:**
 ```
-POST   /api/customers              # Create customer + deploy
-GET    /api/customers              # List all customers
-GET    /api/customers/{id}         # Get customer details
-PUT    /api/customers/{id}         # Update customer
-DELETE /api/customers/{id}         # Delete customer
+POST   /api/customers                    # Create customer + deploy
+GET    /api/customers                    # List all customers
+GET    /api/customers/{id}               # Get customer details
+PUT    /api/customers/{id}               # Update customer
+DELETE /api/customers/{id}               # Delete customer
 
-POST   /api/customers/{id}/start   # Start containers
-POST   /api/customers/{id}/stop    # Stop containers
-POST   /api/customers/{id}/restart # Restart containers
-GET    /api/customers/{id}/logs    # Get container logs
-GET    /api/customers/{id}/health  # Health check
+POST   /api/customers/{id}/start         # Start containers
+POST   /api/customers/{id}/stop          # Stop containers
+POST   /api/customers/{id}/restart       # Restart containers
+GET    /api/customers/{id}/logs          # Get container logs
+GET    /api/customers/{id}/health        # Health check
+POST   /api/customers/{id}/update-images # Recreate containers with new images
 
-GET    /api/settings/branding      # Get branding (public, no auth)
-GET    /api/settings/npm-certificates # List NPM SSL certificates
-PUT    /api/settings               # Update system settings
-GET    /api/users                  # List users
-POST   /api/users                  # Create user
-POST   /api/users/{id}/reset-mfa   # Reset user's MFA
+GET    /api/settings/branding            # Get branding (public, no auth)
+GET    /api/settings/npm-certificates    # List NPM SSL certificates
+PUT    /api/settings                     # Update system settings
 
-POST   /api/auth/mfa/setup         # Generate TOTP secret + QR code
-POST   /api/auth/mfa/setup/complete # Verify first TOTP code
-POST   /api/auth/mfa/verify        # Verify TOTP code on login
-GET    /api/auth/mfa/status        # Get MFA status
-POST   /api/auth/mfa/disable       # Disable own TOTP
+GET    /api/users                        # List users
+POST   /api/users                        # Create user
+POST   /api/users/{id}/reset-mfa         # Reset user's MFA
+
+POST   /api/auth/mfa/setup               # Generate TOTP secret + QR code
+POST   /api/auth/mfa/setup/complete      # Verify first TOTP code
+POST   /api/auth/mfa/verify              # Verify TOTP code on login
+GET    /api/auth/mfa/status              # Get MFA status
+POST   /api/auth/mfa/disable             # Disable own TOTP
+
+GET    /api/monitoring/images/check                  # Check Hub vs local digests for all images
+POST   /api/monitoring/images/pull                   # Pull all NetBird images from Docker Hub (background)
+GET    /api/monitoring/customers/local-update-status # Fast local-only update check (no network)
+POST   /api/monitoring/customers/update-all          # Recreate outdated containers for all customers
 ```
 
 ### Example: Create Customer via API
@@ -488,11 +592,28 @@ The database migrations run automatically on startup.
 
 ### Updating NetBird Images
 
-Via the Web UI:
-1. Settings > System Configuration
-2. Change image tags (e.g., `netbirdio/management:0.35.0`)
-3. Click "Save"
-4. Re-deploy individual customers to apply the new images
+NetBird image updates are managed entirely through the Web UI — no manual config changes required.
+
+#### Step 1 — Pull new images
+
+1. Go to **Settings > NetBird Docker Images**
+2. Click **"Pull from Docker Hub"**
+3. Wait for the pull to complete (progress shown inline)
+
+#### Step 2 — Check which customers need updating
+
+1. Go to **Monitoring > NetBird Container Updates**
+2. Click **"Check Updates"**
+3. The table shows per-image Hub vs. local digest comparison and which customers are running outdated containers
+
+#### Step 3 — Update customer containers
+
+- **All customers**: Click **"Update All Customers"** in the Monitoring page
+  - Customers are updated sequentially, one at a time
+  - A results table is shown after completion
+- **Single customer**: Open the customer detail view > **Deployment** tab > **"Update Images"**
+
+> All bind-mounted volumes (database, keys, config files) are preserved. Container recreation does not cause data loss.
 
 ---
 
@@ -546,7 +667,7 @@ MIT License — see [LICENSE](LICENSE) file for details.
 
 ## Built With AI
 
-This software was developed with [Claude Code](https://claude.ai/claude-code) (Anthropic Claude Opus 4.6) — from architecture and backend logic to frontend UI and deployment scripts.
+This software was developed with [Claude Code](https://claude.ai/claude-code) (Anthropic Claude Sonnet 4.6) — from architecture and backend logic to frontend UI and deployment scripts.
 
 ## Acknowledgments
 
