@@ -38,33 +38,49 @@ def _parse_image_name(image: str) -> tuple[str, str]:
 
 
 async def get_hub_digest(image: str) -> str | None:
-    """Fetch the current digest from Docker Hub for an image:tag.
+    """Fetch the manifest-list digest from the Docker Registry v2 API.
 
-    Uses the Docker Hub REST API — does NOT pull the image.
-    Returns the digest string (sha256:...) or None on failure.
+    Uses anonymous auth against registry-1.docker.io — does NOT pull the image.
+    Returns the Docker-Content-Digest header value (sha256:...) which is identical
+    to the digest stored in local RepoDigests after a pull, enabling correct comparison.
     """
     name, tag = _parse_image_name(image)
-    url = f"https://hub.docker.com/v2/repositories/{name}/tags/{tag}/"
     try:
         async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.get(url)
-        if resp.status_code != 200:
-            logger.warning("Docker Hub API returned %d for %s", resp.status_code, image)
+            # Step 1: obtain anonymous pull token
+            token_resp = await client.get(
+                "https://auth.docker.io/token",
+                params={"service": "registry.docker.io", "scope": f"repository:{name}:pull"},
+            )
+            if token_resp.status_code != 200:
+                logger.warning("Failed to get registry token for %s", image)
+                return None
+            token = token_resp.json().get("token")
+
+            # Step 2: fetch manifest — prefer manifest list (multi-arch) so the digest
+            # matches what `docker pull` stores in RepoDigests.
+            manifest_resp = await client.get(
+                f"https://registry-1.docker.io/v2/{name}/manifests/{tag}",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Accept": (
+                        "application/vnd.docker.distribution.manifest.list.v2+json, "
+                        "application/vnd.oci.image.index.v1+json, "
+                        "application/vnd.docker.distribution.manifest.v2+json"
+                    ),
+                },
+            )
+            if manifest_resp.status_code != 200:
+                logger.warning("Registry API returned %d for %s", manifest_resp.status_code, image)
+                return None
+
+            # The Docker-Content-Digest header is the canonical digest
+            digest = manifest_resp.headers.get("docker-content-digest")
+            if digest:
+                return digest
             return None
-        data = resp.json()
-        images = data.get("images", [])
-        # Prefer linux/amd64 digest
-        for img in images:
-            if img.get("os") == "linux" and img.get("architecture") in ("amd64", ""):
-                d = img.get("digest")
-                if d:
-                    return d
-        # Fallback: first available digest
-        if images:
-            return images[0].get("digest")
-        return None
     except Exception as exc:
-        logger.warning("Failed to fetch Docker Hub digest for %s: %s", image, exc)
+        logger.warning("Failed to fetch registry digest for %s: %s", image, exc)
         return None
 
 
