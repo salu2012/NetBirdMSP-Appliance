@@ -789,7 +789,7 @@ async function viewCustomer(id) {
                     <button class="btn btn-success btn-sm me-1" onclick="customerAction(${id},'start')"><i class="bi bi-play-circle me-1"></i>${t('customer.start')}</button>
                     <button class="btn btn-warning btn-sm me-1" onclick="customerAction(${id},'stop')"><i class="bi bi-stop-circle me-1"></i>${t('customer.stop')}</button>
                     <button class="btn btn-info btn-sm me-1" onclick="customerAction(${id},'restart')"><i class="bi bi-arrow-repeat me-1"></i>${t('customer.restart')}</button>
-                    <button class="btn btn-outline-primary btn-sm me-1" onclick="customerAction(${id},'deploy',${JSON.stringify(data.name)})"><i class="bi bi-rocket me-1"></i>${t('customer.reDeploy')}</button>
+                    <button class="btn btn-outline-primary btn-sm me-1" data-customer-name="${esc(data.name)}" onclick="customerAction(${id},'deploy',this.dataset.customerName)"><i class="bi bi-rocket me-1"></i>${t('customer.reDeploy')}</button>
                     <button class="btn btn-outline-warning btn-sm" id="btn-update-images-detail" onclick="updateCustomerImagesFromDetail(${id})">
                         <span id="update-detail-spinner" class="spinner-border spinner-border-sm d-none me-1"></span>
                         <i class="bi bi-arrow-repeat me-1"></i>${t('customer.updateImages')}
