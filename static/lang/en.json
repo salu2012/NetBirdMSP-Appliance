@@ -107,6 +107,17 @@
     "saveAndDeploy": "Save & Deploy",
     "saveChanges": "Save Changes"
   },
+  "redeployModal": {
+    "title": "Redeploy Customer",
+    "intro": "How should",
+    "intro2": "be redeployed?",
+    "keepTitle": "Keep Data",
+    "keepDesc": "Containers are stopped and restarted. The NetBird database, peer configurations, and encryption keys are preserved. Use this after a config change or image update.",
+    "keepNote": "Peers stay connected after restart.",
+    "freshTitle": "Fresh Deploy",
+    "freshDesc": "All existing data is deleted — containers, volumes, config files, and the NetBird database. A completely new instance is created. All peers must re-enroll.",
+    "freshNote": "All peer data is lost. Cannot be undone."
+  },
   "deleteModal": {
     "title": "Confirm Deletion",
     "confirmText": "Are you sure you want to delete customer",
