@@ -669,9 +669,9 @@ async function confirmDeleteCustomer() {
 // ---------------------------------------------------------------------------
 // Customer Actions (start/stop/restart/deploy)
 // ---------------------------------------------------------------------------
-async function customerAction(id, action) {
+async function customerAction(id, action, name) {
     if (action === 'deploy') {
-        showRedeployModal(id);
+        showRedeployModal(id, name);
         return;
     }
     try {
@@ -683,9 +683,12 @@ async function customerAction(id, action) {
     }
 }
 
-function showRedeployModal(id) {
-    const row = document.querySelector(`tr[data-customer-id="${id}"]`);
-    const name = row ? row.querySelector('td')?.textContent?.trim() : `#${id}`;
+function showRedeployModal(id, name) {
+    // Prefer passed name, fallback to dashboard table row, then ID
+    if (!name) {
+        const row = document.querySelector(`tr[data-customer-id="${id}"]`);
+        name = row ? row.querySelector('td')?.textContent?.trim() : `#${id}`;
+    }
     document.getElementById('redeploy-customer-id').value = id;
     document.getElementById('redeploy-customer-name').textContent = name;
     new bootstrap.Modal(document.getElementById('redeploy-modal')).show();
@@ -786,7 +789,7 @@ async function viewCustomer(id) {
                     <button class="btn btn-success btn-sm me-1" onclick="customerAction(${id},'start')"><i class="bi bi-play-circle me-1"></i>${t('customer.start')}</button>
                     <button class="btn btn-warning btn-sm me-1" onclick="customerAction(${id},'stop')"><i class="bi bi-stop-circle me-1"></i>${t('customer.stop')}</button>
                     <button class="btn btn-info btn-sm me-1" onclick="customerAction(${id},'restart')"><i class="bi bi-arrow-repeat me-1"></i>${t('customer.restart')}</button>
-                    <button class="btn btn-outline-primary btn-sm me-1" onclick="customerAction(${id},'deploy')"><i class="bi bi-rocket me-1"></i>${t('customer.reDeploy')}</button>
+                    <button class="btn btn-outline-primary btn-sm me-1" onclick="customerAction(${id},'deploy',${JSON.stringify(data.name)})"><i class="bi bi-rocket me-1"></i>${t('customer.reDeploy')}</button>
                     <button class="btn btn-outline-warning btn-sm" id="btn-update-images-detail" onclick="updateCustomerImagesFromDetail(${id})">
                         <span id="update-detail-spinner" class="spinner-border spinner-border-sm d-none me-1"></span>
                         <i class="bi bi-arrow-repeat me-1"></i>${t('customer.updateImages')}
