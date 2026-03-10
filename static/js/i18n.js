@@ -27,7 +27,8 @@ function detectLanguage() {
 async function loadLanguage(lang) {
     if (translations[lang]) return;
     try {
-        const resp = await fetch(`/static/lang/${lang}.json`);
+        const v = window.STATIC_VERSION ? `?v=${window.STATIC_VERSION}` : '';
+        const resp = await fetch(`/static/lang/${lang}.json${v}`);
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         translations[lang] = await resp.json();
     } catch (err) {

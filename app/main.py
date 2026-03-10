@@ -90,16 +90,36 @@ STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
 if os.path.isdir(STATIC_DIR):
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-# Serve index.html at root
-from fastapi.responses import FileResponse
+# Serve index.html at root — inject cache-busting version into static asset URLs
+# so the browser always loads fresh JS/CSS after a container update.
+from fastapi.responses import FileResponse, HTMLResponse
+from app.services import update_service
+
+_STATIC_ASSETS = (
+    '"/static/js/app.js"',
+    '"/static/js/i18n.js"',
+    '"/static/css/styles.css"',
+)
+
+def _cache_bust_index(html: str, version: str) -> str:
+    # Inject version as a global JS variable so i18n.js can bust lang file caches too
+    html = html.replace("</head>", f'<script>window.STATIC_VERSION="{version}";</script>\n</head>', 1)
+    for asset in _STATIC_ASSETS:
+        busted = asset.rstrip('"') + f'?v={version}"'
+        html = html.replace(asset, busted)
+    return html
+
 
 @app.get("/", include_in_schema=False)
 async def serve_index():
-    """Serve the main dashboard."""
+    """Serve the main dashboard with cache-busted static asset URLs."""
     index_path = os.path.join(STATIC_DIR, "index.html")
-    if os.path.isfile(index_path):
-        return FileResponse(index_path)
-    return JSONResponse({"message": "NetBird MSP Appliance API is running."})
+    if not os.path.isfile(index_path):
+        return JSONResponse({"message": "NetBird MSP Appliance API is running."})
+    version = update_service.get_current_version().get("commit", "unknown")
+    html = open(index_path, encoding="utf-8").read()
+    html = _cache_bust_index(html, version)
+    return HTMLResponse(content=html, headers={"Cache-Control": "no-cache"})
 
 
 # ---------------------------------------------------------------------------
