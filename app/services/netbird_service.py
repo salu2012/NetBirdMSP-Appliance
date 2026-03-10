@@ -264,10 +264,12 @@ async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
             _log_action(db, customer_id, "deploy", "info",
                         "Auto-setup failed — admin must complete setup manually.")
 
-        # Step 9: Create NPM proxy host (production only)
-        npm_proxy_id = None
-        npm_stream_id = None
-        if not local_mode:
+        # Step 9: Create NPM proxy host (production only).
+        # If an existing deployment already has an NPM proxy, reuse it — this happens
+        # when keep_data=True was passed and undeploy_customer was NOT called beforehand.
+        npm_proxy_id = existing_deployment.npm_proxy_id if existing_deployment else None
+        npm_stream_id = existing_deployment.npm_stream_id if existing_deployment else None
+        if not local_mode and not npm_proxy_id:
             forward_host = npm_service._get_forward_host()
             npm_result = await npm_service.create_proxy_host(
                 api_url=config.npm_api_url,
@@ -304,9 +306,14 @@ async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
                     "SSL certificate not created automatically. "
                     "Please create it manually in NPM or ensure DNS resolves and port 80 is reachable, then re-deploy.",
                 )
+        elif npm_proxy_id and not local_mode:
+            _log_action(db, customer_id, "deploy", "info",
+                        f"Reusing existing NPM proxy (ID {npm_proxy_id}) — data preserved.")
 
-        # Step 10: Create Windows DNS A-record (non-fatal — failure does not abort deployment)
-        if config.dns_enabled and config.dns_server and config.dns_zone and config.dns_record_ip:
+        # Step 10: Create Windows DNS A-record (non-fatal — failure does not abort deployment).
+        # Skip if an existing deployment is being kept (DNS record already exists).
+        if config.dns_enabled and config.dns_server and config.dns_zone and config.dns_record_ip \
+                and not existing_deployment:
             try:
                 dns_result = await dns_service.create_dns_record(customer.subdomain, config)
                 if dns_result["ok"]:

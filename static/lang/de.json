@@ -354,6 +354,17 @@
     "saveAndDeploy": "Speichern & Bereitstellen",
     "saveChanges": "Änderungen speichern"
   },
+  "redeployModal": {
+    "title": "Kunde neu bereitstellen",
+    "intro": "Wie soll",
+    "intro2": "neu bereitgestellt werden?",
+    "keepTitle": "Daten behalten",
+    "keepDesc": "Container werden gestoppt und neu gestartet. Die NetBird-Datenbank, Peer-Konfigurationen und Verschlüsselungsschlüssel bleiben erhalten. Verwenden Sie dies nach einer Konfigurationsänderung oder einem Image-Update.",
+    "keepNote": "Peers bleiben nach dem Neustart verbunden.",
+    "freshTitle": "Neu aufsetzen",
+    "freshDesc": "Alle bestehenden Daten werden gelöscht — Container, Volumes, Konfigurationsdateien und die NetBird-Datenbank. Eine komplett neue Instanz wird erstellt. Alle Peers müssen sich neu registrieren.",
+    "freshNote": "Alle Peer-Daten gehen verloren. Kann nicht rückgängig gemacht werden."
+  },
   "deleteModal": {
     "title": "Löschen bestätigen",
     "confirmText": "Möchten Sie den Kunden wirklich löschen:",

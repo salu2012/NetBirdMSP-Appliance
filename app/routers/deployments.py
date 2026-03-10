@@ -2,7 +2,7 @@
 
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal, get_db
@@ -19,6 +19,14 @@ router = APIRouter()
 async def manual_deploy(
     customer_id: int,
     background_tasks: BackgroundTasks,
+    keep_data: bool = Query(
+        False,
+        description=(
+            "If True, preserve existing NetBird data (database, keys, peers). "
+            "Containers are recreated without wiping the instance directory. "
+            "If False (default), the instance is fully removed and redeployed from scratch."
+        ),
+    ),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -29,6 +37,7 @@ async def manual_deploy(
 
     Args:
         customer_id: Customer ID.
+        keep_data: Whether to preserve existing NetBird data.
 
     Returns:
         Acknowledgement dict.
@@ -40,12 +49,12 @@ async def manual_deploy(
     customer.status = "deploying"
     db.commit()
 
-    async def _deploy_bg(cid: int) -> None:
+    async def _deploy_bg(cid: int, keep: bool) -> None:
         bg_db = SessionLocal()
         try:
-            # Remove existing deployment if present
             existing = bg_db.query(Deployment).filter(Deployment.customer_id == cid).first()
-            if existing:
+            if existing and not keep:
+                # Full redeploy: remove everything first
                 await netbird_service.undeploy_customer(bg_db, cid)
             await netbird_service.deploy_customer(bg_db, cid)
         except Exception:
@@ -53,7 +62,7 @@ async def manual_deploy(
         finally:
             bg_db.close()
 
-    background_tasks.add_task(_deploy_bg, customer_id)
+    background_tasks.add_task(_deploy_bg, customer_id, keep_data)
     return {"message": "Deployment started in background.", "status": "deploying"}
 
 

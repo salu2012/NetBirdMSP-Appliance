@@ -1267,6 +1267,49 @@
         </div>
     </div>
 
+    <!-- Modal: Redeploy Confirmation -->
+    <div class="modal fade" id="redeploy-modal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" data-i18n="redeployModal.title">Redeploy Customer</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p><span data-i18n="redeployModal.intro">How should</span> <strong id="redeploy-customer-name"></strong> <span data-i18n="redeployModal.intro2">be redeployed?</span></p>
+                    <input type="hidden" id="redeploy-customer-id">
+                    <div class="row g-3 mt-1">
+                        <div class="col-md-6">
+                            <div class="card h-100 border-success" style="cursor:pointer" onclick="confirmRedeploy(true)" id="redeploy-card-keep">
+                                <div class="card-body">
+                                    <h6 class="card-title text-success"><i class="bi bi-shield-check me-2"></i><span data-i18n="redeployModal.keepTitle">Keep Data</span></h6>
+                                    <p class="card-text small" data-i18n="redeployModal.keepDesc">Containers are stopped and restarted. The NetBird database, peer configurations, and encryption keys are preserved. Use this after a config change or image update.</p>
+                                </div>
+                                <div class="card-footer bg-success bg-opacity-10 text-success small" data-i18n="redeployModal.keepNote">
+                                    Peers stay connected after restart.
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card h-100 border-danger" style="cursor:pointer" onclick="confirmRedeploy(false)" id="redeploy-card-fresh">
+                                <div class="card-body">
+                                    <h6 class="card-title text-danger"><i class="bi bi-trash me-2"></i><span data-i18n="redeployModal.freshTitle">Fresh Deploy</span></h6>
+                                    <p class="card-text small" data-i18n="redeployModal.freshDesc">All existing data is deleted — containers, volumes, config files, and the NetBird database. A completely new instance is created. All peers must re-enroll.</p>
+                                </div>
+                                <div class="card-footer bg-danger bg-opacity-10 text-danger small" data-i18n="redeployModal.freshNote">
+                                    All peer data is lost. Cannot be undone.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="common.cancel">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal: Delete Confirmation -->
     <div class="modal fade" id="delete-modal" tabindex="-1">
         <div class="modal-dialog">

@@ -667,15 +667,39 @@ async function confirmDeleteCustomer() {
 }
 
 // ---------------------------------------------------------------------------
-// Customer Actions (start/stop/restart)
+// Customer Actions (start/stop/restart/deploy)
 // ---------------------------------------------------------------------------
 async function customerAction(id, action) {
+    if (action === 'deploy') {
+        showRedeployModal(id);
+        return;
+    }
     try {
         await api('POST', `/customers/${id}/${action}`);
         if (currentPage === 'dashboard') loadCustomers();
         if (currentCustomerId == id) viewCustomer(id);
     } catch (err) {
         alert(t('errors.actionFailed', { action, error: err.message }));
+    }
+}
+
+function showRedeployModal(id) {
+    const row = document.querySelector(`tr[data-customer-id="${id}"]`);
+    const name = row ? row.querySelector('td')?.textContent?.trim() : `#${id}`;
+    document.getElementById('redeploy-customer-id').value = id;
+    document.getElementById('redeploy-customer-name').textContent = name;
+    new bootstrap.Modal(document.getElementById('redeploy-modal')).show();
+}
+
+async function confirmRedeploy(keepData) {
+    const id = document.getElementById('redeploy-customer-id').value;
+    bootstrap.Modal.getInstance(document.getElementById('redeploy-modal'))?.hide();
+    try {
+        await api('POST', `/customers/${id}/deploy?keep_data=${keepData}`);
+        if (currentPage === 'dashboard') loadCustomers();
+        if (currentCustomerId == id) viewCustomer(id);
+    } catch (err) {
+        alert(t('errors.actionFailed', { action: 'deploy', error: err.message }));
     }
 }
 
