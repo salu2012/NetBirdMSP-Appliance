@@ -263,10 +263,14 @@ async def create_proxy_host(
             "location ^~ /management.ManagementService/ {\n"
             f"    grpc_pass grpc://{forward_host}:{forward_port};\n"
             "    grpc_set_header Host $host;\n"
+            "    grpc_read_timeout 3600s;\n"
+            "    grpc_send_timeout 3600s;\n"
             "}\n"
             "location ^~ /signalexchange.SignalExchange/ {\n"
             f"    grpc_pass grpc://{forward_host}:{forward_port};\n"
             "    grpc_set_header Host $host;\n"
+            "    grpc_read_timeout 3600s;\n"
+            "    grpc_send_timeout 3600s;\n"
             "}\n"
         ),
         "meta": {
