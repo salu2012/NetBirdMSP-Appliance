@@ -1,7 +1,9 @@
 """Monitoring API — system overview, customer statuses, host resources."""
 
+import asyncio
 import logging
 import platform
+import time
 from typing import Any
 
 import psutil
@@ -15,6 +17,13 @@ from app.services import docker_service, image_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# Short-lived cache for the local update-status badges. This endpoint is
+# triggered on every customer-table render (i.e. every search keystroke), but
+# the underlying data (which images are outdated) only changes after an image
+# pull + container recreate, so a few seconds of staleness is harmless.
+_update_status_cache: dict[str, Any] = {"data": None, "expires": 0.0}
+_UPDATE_STATUS_TTL_SECONDS = 20
 
 
 @router.get("/status")
@@ -58,8 +67,7 @@ async def all_customers_status(
         .all()
     )
 
-    results: list[dict[str, Any]] = []
-    for c in customers:
+    async def _build_entry(c: Customer) -> dict[str, Any]:
         entry: dict[str, Any] = {
             "id": c.id,
             "name": c.name,
@@ -67,7 +75,7 @@ async def all_customers_status(
             "status": c.status,
         }
         if c.deployment:
-            containers = docker_service.get_container_status(c.deployment.container_prefix)
+            containers = await docker_service.get_container_status_async(c.deployment.container_prefix)
             entry["deployment_status"] = c.deployment.deployment_status
             entry["containers"] = containers
             entry["relay_udp_port"] = c.deployment.relay_udp_port
@@ -76,9 +84,11 @@ async def all_customers_status(
         else:
             entry["deployment_status"] = None
             entry["containers"] = []
-        results.append(entry)
+        return entry
 
-    return results
+    # Fetch container status for all customers concurrently instead of one
+    # blocking Docker SDK call at a time.
+    return await asyncio.gather(*[_build_entry(c) for c in customers])
 
 
 @router.get("/resources")
@@ -205,15 +215,28 @@ async def customers_local_update_status(
 
     Compares running container image IDs against locally stored images.
     No network call — safe to call on every dashboard load.
+
+    Results are cached for a few seconds since this is triggered on every
+    customer-table render (including every search keystroke) but the
+    underlying data rarely changes.
     """
+    now = time.monotonic()
+    if _update_status_cache["data"] is not None and now < _update_status_cache["expires"]:
+        return _update_status_cache["data"]
+
     config = db.query(SystemConfig).filter(SystemConfig.id == 1).first()
     if not config:
         return []
     deployments = db.query(Deployment).all()
-    results = []
-    for dep in deployments:
-        cs = image_service.get_customer_container_image_status(dep.container_prefix, config)
-        results.append({"customer_id": dep.customer_id, "needs_update": cs["needs_update"]})
+
+    async def _check(dep: Deployment) -> dict[str, Any]:
+        cs = await image_service.get_customer_container_image_status_async(dep.container_prefix, config)
+        return {"customer_id": dep.customer_id, "needs_update": cs["needs_update"]}
+
+    results = await asyncio.gather(*[_check(dep) for dep in deployments])
+    results = list(results)
+    _update_status_cache["data"] = results
+    _update_status_cache["expires"] = now + _UPDATE_STATUS_TTL_SECONDS
     return results
 
 

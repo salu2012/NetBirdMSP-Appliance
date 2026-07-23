@@ -211,6 +211,44 @@ async def pull_all_images(config) -> dict[str, Any]:
     }
 
 
+async def get_customer_container_image_status_async(container_prefix: str, config) -> dict[str, Any]:
+    """Async, thread-offloaded version of get_customer_container_image_status().
+
+    Runs the per-service `docker inspect` subprocess calls concurrently in the
+    thread pool instead of sequentially blocking the event loop — use this
+    whenever checking status for multiple customers (e.g. dashboard/search
+    badge refresh, monitoring overview).
+
+    Returns:
+        services: dict mapping service name to status info
+        needs_update: True if any service has a different image ID than locally stored
+    """
+    service_images = {
+        "management": config.netbird_management_image,
+        "signal": config.netbird_signal_image,
+        "relay": config.netbird_relay_image,
+        "dashboard": config.netbird_dashboard_image,
+    }
+    loop = asyncio.get_event_loop()
+
+    async def _check(svc: str, image: str) -> tuple[str, dict[str, Any]]:
+        container_name = f"{container_prefix}-{svc}"
+        container_id, local_id = await asyncio.gather(
+            loop.run_in_executor(None, get_container_image_id, container_name),
+            loop.run_in_executor(None, get_local_image_id, image),
+        )
+        if container_id and local_id:
+            up_to_date = container_id == local_id
+        else:
+            up_to_date = None  # container not running or image not pulled
+        return svc, {"container": container_name, "image": image, "up_to_date": up_to_date}
+
+    pairs = await asyncio.gather(*[_check(svc, image) for svc, image in service_images.items()])
+    services = dict(pairs)
+    needs_update = any(s["up_to_date"] is False for s in services.values())
+    return {"services": services, "needs_update": needs_update}
+
+
 def get_customer_container_image_status(container_prefix: str, config) -> dict[str, Any]:
     """Check which service containers are running outdated local images.
 

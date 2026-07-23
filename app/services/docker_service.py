@@ -27,13 +27,24 @@ async def _run_cmd(cmd: list[str], timeout: int = 120) -> subprocess.CompletedPr
     )
 
 
+_client: Optional[docker.DockerClient] = None
+
+
 def _get_client() -> docker.DockerClient:
-    """Return a Docker client connected via the Unix socket.
+    """Return a shared Docker client connected via the Unix socket.
+
+    The client is created once and reused — creating a new client per call
+    (as `docker.from_env()` does) re-negotiates the API version and opens a
+    fresh connection every time, which is wasteful when called once per
+    customer in a loop.
 
     Returns:
         docker.DockerClient instance.
     """
-    return docker.from_env()
+    global _client
+    if _client is None:
+        _client = docker.from_env()
+    return _client
 
 
 async def compose_up(
@@ -210,6 +221,16 @@ def get_container_status(container_prefix: str) -> list[dict[str, Any]]:
     except DockerException as exc:
         logger.error("Failed to get container status: %s", exc)
     return results
+
+
+async def get_container_status_async(container_prefix: str) -> list[dict[str, Any]]:
+    """Thread-offloaded wrapper around get_container_status().
+
+    Use this when checking status for multiple customers so the Docker SDK
+    calls run in the thread pool instead of blocking the event loop.
+    """
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, get_container_status, container_prefix)
 
 
 def get_container_logs(container_name: str, tail: int = 200) -> str:
