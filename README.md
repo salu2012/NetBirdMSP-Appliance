@@ -23,6 +23,7 @@ A management solution for running isolated NetBird instances for your MSP busine
 - [Troubleshooting](#troubleshooting)
 - [Updates](#updates)
 - [Security Best Practices](#security-best-practices)
+- [Performance Tuning](#performance-tuning)
 - [License](#license)
 
 ---
@@ -44,6 +45,7 @@ A management solution for running isolated NetBird instances for your MSP busine
 - **Start / Stop / Restart** — Control customer instances from the dashboard
 - **Customer Status Tracking** — Automatic status sync (active / inactive / error)
 - **Update Indicators** — Per-customer badges when container images are outdated
+- **Sortable Columns** — Click any customer list column header (ID, Name, Subdomain, Status, Devices, Created) to sort ascending/descending
 
 ### NetBird Container Updates
 - **Docker Hub Digest Check** — Compare locally pulled image digests against Docker Hub without pulling
@@ -74,7 +76,7 @@ A management solution for running isolated NetBird instances for your MSP busine
 
 ### Integrations
 - **Windows DNS** — Automatically create and delete DNS A-records when deploying or removing customers
-- **MSP Updates** — In-UI appliance update check with configurable release branch
+- **MSP Updates** — In-UI appliance version check, configurable release branch, and one-click background update with live progress
 
 ---
 
@@ -483,7 +485,7 @@ http://your-server:8000/api/docs
 **Common Endpoints:**
 ```
 POST   /api/customers                    # Create customer + deploy
-GET    /api/customers                    # List all customers
+GET    /api/customers                    # List customers (supports search, status filter, sort_by/sort_order)
 GET    /api/customers/{id}               # Get customer details
 PUT    /api/customers/{id}               # Update customer
 DELETE /api/customers/{id}               # Delete customer
@@ -498,6 +500,9 @@ POST   /api/customers/{id}/update-images # Recreate containers with new images
 GET    /api/settings/branding            # Get branding (public, no auth)
 GET    /api/settings/npm-certificates    # List NPM SSL certificates
 PUT    /api/settings                     # Update system settings
+GET    /api/settings/version             # Current + latest available appliance version
+POST   /api/settings/update              # Start appliance update in the background
+GET    /api/settings/update/status       # Poll update progress (backup/pull/build/restart)
 
 GET    /api/users                        # List users
 POST   /api/users                        # Create user
@@ -581,6 +586,15 @@ docker logs -f netbird-msp-appliance
 
 ### Updating the Appliance
 
+The recommended way to update is the built-in one-click updater:
+
+1. Go to **Settings > NetBird MSP Updates**
+2. Configure the Git repository URL and branch (defaults to `main`) if not already set
+3. Click **"Update starten"** ("Start Update")
+
+This backs up the database, pulls the configured branch, rebuilds the container image, and swaps in the new container — all in the background. The page shows live progress (backup → pull → build → restart) and automatically detects when the app is back up, so there's no need to babysit a terminal. The app is unavailable for roughly 30-60 seconds during the container swap.
+
+**Manual update (fallback, e.g. no Web UI access):**
 ```bash
 cd /opt/netbird-msp
 git pull
@@ -588,7 +602,7 @@ docker compose down
 docker compose up -d --build
 ```
 
-The database migrations run automatically on startup.
+The database migrations run automatically on startup either way.
 
 ### Updating NetBird Images
 
@@ -667,7 +681,7 @@ MIT License — see [LICENSE](LICENSE) file for details.
 
 ## Built With AI
 
-This software was developed with [Claude Code](https://claude.ai/claude-code) (Anthropic Claude Sonnet 4.6) — from architecture and backend logic to frontend UI and deployment scripts.
+This software was developed and is continuously maintained with [Claude Code](https://claude.ai/claude-code) (Anthropic) — from architecture and backend logic to frontend UI and deployment scripts.
 
 ## Acknowledgments
 
