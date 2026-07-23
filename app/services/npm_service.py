@@ -12,9 +12,12 @@ Let's Encrypt SSL certificates.
 Also manages NPM streams for STUN/TURN relay UDP ports.
 """
 
+import base64
+import json
 import logging
 import os
 import socket
+import time
 from typing import Any
 
 import httpx
@@ -23,6 +26,14 @@ logger = logging.getLogger(__name__)
 
 # Timeout for NPM API calls (seconds)
 NPM_TIMEOUT = 30
+
+# Cached JWTs, keyed by (api_url, email). NPM issues a token that stays valid
+# for a while (per its 'exp' claim), so re-logging in on every single API
+# call — as this module used to do — adds a full extra round-trip per action
+# for no reason.
+_token_cache: dict[tuple[str, str], dict[str, Any]] = {}
+_TOKEN_SAFETY_MARGIN = 60  # refresh this many seconds before actual expiry
+_DEFAULT_TOKEN_TTL = 3600  # fallback if the 'exp' claim can't be parsed
 
 
 def _get_forward_host() -> str:
@@ -90,6 +101,61 @@ async def _npm_login(client: httpx.AsyncClient, api_url: str, email: str, passwo
     )
 
 
+def _decode_jwt_exp(token: str) -> float | None:
+    """Best-effort decode of a JWT's 'exp' claim, without verifying the signature.
+
+    We only use this to size our own cache TTL — NPM itself still enforces
+    the real expiry server-side, so an inaccurate read here is harmless.
+    """
+    try:
+        payload_b64 = token.split(".")[1]
+        padding = "=" * (-len(payload_b64) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(payload_b64 + padding))
+        return payload.get("exp")
+    except Exception:
+        return None
+
+
+async def _get_token(
+    client: httpx.AsyncClient, api_url: str, email: str, password: str, force_refresh: bool = False
+) -> str:
+    """Return a cached NPM JWT if still valid, otherwise log in and cache it."""
+    cache_key = (api_url, email)
+    if not force_refresh:
+        cached = _token_cache.get(cache_key)
+        if cached and time.time() < cached["expires_at"]:
+            return cached["token"]
+
+    token = await _npm_login(client, api_url, email, password)
+    exp = _decode_jwt_exp(token)
+    expires_at = (exp - _TOKEN_SAFETY_MARGIN) if exp else (time.time() + _DEFAULT_TOKEN_TTL)
+    _token_cache[cache_key] = {"token": token, "expires_at": expires_at}
+    return token
+
+
+async def _request_with_reauth(
+    client: httpx.AsyncClient,
+    method: str,
+    api_url: str,
+    email: str,
+    password: str,
+    path: str,
+    headers: dict,
+    **kwargs: Any,
+) -> tuple[httpx.Response, dict]:
+    """Perform a request; if the cached token was rejected, refresh and retry once.
+
+    Returns the response and the (possibly updated) headers dict, so callers
+    can reuse the fresh token for any further requests in the same session.
+    """
+    resp = await client.request(method, f"{api_url}{path}", headers=headers, **kwargs)
+    if resp.status_code == 401:
+        token = await _get_token(client, api_url, email, password, force_refresh=True)
+        headers = {**headers, "Authorization": f"Bearer {token}"}
+        resp = await client.request(method, f"{api_url}{path}", headers=headers, **kwargs)
+    return resp, headers
+
+
 async def test_npm_connection(api_url: str, email: str, password: str) -> dict[str, Any]:
     """Test connectivity to NPM by logging in and listing proxy hosts.
 
@@ -103,9 +169,11 @@ async def test_npm_connection(api_url: str, email: str, password: str) -> dict[s
     """
     try:
         async with httpx.AsyncClient(timeout=NPM_TIMEOUT) as client:
-            token = await _npm_login(client, api_url, email, password)
+            token = await _get_token(client, api_url, email, password)
             headers = {"Authorization": f"Bearer {token}"}
-            resp = await client.get(f"{api_url}/nginx/proxy-hosts", headers=headers)
+            resp, headers = await _request_with_reauth(
+                client, "GET", api_url, email, password, "/nginx/proxy-hosts", headers
+            )
             if resp.status_code == 200:
                 count = len(resp.json())
                 return {"ok": True, "message": f"Connected. Login OK. {count} proxy hosts found."}
@@ -136,9 +204,11 @@ async def list_certificates(api_url: str, email: str, password: str) -> dict[str
     """
     try:
         async with httpx.AsyncClient(timeout=NPM_TIMEOUT) as client:
-            token = await _npm_login(client, api_url, email, password)
+            token = await _get_token(client, api_url, email, password)
             headers = {"Authorization": f"Bearer {token}"}
-            resp = await client.get(f"{api_url}/nginx/certificates", headers=headers)
+            resp, headers = await _request_with_reauth(
+                client, "GET", api_url, email, password, "/nginx/certificates", headers
+            )
             if resp.status_code == 200:
                 result = []
                 for cert in resp.json():
@@ -282,14 +352,15 @@ async def create_proxy_host(
 
     try:
         async with httpx.AsyncClient(timeout=180) as client:  # Long timeout for LE cert
-            token = await _npm_login(client, api_url, npm_email, npm_password)
+            token = await _get_token(client, api_url, npm_email, npm_password)
             headers = {
                 "Authorization": f"Bearer {token}",
                 "Content-Type": "application/json",
             }
 
-            resp = await client.post(
-                f"{api_url}/nginx/proxy-hosts", json=payload, headers=headers
+            resp, headers = await _request_with_reauth(
+                client, "POST", api_url, npm_email, npm_password,
+                "/nginx/proxy-hosts", headers, json=payload,
             )
             if resp.status_code in (200, 201):
                 data = resp.json()
@@ -542,14 +613,15 @@ async def create_stream(
 
     try:
         async with httpx.AsyncClient(timeout=NPM_TIMEOUT) as client:
-            token = await _npm_login(client, api_url, npm_email, npm_password)
+            token = await _get_token(client, api_url, npm_email, npm_password)
             headers = {
                 "Authorization": f"Bearer {token}",
                 "Content-Type": "application/json",
             }
 
-            resp = await client.post(
-                f"{api_url}/nginx/streams", json=payload, headers=headers
+            resp, headers = await _request_with_reauth(
+                client, "POST", api_url, npm_email, npm_password,
+                "/nginx/streams", headers, json=payload,
             )
             if resp.status_code in (200, 201):
                 data = resp.json()
@@ -587,10 +659,11 @@ async def delete_stream(
     """
     try:
         async with httpx.AsyncClient(timeout=NPM_TIMEOUT) as client:
-            token = await _npm_login(client, api_url, npm_email, npm_password)
+            token = await _get_token(client, api_url, npm_email, npm_password)
             headers = {"Authorization": f"Bearer {token}"}
-            resp = await client.delete(
-                f"{api_url}/nginx/streams/{stream_id}", headers=headers
+            resp, headers = await _request_with_reauth(
+                client, "DELETE", api_url, npm_email, npm_password,
+                f"/nginx/streams/{stream_id}", headers,
             )
             if resp.status_code in (200, 204):
                 logger.info("Deleted NPM stream %d", stream_id)
@@ -623,10 +696,11 @@ async def delete_proxy_host(
     """
     try:
         async with httpx.AsyncClient(timeout=NPM_TIMEOUT) as client:
-            token = await _npm_login(client, api_url, npm_email, npm_password)
+            token = await _get_token(client, api_url, npm_email, npm_password)
             headers = {"Authorization": f"Bearer {token}"}
-            resp = await client.delete(
-                f"{api_url}/nginx/proxy-hosts/{proxy_id}", headers=headers
+            resp, headers = await _request_with_reauth(
+                client, "DELETE", api_url, npm_email, npm_password,
+                f"/nginx/proxy-hosts/{proxy_id}", headers,
             )
             if resp.status_code in (200, 204):
                 logger.info("Deleted NPM proxy host %d", proxy_id)
