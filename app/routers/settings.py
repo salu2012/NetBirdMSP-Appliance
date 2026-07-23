@@ -4,6 +4,7 @@ There is no .env file. Every setting lives in the ``system_config`` table
 (singleton row with id=1) and is editable via the Web UI settings page.
 """
 
+import asyncio
 import logging
 import os
 import shutil
@@ -358,13 +359,15 @@ async def trigger_update(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Backup the database, git pull the latest code, and rebuild the container.
+    """Kick off backup + git pull + container rebuild in the background.
 
-    The rebuild is fire-and-forget — the app will restart in ~60 seconds.
+    Returns immediately — the actual work (which can take several minutes,
+    especially the ``--no-cache`` image build) runs in a background thread so
+    it doesn't block this request or any other user's requests while it
+    runs. Progress can be polled via GET /settings/update/status until the
+    container restarts with the new version.
+
     Only admin users may trigger an update.
-
-    Returns:
-        Dict with ok, message, and backup path.
     """
     if getattr(current_user, "role", "admin") != "admin":
         raise HTTPException(
@@ -383,11 +386,37 @@ async def trigger_update(
             detail="git_repo_url is not configured in settings.",
         )
 
-    result = update_service.trigger_update(config, DATABASE_PATH)
-    if not result.get("ok"):
+    current_status = update_service.get_update_status()
+    if current_status.get("state") == "running":
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=result.get("message", "Update failed."),
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An update is already in progress.",
         )
+
+    # Snapshot the only fields trigger_update() needs — avoids passing a
+    # SQLAlchemy instance into a background thread after this request's
+    # session may already be closed.
+    class _ConfigSnapshot:
+        git_repo_url = config.git_repo_url
+        git_branch = config.git_branch
+        git_token = config.git_token
+
+    asyncio.create_task(asyncio.to_thread(update_service.trigger_update, _ConfigSnapshot(), DATABASE_PATH))
     logger.info("Update triggered by %s.", current_user.username)
-    return result
+    return {
+        "ok": True,
+        "message": "Update gestartet. Dies kann mehrere Minuten dauern — Fortschritt via Status sichtbar.",
+    }
+
+
+@router.get("/update/status")
+async def update_status(
+    current_user: User = Depends(get_current_user),
+):
+    """Return progress of the currently running (or last) update.
+
+    Note: once the container restarts mid-update, this endpoint stops
+    responding for a few seconds — that itself is a signal the swap is
+    happening. The frontend falls back to polling for the app coming back up.
+    """
+    return update_service.get_update_status()

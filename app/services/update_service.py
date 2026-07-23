@@ -20,6 +20,32 @@ SERVICE_NAME = "netbird-msp-appliance"
 
 logger = logging.getLogger(__name__)
 
+# In-memory progress tracker for the currently running (or last) update.
+# The container gets replaced mid-update, so this deliberately does NOT need
+# to survive a restart — the frontend detects completion by polling until the
+# app comes back up and reports a new version, not by reading a final status
+# here. It exists so the UI can show *something* other than a frozen spinner
+# while the backup/pull/build steps are in progress.
+_update_status: dict[str, Any] = {
+    "state": "idle",  # idle | running | failed
+    "step": "",
+    "message": "",
+    "started_at": None,
+}
+
+
+def get_update_status() -> dict[str, Any]:
+    """Return a snapshot of the current update progress."""
+    return dict(_update_status)
+
+
+def _set_status(state: str, step: str, message: str = "") -> None:
+    _update_status["state"] = state
+    _update_status["step"] = step
+    _update_status["message"] = message
+    if step == "backup":
+        _update_status["started_at"] = datetime.utcnow().isoformat()
+
 
 def _get_compose_project_name() -> str:
     """Detect the compose project name from the running container's labels.
@@ -233,10 +259,12 @@ def trigger_update(config: Any, db_path: str) -> dict:
         Dict with ok (bool), message, backup path, and pulled_branch.
     """
     # 1. Backup database before any changes
+    _set_status("running", "backup", "Datenbank wird gesichert …")
     try:
         backup_path = backup_database(db_path)
     except Exception as exc:
         logger.error("Database backup failed: %s", exc)
+        _set_status("failed", "backup", f"Database backup failed: {exc}")
         return {"ok": False, "message": f"Database backup failed: {exc}", "backup": None}
 
     # 2. Build git pull command (embed token in URL if provided)
@@ -252,6 +280,7 @@ def trigger_update(config: Any, db_path: str) -> dict:
         pull_cmd = ["git", "-C", SOURCE_DIR, "pull", "origin", branch]
 
     # 3. Git pull (synchronous — must complete before rebuild)
+    _set_status("running", "pull", f"Code wird von Branch '{branch}' geholt …")
     # Ensure .git directory is owned by the process user (root inside container).
     # The .git dir may be owned by the host user after manual operations.
     try:
@@ -270,13 +299,16 @@ def trigger_update(config: Any, db_path: str) -> dict:
             timeout=120,
         )
     except subprocess.TimeoutExpired:
+        _set_status("failed", "pull", "git pull timed out after 120s.")
         return {"ok": False, "message": "git pull timed out after 120s.", "backup": backup_path}
     except Exception as exc:
+        _set_status("failed", "pull", f"git pull error: {exc}")
         return {"ok": False, "message": f"git pull error: {exc}", "backup": backup_path}
 
     if result.returncode != 0:
         stderr = result.stderr.strip()[:500]
         logger.error("git pull failed (exit %d): %s", result.returncode, stderr)
+        _set_status("failed", "pull", f"git pull failed: {stderr}")
         return {
             "ok": False,
             "message": f"git pull failed: {stderr}",
@@ -348,6 +380,7 @@ def trigger_update(config: Any, db_path: str) -> dict:
         SERVICE_NAME,
     ]
     logger.info("Phase A: building new image …")
+    _set_status("running", "build", "Docker-Image wird gebaut (kann mehrere Minuten dauern) …")
     try:
         build_result = subprocess.run(
             build_cmd,
@@ -360,15 +393,18 @@ def trigger_update(config: Any, db_path: str) -> dict:
             f.write(build_result.stderr)
         if build_result.returncode != 0:
             logger.error("Image build failed: %s", build_result.stderr[:500])
+            _set_status("failed", "build", f"Image build failed: {build_result.stderr[:300]}")
             return {
                 "ok": False,
                 "message": f"Image build failed: {build_result.stderr[:300]}",
                 "backup": backup_path,
             }
     except subprocess.TimeoutExpired:
+        _set_status("failed", "build", "Image build timed out after 600s.")
         return {"ok": False, "message": "Image build timed out after 600s.", "backup": backup_path}
 
     logger.info("Phase A complete — image built successfully.")
+    _set_status("running", "restart", "Container wird neu gestartet …")
 
     # Phase B — swap the container using a helper container.
     #    When compose recreates our container, ALL processes inside die (PID namespace
@@ -388,6 +424,7 @@ def trigger_update(config: Any, db_path: str) -> dict:
             raise ValueError("Could not find /app-source mount")
     except Exception as exc:
         logger.error("Failed to discover host source path: %s", exc)
+        _set_status("failed", "restart", f"Could not find host source path: {exc}")
         return {"ok": False, "message": f"Could not find host source path: {exc}", "backup": backup_path}
 
     logger.info("Host source directory: %s", host_source_dir)
@@ -426,6 +463,10 @@ def trigger_update(config: Any, db_path: str) -> dict:
         )
         if result.returncode != 0:
             logger.error("Failed to start updater container: %s", result.stderr.strip())
+            _set_status(
+                "failed", "restart",
+                f"Update-Container konnte nicht gestartet werden: {result.stderr.strip()[:200]}",
+            )
             return {
                 "ok": False,
                 "message": f"Update-Container konnte nicht gestartet werden: {result.stderr.strip()[:200]}",
@@ -434,6 +475,7 @@ def trigger_update(config: Any, db_path: str) -> dict:
         logger.info("Phase B: updater container started — this container will restart in ~5s.")
     except Exception as exc:
         logger.error("Failed to launch updater: %s", exc)
+        _set_status("failed", "restart", f"Updater launch failed: {exc}")
         return {"ok": False, "message": f"Updater launch failed: {exc}", "backup": backup_path}
 
     return {

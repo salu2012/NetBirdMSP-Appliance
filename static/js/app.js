@@ -1374,11 +1374,12 @@ async function loadVersionInfo() {
 
         if (needsUpdate) {
             html += `<div class="mt-3">
-                <button class="btn btn-warning" onclick="triggerUpdate()">
+                <button class="btn btn-warning" id="update-trigger-btn" onclick="triggerUpdate()">
                     <span class="spinner-border spinner-border-sm d-none me-1" id="update-spinner"></span>
                     <i class="bi bi-arrow-repeat me-1"></i>${t('settings.triggerUpdate')}
                 </button>
                 <div class="text-muted small mt-1">${t('settings.updateWarning')}</div>
+                <div class="small mt-2 d-none" id="update-progress-text"></div>
             </div>`;
         }
         el.innerHTML = html;
@@ -1390,14 +1391,76 @@ async function loadVersionInfo() {
 async function triggerUpdate() {
     if (!confirm(t('settings.confirmUpdate'))) return;
     const spinner = document.getElementById('update-spinner');
+    const btn = document.getElementById('update-trigger-btn');
+    const progressText = document.getElementById('update-progress-text');
+    const setProgress = (msg) => {
+        if (!progressText) return;
+        progressText.classList.remove('d-none');
+        progressText.textContent = msg;
+    };
+    const stopUpdateUi = () => {
+        if (spinner) spinner.classList.add('d-none');
+        if (btn) btn.disabled = false;
+    };
+
     if (spinner) spinner.classList.remove('d-none');
+    if (btn) btn.disabled = true;
+    setProgress(t('settings.updateStepStarting'));
+
     try {
         const data = await api('POST', '/settings/update');
         showSettingsAlert('success', data.message || t('messages.updateStarted'));
     } catch (err) {
         showSettingsAlert('danger', t('errors.failed', { error: err.message }));
-        if (spinner) spinner.classList.add('d-none');
+        stopUpdateUi();
+        return;
     }
+
+    // Phase 1: poll build/pull progress until the container restarts
+    // (connection drops, which is expected and is our cue to move to phase 2).
+    const stepLabelKey = {
+        backup: 'settings.updateStepBackup',
+        pull: 'settings.updateStepPull',
+        build: 'settings.updateStepBuild',
+        restart: 'settings.updateStepRestart',
+    };
+    for (let i = 0; i < 200; i++) {
+        await new Promise(r => setTimeout(r, 2000));
+        try {
+            const st = await api('GET', '/settings/update/status');
+            if (st.state === 'failed') {
+                showSettingsAlert('danger', st.message || t('errors.requestFailed'));
+                stopUpdateUi();
+                return;
+            }
+            setProgress(t(stepLabelKey[st.step] || 'settings.updateStepStarting') + (st.message ? ` — ${st.message}` : ''));
+        } catch (err) {
+            // Connection dropped — the container is very likely mid-restart. Move on.
+            break;
+        }
+    }
+
+    // Phase 2: wait for the app to come back up, then reload version info.
+    setProgress(t('settings.updateStepReconnecting'));
+    for (let i = 0; i < 90; i++) {
+        await new Promise(r => setTimeout(r, 2000));
+        try {
+            await api('GET', '/settings/version');
+            setProgress(t('settings.updateStepDone'));
+            stopUpdateUi();
+            showSettingsAlert('success', t('settings.updateStepDone'));
+            await loadVersionInfo();
+            return;
+        } catch (err) {
+            // still restarting — keep polling
+        }
+    }
+
+    // Gave up waiting — surface this instead of spinning forever.
+    stopUpdateUi();
+    setProgress('');
+    if (progressText) progressText.classList.add('d-none');
+    showSettingsAlert('warning', t('settings.updateStepTimeout'));
 }
 
 // ---------------------------------------------------------------------------
