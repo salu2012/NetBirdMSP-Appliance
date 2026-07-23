@@ -254,13 +254,13 @@
                         <table class="table table-hover mb-0">
                             <thead class="table-light">
                                 <tr>
-                                    <th data-i18n="dashboard.thId">ID</th>
-                                    <th data-i18n="dashboard.thName">Name</th>
-                                    <th data-i18n="dashboard.thSubdomain">Subdomain</th>
-                                    <th data-i18n="dashboard.thStatus">Status</th>
+                                    <th class="sortable-th" data-sort-col="id" onclick="setCustomerSort('id')"><span data-i18n="dashboard.thId">ID</span><i class="bi bi-arrow-down-up sort-icon ms-1"></i></th>
+                                    <th class="sortable-th" data-sort-col="name" onclick="setCustomerSort('name')"><span data-i18n="dashboard.thName">Name</span><i class="bi bi-arrow-down-up sort-icon ms-1"></i></th>
+                                    <th class="sortable-th" data-sort-col="subdomain" onclick="setCustomerSort('subdomain')"><span data-i18n="dashboard.thSubdomain">Subdomain</span><i class="bi bi-arrow-down-up sort-icon ms-1"></i></th>
+                                    <th class="sortable-th" data-sort-col="status" onclick="setCustomerSort('status')"><span data-i18n="dashboard.thStatus">Status</span><i class="bi bi-arrow-down-up sort-icon ms-1"></i></th>
                                     <th data-i18n="dashboard.thDashboard">Dashboard</th>
-                                    <th data-i18n="dashboard.thDevices">Devices</th>
-                                    <th data-i18n="dashboard.thCreated">Created</th>
+                                    <th class="sortable-th" data-sort-col="max_devices" onclick="setCustomerSort('max_devices')"><span data-i18n="dashboard.thDevices">Devices</span><i class="bi bi-arrow-down-up sort-icon ms-1"></i></th>
+                                    <th class="sortable-th" data-sort-col="created_at" onclick="setCustomerSort('created_at')"><span data-i18n="dashboard.thCreated">Created</span><i class="bi bi-arrow-down-up sort-icon ms-1"></i></th>
                                     <th data-i18n="dashboard.thActions">Actions</th>
                                 </tr>
                             </thead>

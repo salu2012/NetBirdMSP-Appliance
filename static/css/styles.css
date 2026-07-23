@@ -1,5 +1,25 @@
 /* NetBird MSP Appliance - Custom Styles */
 
+/* Sortable table headers */
+.sortable-th {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.sortable-th:hover {
+    color: var(--bs-primary);
+}
+
+.sortable-th .sort-icon {
+    opacity: 0.35;
+}
+
+.sortable-th.sort-asc .sort-icon,
+.sortable-th.sort-desc .sort-icon {
+    opacity: 1;
+}
+
 /* i18n FOUC prevention */
 body.i18n-loading #login-page,
 body.i18n-loading #app-page {

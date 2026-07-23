@@ -78,22 +78,36 @@ async def create_customer(
     return response
 
 
+SORTABLE_CUSTOMER_COLUMNS = {
+    "id": Customer.id,
+    "name": Customer.name,
+    "subdomain": Customer.subdomain,
+    "status": Customer.status,
+    "max_devices": Customer.max_devices,
+    "created_at": Customer.created_at,
+}
+
+
 @router.get("")
 async def list_customers(
     page: int = Query(default=1, ge=1),
     per_page: int = Query(default=25, ge=1, le=100),
     search: Optional[str] = Query(default=None),
     status_filter: Optional[str] = Query(default=None, alias="status"),
+    sort_by: str = Query(default="id"),
+    sort_order: str = Query(default="asc", pattern="^(asc|desc)$"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """List customers with pagination, search, and status filter.
+    """List customers with pagination, search, status filter, and sorting.
 
     Args:
         page: Page number (1-indexed).
         per_page: Items per page.
         search: Search in name, subdomain, email.
         status_filter: Filter by status.
+        sort_by: Column to sort by — one of SORTABLE_CUSTOMER_COLUMNS.
+        sort_order: "asc" or "desc".
 
     Returns:
         Paginated customer list with metadata.
@@ -113,8 +127,11 @@ async def list_customers(
         query = query.filter(Customer.status == status_filter)
 
     total = query.count()
+
+    sort_column = SORTABLE_CUSTOMER_COLUMNS.get(sort_by, Customer.id)
+    sort_expr = sort_column.desc() if sort_order == "desc" else sort_column.asc()
     customers = (
-        query.order_by(Customer.created_at.desc())
+        query.order_by(sort_expr, Customer.id.asc())
         .offset((page - 1) * per_page)
         .limit(per_page)
         .all()

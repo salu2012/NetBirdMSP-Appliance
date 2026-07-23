@@ -12,6 +12,8 @@ let currentPage = 'dashboard';
 let currentCustomerId = null;
 let currentCustomerData = null;
 let customersPage = 1;
+let customersSortBy = 'id';
+let customersSortOrder = 'asc';
 let brandingData = { branding_name: 'NetBird MSP Appliance', branding_logo_path: null, version: 'alpha-1.1' };
 let azureConfig = { azure_enabled: false };
 
@@ -458,7 +460,7 @@ async function loadStats() {
 async function loadCustomers() {
     const search = document.getElementById('search-input').value;
     const status = document.getElementById('status-filter').value;
-    let url = `/customers?page=${customersPage}&per_page=25`;
+    let url = `/customers?page=${customersPage}&per_page=25&sort_by=${customersSortBy}&sort_order=${customersSortOrder}`;
     if (search) url += `&search=${encodeURIComponent(search)}`;
     if (status) url += `&status=${encodeURIComponent(status)}`;
 
@@ -470,7 +472,32 @@ async function loadCustomers() {
     }
 }
 
+function setCustomerSort(column) {
+    if (customersSortBy === column) {
+        customersSortOrder = customersSortOrder === 'asc' ? 'desc' : 'asc';
+    } else {
+        customersSortBy = column;
+        customersSortOrder = 'asc';
+    }
+    customersPage = 1;
+    loadCustomers();
+}
+
+function updateSortHeaders() {
+    document.querySelectorAll('.sortable-th').forEach(th => {
+        const col = th.getAttribute('data-sort-col');
+        const icon = th.querySelector('.sort-icon');
+        th.classList.remove('sort-asc', 'sort-desc');
+        if (icon) icon.className = 'bi bi-arrow-down-up sort-icon ms-1';
+        if (col === customersSortBy) {
+            th.classList.add(customersSortOrder === 'asc' ? 'sort-asc' : 'sort-desc');
+            if (icon) icon.className = `bi bi-arrow-${customersSortOrder === 'asc' ? 'up' : 'down'} sort-icon ms-1`;
+        }
+    });
+}
+
 function renderCustomersTable(data) {
+    updateSortHeaders();
     const tbody = document.getElementById('customers-table-body');
     if (!data.items || data.items.length === 0) {
         tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">${t('dashboard.noCustomers')}</td></tr>`;
