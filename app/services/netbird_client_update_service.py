@@ -52,6 +52,48 @@ async def get_current_settings(container_prefix: str, token: str) -> dict[str, A
         return {"ok": False, "error": str(exc)}
 
 
+async def renew_token(container_prefix: str, token: str) -> dict[str, Any]:
+    """Mint a fresh 365-day Personal Access Token using the current one.
+
+    The old token is left in place (it naturally expires and NetBird gives no
+    reliable way to identify "our" token among a user's other PATs by content
+    alone, only by name — which isn't safe to assume is unique). One
+    harmless unused token lingering until its own expiry is an acceptable
+    trade-off for not risking deleting a token that turns out to be in use.
+    """
+    base_url = _base_url(container_prefix)
+    headers = {"Authorization": f"Token {token}"}
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            resp = await client.get(f"{base_url}/api/users", headers=headers)
+            if resp.status_code != 200:
+                return {"ok": False, "error": f"GET /api/users -> HTTP {resp.status_code}"}
+            users = resp.json()
+            me = next((u for u in users if u.get("is_current")), None)
+            if not me:
+                return {"ok": False, "error": "Could not identify current user from /api/users."}
+
+            create_resp = await client.post(
+                f"{base_url}/api/users/{me['id']}/tokens",
+                headers={**headers, "Content-Type": "application/json"},
+                content=json.dumps({"name": "MSP Central Management", "expires_in": 365}),
+            )
+            if create_resp.status_code not in (200, 201):
+                return {"ok": False, "error": f"POST tokens -> HTTP {create_resp.status_code}: {create_resp.text[:200]}"}
+            new_token = create_resp.json().get("plain_token")
+            if not new_token:
+                return {"ok": False, "error": "Token creation response had no plain_token."}
+
+            verify_resp = await client.get(f"{base_url}/api/accounts", headers={"Authorization": f"Token {new_token}"})
+            if verify_resp.status_code != 200:
+                return {"ok": False, "error": "New token failed verification."}
+
+            return {"ok": True, "token": new_token}
+    except Exception as exc:
+        logger.warning("Failed to renew NetBird API token for %s: %s", container_prefix, exc)
+        return {"ok": False, "error": str(exc)}
+
+
 async def push_auto_update_settings(
     container_prefix: str, token: str, version: str, always: bool
 ) -> dict[str, Any]:

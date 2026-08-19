@@ -89,6 +89,7 @@ class Deployment(Base):
     netbird_admin_email: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     netbird_admin_password: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     netbird_api_token_encrypted: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    netbird_api_token_renewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     deployment_status: Mapped[str] = mapped_column(
         String(20), default="pending", nullable=False
     )
@@ -118,6 +119,9 @@ class Deployment(Base):
             "setup_url": self.setup_url,
             "has_credentials": bool(self.netbird_admin_email and self.netbird_admin_password),
             "has_netbird_api_token": bool(self.netbird_api_token_encrypted),
+            "netbird_api_token_renewed_at": (
+                self.netbird_api_token_renewed_at.isoformat() if self.netbird_api_token_renewed_at else None
+            ),
             "deployment_status": self.deployment_status,
             "deployed_at": self.deployed_at.isoformat() if self.deployed_at else None,
             "last_health_check": (

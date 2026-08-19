@@ -129,6 +129,7 @@ def _run_migrations() -> None:
         ("system_config", "auto_update_last_run_at", "TEXT"),
         # NetBird client (peer) automatic-updates master default + per-customer PAT
         ("deployments", "netbird_api_token_encrypted", "TEXT"),
+        ("deployments", "netbird_api_token_renewed_at", "TEXT"),
         ("system_config", "netbird_client_auto_update_version", "TEXT DEFAULT 'disabled'"),
         ("system_config", "netbird_client_auto_update_always", "BOOLEAN DEFAULT 0"),
     ]

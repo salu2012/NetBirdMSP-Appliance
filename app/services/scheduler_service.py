@@ -8,16 +8,22 @@ SystemConfig.auto_update_check_enabled / auto_update_check_time.
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from app.database import SessionLocal
 from app.models import Deployment, SystemConfig
-from app.services import image_service
+from app.services import image_service, netbird_client_update_service
+from app.utils.security import decrypt_value, encrypt_value
 
 logger = logging.getLogger(__name__)
 
 _POLL_INTERVAL_SECONDS = 60
 _task: asyncio.Task | None = None
+
+# NetBird PATs we mint are issued for 365 days; renew well before that so a
+# missed tick or a slow rollout never risks the token actually expiring.
+_TOKEN_RENEW_AFTER_DAYS = 300
+_TOKEN_RENEW_CHECK_HOUR = 4  # run once per day, distinct from the image-check hour
 
 
 def start() -> None:
@@ -36,13 +42,62 @@ def stop() -> None:
         _task = None
 
 
+_last_token_renewal_date = None
+
+
 async def _poll_loop() -> None:
     while True:
         try:
             await _tick()
         except Exception:
             logger.exception("Scheduler tick failed")
+        try:
+            await _token_renewal_tick()
+        except Exception:
+            logger.exception("Token renewal tick failed")
         await asyncio.sleep(_POLL_INTERVAL_SECONDS)
+
+
+async def _token_renewal_tick() -> None:
+    """Once a day, renew any NetBird client-update API token nearing its
+    365-day expiry — keeps central update control working indefinitely
+    without anyone needing to notice or act.
+    """
+    global _last_token_renewal_date
+    now = datetime.now()
+    if now.hour != _TOKEN_RENEW_CHECK_HOUR:
+        return
+    if _last_token_renewal_date == now.date():
+        return
+    _last_token_renewal_date = now.date()
+
+    db = SessionLocal()
+    try:
+        cutoff = now - timedelta(days=_TOKEN_RENEW_AFTER_DAYS)
+        deployments = (
+            db.query(Deployment)
+            .filter(Deployment.netbird_api_token_encrypted.isnot(None))
+            .all()
+        )
+        due = [
+            d for d in deployments
+            if d.netbird_api_token_renewed_at is None or d.netbird_api_token_renewed_at < cutoff
+        ]
+        if not due:
+            return
+        logger.info("Renewing NetBird API token for %d customer(s)...", len(due))
+        for d in due:
+            token = decrypt_value(d.netbird_api_token_encrypted)
+            result = await netbird_client_update_service.renew_token(d.container_prefix, token)
+            if result["ok"]:
+                d.netbird_api_token_encrypted = encrypt_value(result["token"])
+                d.netbird_api_token_renewed_at = now
+                db.commit()
+                logger.info("Renewed NetBird API token for %s.", d.container_prefix)
+            else:
+                logger.warning("Failed to renew NetBird API token for %s: %s", d.container_prefix, result.get("error"))
+    finally:
+        db.close()
 
 
 async def _tick() -> None:

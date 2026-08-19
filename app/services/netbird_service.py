@@ -348,9 +348,9 @@ async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
             deployment.setup_url = setup_url
             deployment.netbird_admin_email = encrypt_value(admin_email) if setup_ok else deployment.netbird_admin_email
             deployment.netbird_admin_password = encrypt_value(admin_password) if setup_ok else deployment.netbird_admin_password
-            deployment.netbird_api_token_encrypted = (
-                encrypt_value(netbird_api_token) if netbird_api_token else deployment.netbird_api_token_encrypted
-            )
+            if netbird_api_token:
+                deployment.netbird_api_token_encrypted = encrypt_value(netbird_api_token)
+                deployment.netbird_api_token_renewed_at = datetime.utcnow()
             deployment.deployment_status = "running"
             deployment.deployed_at = datetime.utcnow()
         else:
@@ -366,6 +366,7 @@ async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
                 netbird_admin_email=encrypt_value(admin_email) if setup_ok else None,
                 netbird_admin_password=encrypt_value(admin_password) if setup_ok else None,
                 netbird_api_token_encrypted=encrypt_value(netbird_api_token) if netbird_api_token else None,
+                netbird_api_token_renewed_at=datetime.utcnow() if netbird_api_token else None,
                 deployment_status="running",
                 deployed_at=datetime.utcnow(),
             )

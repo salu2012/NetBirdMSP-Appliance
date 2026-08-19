@@ -1,6 +1,7 @@
 """Deployment management API — start, stop, restart, logs, health for customers."""
 
 import logging
+from datetime import datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
@@ -362,6 +363,7 @@ async def set_customer_netbird_api_token(
         )
 
     deployment.netbird_api_token_encrypted = encrypt_value(payload.token)
+    deployment.netbird_api_token_renewed_at = datetime.utcnow()
     db.commit()
     logger.info("NetBird API token registered for customer %d by %s.", customer_id, current_user.username)
     return {"ok": True}
