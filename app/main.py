@@ -13,6 +13,7 @@ from slowapi.errors import RateLimitExceeded
 from app.database import init_db
 from app.limiter import limiter
 from app.routers import auth, customers, deployments, monitoring, settings, users
+from app.services import scheduler_service
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -140,3 +141,10 @@ async def startup_event():
     logger.info("Starting NetBird MSP Appliance...")
     init_db()
     logger.info("Database initialized.")
+    scheduler_service.start()
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Stop background tasks on shutdown."""
+    scheduler_service.stop()

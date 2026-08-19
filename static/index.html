@@ -641,6 +641,33 @@
                                             <i class="bi bi-cloud-download me-1"></i><span data-i18n="settings.pullImages">Pull from Docker Hub</span>
                                         </button>
                                         <span id="pull-images-settings-status" class="ms-2 text-muted small"></span>
+                                        <hr>
+                                        <h6 data-i18n="monitoring.autoUpdateTitle">Automatic Updates</h6>
+                                        <p class="text-muted small" data-i18n="monitoring.autoUpdateHint">Automatically checks for new NetBird images daily at the chosen time.</p>
+                                        <form id="settings-auto-update-form">
+                                            <div class="form-check mb-3">
+                                                <input class="form-check-input" type="checkbox" id="cfg-auto-update-check-enabled">
+                                                <label class="form-check-label" for="cfg-auto-update-check-enabled" data-i18n="monitoring.autoUpdateCheckEnabled">Enable automatic update check</label>
+                                            </div>
+                                            <div class="row g-3 align-items-end">
+                                                <div class="col-md-3">
+                                                    <label class="form-label" data-i18n="monitoring.autoUpdateCheckTime">Daily check time</label>
+                                                    <input type="time" class="form-control" id="cfg-auto-update-check-time" value="03:00">
+                                                </div>
+                                            </div>
+                                            <div class="form-check mt-3">
+                                                <input class="form-check-input" type="checkbox" id="cfg-auto-update-apply-enabled">
+                                                <label class="form-check-label" for="cfg-auto-update-apply-enabled" data-i18n="monitoring.autoUpdateApplyEnabled">Automatically update customer containers after check</label>
+                                                <div class="form-text" data-i18n="monitoring.autoUpdateApplyHint">When enabled, all customer containers are automatically recreated after a new image is found (services briefly restart). When disabled, only the images are pulled — updating customers stays a manual step.</div>
+                                            </div>
+                                            <div class="mt-3 small text-muted">
+                                                <span data-i18n="monitoring.autoUpdateLastRun">Last automatic check</span>:
+                                                <span id="auto-update-last-run">-</span>
+                                            </div>
+                                            <div class="mt-3">
+                                                <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-save me-1"></i><span data-i18n="monitoring.saveAutoUpdateSettings">Save Automation</span></button>
+                                            </div>
+                                        </form>
                                     </div>
                                 </div>
                             </div>

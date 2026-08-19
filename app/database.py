@@ -122,6 +122,11 @@ def _run_migrations() -> None:
         ("system_config", "git_repo_url", "TEXT"),
         ("system_config", "git_branch", "TEXT DEFAULT 'main'"),
         ("system_config", "git_token_encrypted", "TEXT"),
+        # Automatic NetBird image update check/apply
+        ("system_config", "auto_update_check_enabled", "BOOLEAN DEFAULT 0"),
+        ("system_config", "auto_update_check_time", "TEXT DEFAULT '03:00'"),
+        ("system_config", "auto_update_apply_enabled", "BOOLEAN DEFAULT 0"),
+        ("system_config", "auto_update_last_run_at", "TEXT"),
     ]
     for table, column, col_type in migrations:
         if not _has_column(table, column):

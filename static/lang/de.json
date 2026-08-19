@@ -420,6 +420,17 @@
     "updating": "Wird aktualisiert…",
     "updateAllProgress": "Kunden-Container werden nacheinander aktualisiert — bitte warten…",
     "pulling": "Wird geladen…",
-    "pullStartedShort": "Download im Hintergrund gestartet."
+    "pullStartedShort": "Download im Hintergrund gestartet.",
+    "statusUnknown": "Unbekannt",
+    "statusUnknownHint": "Container konnte nicht eindeutig zugeordnet werden (z. B. nicht gestartet). Kein verifiziertes \"Aktuell\".",
+    "autoUpdateTitle": "Automatische Aktualisierung",
+    "autoUpdateHint": "Prüft täglich zur gewählten Uhrzeit automatisch auf neue NetBird-Images.",
+    "autoUpdateCheckEnabled": "Automatische Update-Prüfung aktivieren",
+    "autoUpdateCheckTime": "Uhrzeit der täglichen Prüfung",
+    "autoUpdateApplyEnabled": "Kunden-Container nach Prüfung automatisch aktualisieren",
+    "autoUpdateApplyHint": "Wenn aktiviert, werden nach einer gefundenen Aktualisierung automatisch alle Kunden-Container neu erstellt (kurzer Neustart der Dienste). Wenn deaktiviert, werden nur die Images geladen — die Aktualisierung der Kunden erfolgt weiterhin manuell.",
+    "autoUpdateLastRun": "Letzte automatische Prüfung",
+    "autoUpdateNever": "Noch nie ausgeführt",
+    "saveAutoUpdateSettings": "Automatisierung speichern"
   }
 }

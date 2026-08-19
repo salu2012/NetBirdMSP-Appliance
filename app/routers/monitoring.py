@@ -159,6 +159,7 @@ async def check_image_updates(
             "subdomain": customer.subdomain,
             "container_prefix": dep.container_prefix,
             "needs_update": cs["needs_update"],
+            "unknown": cs.get("unknown", False),
             "services": cs["services"],
         })
 
@@ -231,7 +232,7 @@ async def customers_local_update_status(
 
     async def _check(dep: Deployment) -> dict[str, Any]:
         cs = await image_service.get_customer_container_image_status_async(dep.container_prefix, config)
-        return {"customer_id": dep.customer_id, "needs_update": cs["needs_update"]}
+        return {"customer_id": dep.customer_id, "needs_update": cs["needs_update"], "unknown": cs.get("unknown", False)}
 
     results = await asyncio.gather(*[_check(dep) for dep in deployments])
     results = list(results)
@@ -274,19 +275,27 @@ async def update_all_customers(
     if not to_update:
         return {"message": "All customers are already up to date.", "updated": 0, "results": []}
 
-    # Update customers sequentially — one at a time
+    # Update customers sequentially — one at a time. A failure for one
+    # customer (e.g. a hung docker compose call) must not abort the rest of
+    # the batch, otherwise later customers silently never get updated.
     update_results = []
     for entry in to_update:
-        res = await image_service.update_customer_containers(
-            entry["instance_dir"], entry["project_name"]
-        )
-        ok = res["success"]
-        logger.info("Updated %s: %s", entry["project_name"], "OK" if ok else res.get("error"))
+        try:
+            res = await image_service.update_customer_containers(
+                entry["instance_dir"], entry["project_name"]
+            )
+            ok = res["success"]
+            error = res.get("error")
+        except Exception as exc:
+            logger.exception("Unexpected error updating %s", entry["project_name"])
+            ok = False
+            error = str(exc)
+        logger.info("Updated %s: %s", entry["project_name"], "OK" if ok else error)
         update_results.append({
             "customer_name": entry["customer_name"],
             "customer_id": entry["customer_id"],
             "success": ok,
-            "error": res.get("error"),
+            "error": error,
         })
 
     success_count = sum(1 for r in update_results if r["success"])

@@ -19,13 +19,38 @@ logger = logging.getLogger(__name__)
 NETBIRD_SERVICES = ["management", "signal", "relay", "dashboard"]
 
 
+class _TimeoutResult:
+    """Stand-in for subprocess.CompletedProcess when a command times out.
+
+    A hung `docker compose up -d` used to raise TimeoutExpired straight out of
+    _run_cmd, which killed the whole update-all loop mid-recreate and left the
+    old container renamed-but-not-removed (orphaned with a hash-prefixed name).
+    Returning a failed result instead lets callers handle it gracefully and
+    keeps the batch loop going for the remaining customers.
+    """
+
+    def __init__(self, cmd: list[str], timeout: int):
+        self.returncode = -1
+        self.stdout = ""
+        self.stderr = f"Command timed out after {timeout}s: {' '.join(cmd)}"
+
+
 async def _run_cmd(cmd: list[str], timeout: int = 300) -> subprocess.CompletedProcess:
-    """Run a subprocess command without blocking the event loop."""
+    """Run a subprocess command without blocking the event loop.
+
+    Never raises on timeout — returns a failed CompletedProcess-like result
+    instead, so a single hung docker/compose call can't abort a batch of
+    otherwise-independent operations (e.g. updating multiple customers).
+    """
     loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(
-        None,
-        lambda: subprocess.run(cmd, capture_output=True, text=True, timeout=timeout),
-    )
+    try:
+        return await loop.run_in_executor(
+            None,
+            lambda: subprocess.run(cmd, capture_output=True, text=True, timeout=timeout),
+        )
+    except subprocess.TimeoutExpired:
+        logger.error("Command timed out after %ds: %s", timeout, " ".join(cmd))
+        return _TimeoutResult(cmd, timeout)
 
 
 def _parse_image_name(image: str) -> tuple[str, str]:
@@ -121,6 +146,60 @@ def get_container_image_id(container_name: str) -> str | None:
         return result.stdout.strip() or None
     except Exception:
         return None
+
+
+def repair_container_naming(container_prefix: str, services: list[str] = NETBIRD_SERVICES) -> list[str]:
+    """Rename orphaned containers back to their expected compose name.
+
+    When a `docker compose up -d` is interrupted mid-recreate (e.g. a timeout
+    killing the process), Compose can leave the *old* container renamed with a
+    random hash prefix (e.g. "4e45e71fcb7b_netbird-acme-management") instead
+    of removing it, while never creating the correctly-named replacement. The
+    container itself keeps running fine — it's just invisible to every lookup
+    that expects the exact name, which used to silently read as "no container
+    found" and get reported as "up to date" instead of "unknown".
+
+    This finds any such orphan (a container whose name *contains* the expected
+    name but isn't an exact match) and, only when no container already holds
+    the exact expected name, renames it back. Safe no-op otherwise.
+
+    Returns the list of service names that were repaired.
+    """
+    repaired = []
+    for svc in services:
+        expected_name = f"{container_prefix}-{svc}"
+        exact = subprocess.run(
+            ["docker", "inspect", expected_name, "--format", "{{.Id}}"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if exact.returncode == 0:
+            continue  # already correctly named
+
+        found = subprocess.run(
+            ["docker", "ps", "-a", "--filter", f"name={expected_name}", "--format", "{{.Names}}"],
+            capture_output=True, text=True, timeout=10,
+        )
+        candidates = [n for n in found.stdout.strip().splitlines() if n and n != expected_name]
+        if not candidates:
+            continue  # container genuinely doesn't exist (not deployed / not running)
+
+        orphan = candidates[0]
+        rename = subprocess.run(
+            ["docker", "rename", orphan, expected_name],
+            capture_output=True, text=True, timeout=10,
+        )
+        if rename.returncode == 0:
+            logger.warning(
+                "Repaired orphaned container naming for %s: '%s' -> '%s'",
+                container_prefix, orphan, expected_name,
+            )
+            repaired.append(svc)
+        else:
+            logger.error(
+                "Failed to repair orphaned container '%s' -> '%s': %s",
+                orphan, expected_name, rename.stderr,
+            )
+    return repaired
 
 
 def get_local_image_id(image: str) -> str | None:
@@ -231,6 +310,13 @@ async def get_customer_container_image_status_async(container_prefix: str, confi
     }
     loop = asyncio.get_event_loop()
 
+    # Self-heal any container left orphaned under a hash-prefixed name by a
+    # previously interrupted recreate, so the lookups below find it by its
+    # real, expected name instead of silently returning "not found".
+    await loop.run_in_executor(
+        None, repair_container_naming, container_prefix, list(service_images.keys())
+    )
+
     async def _check(svc: str, image: str) -> tuple[str, dict[str, Any]]:
         container_name = f"{container_prefix}-{svc}"
         container_id, local_id = await asyncio.gather(
@@ -246,7 +332,8 @@ async def get_customer_container_image_status_async(container_prefix: str, confi
     pairs = await asyncio.gather(*[_check(svc, image) for svc, image in service_images.items()])
     services = dict(pairs)
     needs_update = any(s["up_to_date"] is False for s in services.values())
-    return {"services": services, "needs_update": needs_update}
+    unknown = any(s["up_to_date"] is None for s in services.values())
+    return {"services": services, "needs_update": needs_update, "unknown": unknown}
 
 
 def get_customer_container_image_status(container_prefix: str, config) -> dict[str, Any]:
@@ -265,6 +352,11 @@ def get_customer_container_image_status(container_prefix: str, config) -> dict[s
         "relay": config.netbird_relay_image,
         "dashboard": config.netbird_dashboard_image,
     }
+
+    # Self-heal any container left orphaned under a hash-prefixed name by a
+    # previously interrupted recreate (see repair_container_naming docstring).
+    repair_container_naming(container_prefix, list(service_images.keys()))
+
     services: dict[str, Any] = {}
     for svc, image in service_images.items():
         container_name = f"{container_prefix}-{svc}"
@@ -280,7 +372,8 @@ def get_customer_container_image_status(container_prefix: str, config) -> dict[s
             "up_to_date": up_to_date,
         }
     needs_update = any(s["up_to_date"] is False for s in services.values())
-    return {"services": services, "needs_update": needs_update}
+    unknown = any(s["up_to_date"] is None for s in services.values())
+    return {"services": services, "needs_update": needs_update, "unknown": unknown}
 
 
 async def update_customer_containers(instance_dir: str, project_name: str) -> dict[str, Any]:
@@ -292,6 +385,13 @@ async def update_customer_containers(instance_dir: str, project_name: str) -> di
     compose_file = os.path.join(instance_dir, "docker-compose.yml")
     if not os.path.isfile(compose_file):
         return {"success": False, "error": f"docker-compose.yml not found at {compose_file}"}
+
+    # Repair any container still orphaned under a hash-prefixed name from a
+    # previous interrupted recreate before Compose tries to touch it again —
+    # otherwise Compose keeps colliding with the same stuck rename.
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, repair_container_naming, project_name)
+
     cmd = [
         "docker", "compose",
         "-f", compose_file,

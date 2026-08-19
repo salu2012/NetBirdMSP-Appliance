@@ -940,6 +940,13 @@ async function loadSettings() {
         document.getElementById('cfg-relay-image').value = cfg.netbird_relay_image || '';
         document.getElementById('cfg-dashboard-image').value = cfg.netbird_dashboard_image || '';
 
+        document.getElementById('cfg-auto-update-check-enabled').checked = cfg.auto_update_check_enabled || false;
+        document.getElementById('cfg-auto-update-check-time').value = cfg.auto_update_check_time || '03:00';
+        document.getElementById('cfg-auto-update-apply-enabled').checked = cfg.auto_update_apply_enabled || false;
+        document.getElementById('auto-update-last-run').textContent = cfg.auto_update_last_run_at
+            ? new Date(cfg.auto_update_last_run_at).toLocaleString()
+            : t('monitoring.autoUpdateNever');
+
         // Branding tab
         document.getElementById('cfg-branding-name').value = cfg.branding_name || '';
         document.getElementById('cfg-branding-subtitle').value = cfg.branding_subtitle || '';
@@ -1051,6 +1058,21 @@ document.getElementById('settings-images-form').addEventListener('submit', async
             netbird_signal_image: document.getElementById('cfg-signal-image').value,
             netbird_relay_image: document.getElementById('cfg-relay-image').value,
             netbird_dashboard_image: document.getElementById('cfg-dashboard-image').value,
+        });
+        showSettingsAlert('success', t('messages.imageSettingsSaved'));
+    } catch (err) {
+        showSettingsAlert('danger', t('errors.failed', { error: err.message }));
+    }
+});
+
+// Automatic update settings form
+document.getElementById('settings-auto-update-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+        await api('PUT', '/settings/system', {
+            auto_update_check_enabled: document.getElementById('cfg-auto-update-check-enabled').checked,
+            auto_update_check_time: document.getElementById('cfg-auto-update-check-time').value || '03:00',
+            auto_update_apply_enabled: document.getElementById('cfg-auto-update-apply-enabled').checked,
         });
         showSettingsAlert('success', t('messages.imageSettingsSaved'));
     } catch (err) {
@@ -1807,7 +1829,9 @@ async function checkImageUpdates() {
             : data.customer_status.map(c => {
                 const badge = c.needs_update
                     ? `<span class="badge bg-warning text-dark">${t('monitoring.needsUpdate')}</span>`
-                    : `<span class="badge bg-success">${t('monitoring.upToDate')}</span>`;
+                    : c.unknown
+                        ? `<span class="badge bg-secondary" title="${t('monitoring.statusUnknownHint')}">${t('monitoring.statusUnknown')}</span>`
+                        : `<span class="badge bg-success">${t('monitoring.upToDate')}</span>`;
                 const updateBtn = c.needs_update
                     ? `<button class="btn btn-sm btn-outline-warning ms-2 btn-update-customer" onclick="updateCustomerImages(${c.customer_id})"
                         title="${t('monitoring.updateCustomer')}"><i class="bi bi-arrow-repeat"></i></button>`

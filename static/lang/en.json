@@ -327,7 +327,18 @@
     "updating": "Updating…",
     "updateAllProgress": "Updating customer containers one by one — please wait…",
     "pulling": "Pulling…",
-    "pullStartedShort": "Pull started in background."
+    "pullStartedShort": "Pull started in background.",
+    "statusUnknown": "Unknown",
+    "statusUnknownHint": "Container could not be matched reliably (e.g. not running). Not a verified \"up to date\".",
+    "autoUpdateTitle": "Automatic Updates",
+    "autoUpdateHint": "Automatically checks for new NetBird images daily at the chosen time.",
+    "autoUpdateCheckEnabled": "Enable automatic update check",
+    "autoUpdateCheckTime": "Daily check time",
+    "autoUpdateApplyEnabled": "Automatically update customer containers after check",
+    "autoUpdateApplyHint": "When enabled, all customer containers are automatically recreated after a new image is found (services briefly restart). When disabled, only the images are pulled — updating customers stays a manual step.",
+    "autoUpdateLastRun": "Last automatic check",
+    "autoUpdateNever": "Never run",
+    "saveAutoUpdateSettings": "Save Automation"
   },
   "userModal": {
     "title": "New User",

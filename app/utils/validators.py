@@ -158,6 +158,21 @@ class SystemConfigUpdate(BaseModel):
     git_repo_url: Optional[str] = Field(None, max_length=500)
     git_branch: Optional[str] = Field(None, max_length=100)
     git_token: Optional[str] = None  # plaintext, encrypted before storage
+    # Automatic NetBird image update check/apply
+    auto_update_check_enabled: Optional[bool] = None
+    auto_update_check_time: Optional[str] = Field(None, max_length=5)
+    auto_update_apply_enabled: Optional[bool] = None
+
+    @field_validator("auto_update_check_time")
+    @classmethod
+    def validate_auto_update_check_time(cls, v: Optional[str]) -> Optional[str]:
+        """Must be HH:MM in 24h format."""
+        if v is None:
+            return v
+        import re
+        if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", v):
+            raise ValueError("auto_update_check_time must be in HH:MM 24h format")
+        return v
 
     @field_validator("ssl_mode")
     @classmethod

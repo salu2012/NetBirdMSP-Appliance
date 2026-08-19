@@ -199,6 +199,12 @@ class SystemConfig(Base):
     git_branch: Mapped[Optional[str]] = mapped_column(String(100), default="main")
     git_token_encrypted: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
+    # Automatic NetBird image update check/apply
+    auto_update_check_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    auto_update_check_time: Mapped[Optional[str]] = mapped_column(String(5), default="03:00")
+    auto_update_apply_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    auto_update_last_run_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
@@ -253,6 +259,12 @@ class SystemConfig(Base):
             "git_repo_url": self.git_repo_url or "",
             "git_branch": self.git_branch or "main",
             "git_token_set": bool(self.git_token_encrypted),
+            "auto_update_check_enabled": bool(self.auto_update_check_enabled),
+            "auto_update_check_time": self.auto_update_check_time or "03:00",
+            "auto_update_apply_enabled": bool(self.auto_update_apply_enabled),
+            "auto_update_last_run_at": (
+                self.auto_update_last_run_at.isoformat() if self.auto_update_last_run_at else None
+            ),
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
