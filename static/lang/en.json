@@ -98,6 +98,8 @@
     "nbuSaveToken": "Verify & Save",
     "nbuTokenSaved": "Token saved.",
     "nbuChangeToken": "Change token",
+    "nbuTokenRenewed": "Token renewed on {date}",
+    "nbuTokenExpires": "valid until {date}",
     "nbuVersion": "Client version",
     "nbuDisabled": "Disabled",
     "nbuLatest": "Latest version",

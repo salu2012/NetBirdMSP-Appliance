@@ -288,6 +288,10 @@ async def get_customer_netbird_updates(
     settings = result["settings"]
     return {
         "has_token": True,
+        "token_renewed_at": (
+            deployment.netbird_api_token_renewed_at.isoformat()
+            if deployment.netbird_api_token_renewed_at else None
+        ),
         "version": settings.get("auto_update_version", "disabled"),
         "always": bool(settings.get("auto_update_always", False)),
     }

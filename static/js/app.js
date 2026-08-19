@@ -605,7 +605,17 @@ async function loadCustomerNetbirdUpdates(id, hasToken) {
     try {
         const data = await api('GET', `/customers/${id}/netbird-updates`);
         const isCustom = data.version && data.version !== 'disabled' && data.version !== 'latest';
+
+        let tokenInfoHtml = '';
+        if (data.token_renewed_at) {
+            const renewedDate = new Date(data.token_renewed_at);
+            const expiresDate = new Date(renewedDate);
+            expiresDate.setDate(expiresDate.getDate() + 365);
+            tokenInfoHtml = `<div class="small text-muted mb-2">${t('customer.nbuTokenRenewed', { date: renewedDate.toLocaleDateString() })} &middot; ${t('customer.nbuTokenExpires', { date: expiresDate.toLocaleDateString() })}</div>`;
+        }
+
         container.innerHTML = `
+            ${tokenInfoHtml}
             <div class="row g-2 align-items-end">
                 <div class="col-auto">
                     <label class="form-label small mb-1">${t('customer.nbuVersion')}</label>
