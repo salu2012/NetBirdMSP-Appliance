@@ -97,6 +97,7 @@
     "nbuTokenPlaceholder": "Paste Personal Access Token…",
     "nbuSaveToken": "Verify & Save",
     "nbuTokenSaved": "Token saved.",
+    "nbuChangeToken": "Change token",
     "nbuVersion": "Client version",
     "nbuDisabled": "Disabled",
     "nbuLatest": "Latest version",

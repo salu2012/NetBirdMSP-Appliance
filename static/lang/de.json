@@ -97,6 +97,7 @@
     "nbuTokenPlaceholder": "Personal Access Token einfügen…",
     "nbuSaveToken": "Prüfen & Speichern",
     "nbuTokenSaved": "Token gespeichert.",
+    "nbuChangeToken": "Token ändern",
     "nbuVersion": "Client-Version",
     "nbuDisabled": "Deaktiviert",
     "nbuLatest": "Neueste Version",

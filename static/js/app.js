@@ -625,10 +625,25 @@ async function loadCustomerNetbirdUpdates(id, hasToken) {
                     <button class="btn btn-outline-secondary btn-sm" onclick="syncCustomerNetbirdFromMaster(${id})">${t('customer.nbuSyncMaster')}</button>
                 </div>
             </div>
-            <div id="nbu-result" class="small mt-2"></div>`;
+            <div id="nbu-result" class="small mt-2"></div>
+            <div class="mt-2">
+                <a href="#" class="small" onclick="event.preventDefault(); showChangeNetbirdToken(${id})">${t('customer.nbuChangeToken')}</a>
+            </div>
+            <div id="nbu-change-token-area" class="mt-2 d-none"></div>`;
     } catch (err) {
         container.innerHTML = `<div class="alert alert-warning py-2 small mb-0">${esc(err.message)}</div>`;
     }
+}
+
+function showChangeNetbirdToken(id) {
+    const area = document.getElementById('nbu-change-token-area');
+    area.classList.remove('d-none');
+    area.innerHTML = `
+        <div class="input-group input-group-sm">
+            <input type="text" class="form-control" id="nbu-token-input" placeholder="${t('customer.nbuTokenPlaceholder')}">
+            <button class="btn btn-outline-primary" onclick="saveCustomerNetbirdToken(${id})">${t('customer.nbuSaveToken')}</button>
+        </div>
+        <div id="nbu-token-result" class="small mt-1"></div>`;
 }
 
 async function saveCustomerNetbirdToken(id) {
