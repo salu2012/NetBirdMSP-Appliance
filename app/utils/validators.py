@@ -177,27 +177,6 @@ class SystemConfigUpdate(BaseModel):
             raise ValueError("auto_update_check_time must be in HH:MM 24h format")
         return v
 
-
-# ---------------------------------------------------------------------------
-# NetBird client (peer) automatic updates
-# ---------------------------------------------------------------------------
-class NetbirdClientAutoUpdatePayload(BaseModel):
-    """Push a client auto-update version/mode to one or all customers."""
-
-    version: str = Field(..., max_length=50, description="'latest', 'disabled', or a version e.g. '0.61.0'")
-    always: bool = False
-
-
-class NetbirdApiTokenPayload(BaseModel):
-    """Manually register a NetBird Personal Access Token for a customer.
-
-    Needed for customers deployed before automatic PAT capture existed —
-    create a PAT once in that customer's own NetBird dashboard
-    (Settings > Service Users / Personal Access Tokens) and paste it here.
-    """
-
-    token: str = Field(..., min_length=10, max_length=500)
-
     @field_validator("ssl_mode")
     @classmethod
     def validate_ssl_mode(cls, v: Optional[str]) -> Optional[str]:
@@ -240,6 +219,27 @@ class NetbirdApiTokenPayload(BaseModel):
         if not re.match(pattern, v):
             raise ValueError("Invalid email address.")
         return v.lower().strip()
+
+
+# ---------------------------------------------------------------------------
+# NetBird client (peer) automatic updates
+# ---------------------------------------------------------------------------
+class NetbirdClientAutoUpdatePayload(BaseModel):
+    """Push a client auto-update version/mode to one or all customers."""
+
+    version: str = Field(..., max_length=50, description="'latest', 'disabled', or a version e.g. '0.61.0'")
+    always: bool = False
+
+
+class NetbirdApiTokenPayload(BaseModel):
+    """Manually register a NetBird Personal Access Token for a customer.
+
+    Needed for customers deployed before automatic PAT capture existed —
+    create a PAT once in that customer's own NetBird dashboard
+    (Settings > Service Users / Personal Access Tokens) and paste it here.
+    """
+
+    token: str = Field(..., min_length=10, max_length=500)
 
 
 # ---------------------------------------------------------------------------
