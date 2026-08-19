@@ -8,8 +8,9 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal, get_db
 from app.dependencies import get_current_user
 from app.models import Customer, Deployment, SystemConfig, User
-from app.services import docker_service, image_service, netbird_service
-from app.utils.security import decrypt_value
+from app.services import docker_service, image_service, netbird_client_update_service, netbird_service
+from app.utils.security import decrypt_value, encrypt_value
+from app.utils.validators import NetbirdApiTokenPayload, NetbirdClientAutoUpdatePayload
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -258,6 +259,112 @@ async def update_customer_images(
         customer.name, deployment.container_prefix, current_user.username,
     )
     return {"message": f"Containers updated for '{customer.name}'."}
+
+
+@router.get("/{customer_id}/netbird-updates")
+async def get_customer_netbird_updates(
+    customer_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Fetch a customer's *live* NetBird client automatic-updates setting.
+
+    Reads directly from the customer's NetBird Management API — always
+    reflects reality, including changes made manually in their own dashboard.
+    """
+    _require_customer(db, customer_id)
+    deployment = db.query(Deployment).filter(Deployment.customer_id == customer_id).first()
+    if not deployment:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No deployment found for this customer.")
+    if not deployment.netbird_api_token_encrypted:
+        return {"has_token": False, "version": None, "always": None}
+
+    token = decrypt_value(deployment.netbird_api_token_encrypted)
+    result = await netbird_client_update_service.get_current_settings(deployment.container_prefix, token)
+    if not result["ok"]:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=result["error"])
+
+    settings = result["settings"]
+    return {
+        "has_token": True,
+        "version": settings.get("auto_update_version", "disabled"),
+        "always": bool(settings.get("auto_update_always", False)),
+    }
+
+
+@router.put("/{customer_id}/netbird-updates")
+async def set_customer_netbird_updates(
+    customer_id: int,
+    payload: NetbirdClientAutoUpdatePayload,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Push a client automatic-updates version/mode to a single customer.
+
+    Use this to override the master default for one customer specifically —
+    e.g. a customer on a legacy client that must not jump straight to latest.
+    """
+    if current_user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only.")
+
+    _require_customer(db, customer_id)
+    deployment = db.query(Deployment).filter(Deployment.customer_id == customer_id).first()
+    if not deployment:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No deployment found for this customer.")
+    if not deployment.netbird_api_token_encrypted:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No NetBird API token registered for this customer. Paste one via PUT .../netbird-api-token first.",
+        )
+
+    token = decrypt_value(deployment.netbird_api_token_encrypted)
+    result = await netbird_client_update_service.push_auto_update_settings(
+        deployment.container_prefix, token, payload.version, payload.always
+    )
+    if not result["ok"]:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=result["error"])
+
+    logger.info(
+        "NetBird client auto-update set for customer %d (%s): version=%s always=%s by %s",
+        customer_id, deployment.container_prefix, payload.version, payload.always, current_user.username,
+    )
+    return {"ok": True}
+
+
+@router.put("/{customer_id}/netbird-api-token")
+async def set_customer_netbird_api_token(
+    customer_id: int,
+    payload: NetbirdApiTokenPayload,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Manually register a NetBird Personal Access Token for a customer.
+
+    Needed for customers deployed before automatic PAT capture — create a
+    PAT once in that customer's dashboard (Settings > Service Users /
+    Personal Access Tokens) and paste it here. New deployments capture one
+    automatically during setup.
+    """
+    if current_user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only.")
+
+    _require_customer(db, customer_id)
+    deployment = db.query(Deployment).filter(Deployment.customer_id == customer_id).first()
+    if not deployment:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No deployment found for this customer.")
+
+    # Validate the token actually works before storing it.
+    result = await netbird_client_update_service.get_current_settings(deployment.container_prefix, payload.token)
+    if not result["ok"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Token could not be verified against this customer's NetBird instance: {result['error']}",
+        )
+
+    deployment.netbird_api_token_encrypted = encrypt_value(payload.token)
+    db.commit()
+    logger.info("NetBird API token registered for customer %d by %s.", customer_id, current_user.username)
+    return {"ok": True}
 
 
 def _require_customer(db: Session, customer_id: int) -> Customer:

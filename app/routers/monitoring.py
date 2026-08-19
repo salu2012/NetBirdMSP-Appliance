@@ -13,7 +13,9 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal, get_db
 from app.dependencies import get_current_user
 from app.models import Customer, Deployment, SystemConfig, User
-from app.services import docker_service, image_service
+from app.services import docker_service, image_service, netbird_client_update_service
+from app.utils.security import decrypt_value
+from app.utils.validators import NetbirdClientAutoUpdatePayload
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -239,6 +241,48 @@ async def customers_local_update_status(
     _update_status_cache["data"] = results
     _update_status_cache["expires"] = now + _UPDATE_STATUS_TTL_SECONDS
     return results
+
+
+@router.post("/netbird-updates/apply-all")
+async def apply_netbird_client_updates_to_all(
+    payload: NetbirdClientAutoUpdatePayload,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    """Push a NetBird client automatic-updates version/mode to every customer.
+
+    Skips (and reports) customers without a registered API token — they need
+    a token pasted in via the per-customer endpoint first (older deployments
+    predating automatic token capture).
+    """
+    if current_user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only.")
+
+    deployments = db.query(Deployment).all()
+    results = []
+    for dep in deployments:
+        customer = dep.customer
+        if not dep.netbird_api_token_encrypted:
+            results.append({
+                "customer_id": customer.id, "customer_name": customer.name,
+                "success": False, "error": "No API token registered.",
+            })
+            continue
+        token = decrypt_value(dep.netbird_api_token_encrypted)
+        res = await netbird_client_update_service.push_auto_update_settings(
+            dep.container_prefix, token, payload.version, payload.always
+        )
+        results.append({
+            "customer_id": customer.id, "customer_name": customer.name,
+            "success": res["ok"], "error": res.get("error"),
+        })
+
+    success_count = sum(1 for r in results if r["success"])
+    return {
+        "message": f"Applied to {success_count} of {len(results)} customer(s).",
+        "updated": success_count,
+        "results": results,
+    }
 
 
 @router.post("/customers/update-all")

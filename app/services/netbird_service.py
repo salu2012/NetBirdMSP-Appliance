@@ -231,9 +231,12 @@ async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
             "name": customer.name,
             "email": admin_email,
             "password": admin_password,
+            "create_pat": True,
+            "pat_expire_in": 365,
         }).encode("utf-8")
 
         setup_ok = False
+        netbird_api_token: str | None = None
         for attempt in range(10):
             try:
                 req = urllib.request.Request(
@@ -245,8 +248,13 @@ async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
                 with urllib.request.urlopen(req, timeout=10) as resp:
                     if resp.status in (200, 201):
                         setup_ok = True
+                        setup_body = json.loads(resp.read().decode("utf-8"))
+                        netbird_api_token = setup_body.get("personal_access_token")
                         _log_action(db, customer_id, "deploy", "info",
-                                    f"Admin user created: {admin_email}")
+                                    f"Admin user created: {admin_email}"
+                                    + (" (API token captured for central management)"
+                                       if netbird_api_token else
+                                       " (no API token — NB_SETUP_PAT_ENABLED not active yet on this instance)"))
                         break
             except urllib.error.HTTPError as e:
                 body = e.read().decode("utf-8", errors="replace")
@@ -340,6 +348,9 @@ async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
             deployment.setup_url = setup_url
             deployment.netbird_admin_email = encrypt_value(admin_email) if setup_ok else deployment.netbird_admin_email
             deployment.netbird_admin_password = encrypt_value(admin_password) if setup_ok else deployment.netbird_admin_password
+            deployment.netbird_api_token_encrypted = (
+                encrypt_value(netbird_api_token) if netbird_api_token else deployment.netbird_api_token_encrypted
+            )
             deployment.deployment_status = "running"
             deployment.deployed_at = datetime.utcnow()
         else:
@@ -354,6 +365,7 @@ async def deploy_customer(db: Session, customer_id: int) -> dict[str, Any]:
                 setup_url=setup_url,
                 netbird_admin_email=encrypt_value(admin_email) if setup_ok else None,
                 netbird_admin_password=encrypt_value(admin_password) if setup_ok else None,
+                netbird_api_token_encrypted=encrypt_value(netbird_api_token) if netbird_api_token else None,
                 deployment_status="running",
                 deployed_at=datetime.utcnow(),
             )

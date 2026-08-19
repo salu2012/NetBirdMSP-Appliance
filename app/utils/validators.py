@@ -162,6 +162,9 @@ class SystemConfigUpdate(BaseModel):
     auto_update_check_enabled: Optional[bool] = None
     auto_update_check_time: Optional[str] = Field(None, max_length=5)
     auto_update_apply_enabled: Optional[bool] = None
+    # Master default for the NetBird client (peer) automatic-updates feature
+    netbird_client_auto_update_version: Optional[str] = Field(None, max_length=50)
+    netbird_client_auto_update_always: Optional[bool] = None
 
     @field_validator("auto_update_check_time")
     @classmethod
@@ -173,6 +176,27 @@ class SystemConfigUpdate(BaseModel):
         if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", v):
             raise ValueError("auto_update_check_time must be in HH:MM 24h format")
         return v
+
+
+# ---------------------------------------------------------------------------
+# NetBird client (peer) automatic updates
+# ---------------------------------------------------------------------------
+class NetbirdClientAutoUpdatePayload(BaseModel):
+    """Push a client auto-update version/mode to one or all customers."""
+
+    version: str = Field(..., max_length=50, description="'latest', 'disabled', or a version e.g. '0.61.0'")
+    always: bool = False
+
+
+class NetbirdApiTokenPayload(BaseModel):
+    """Manually register a NetBird Personal Access Token for a customer.
+
+    Needed for customers deployed before automatic PAT capture existed —
+    create a PAT once in that customer's own NetBird dashboard
+    (Settings > Service Users / Personal Access Tokens) and paste it here.
+    """
+
+    token: str = Field(..., min_length=10, max_length=500)
 
     @field_validator("ssl_mode")
     @classmethod

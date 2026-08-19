@@ -20,6 +20,11 @@ services:
     image: {{ netbird_management_image }}
     container_name: netbird-{{ subdomain }}-management
     restart: unless-stopped
+    environment:
+      # Allows the MSP appliance to request a Personal Access Token during the
+      # one-time /api/setup bootstrap call. The endpoint itself locks down
+      # (412) as soon as the first user exists, so leaving this on is safe.
+      - NB_SETUP_PAT_ENABLED=true
     networks:
       - {{ docker_network }}
     volumes:

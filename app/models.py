@@ -88,6 +88,7 @@ class Deployment(Base):
     setup_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     netbird_admin_email: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     netbird_admin_password: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    netbird_api_token_encrypted: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     deployment_status: Mapped[str] = mapped_column(
         String(20), default="pending", nullable=False
     )
@@ -116,6 +117,7 @@ class Deployment(Base):
             "relay_secret": "***",  # Never expose secrets
             "setup_url": self.setup_url,
             "has_credentials": bool(self.netbird_admin_email and self.netbird_admin_password),
+            "has_netbird_api_token": bool(self.netbird_api_token_encrypted),
             "deployment_status": self.deployment_status,
             "deployed_at": self.deployed_at.isoformat() if self.deployed_at else None,
             "last_health_check": (
@@ -205,6 +207,12 @@ class SystemConfig(Base):
     auto_update_apply_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     auto_update_last_run_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
+    # Master default for the NetBird *client* (peer) automatic-updates feature
+    # (Settings > Clients > Automatic Updates inside each customer's own
+    # NetBird dashboard) — pushed to customers via the NetBird Management API.
+    netbird_client_auto_update_version: Mapped[str] = mapped_column(String(50), default="disabled")
+    netbird_client_auto_update_always: Mapped[bool] = mapped_column(Boolean, default=False)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
@@ -265,6 +273,8 @@ class SystemConfig(Base):
             "auto_update_last_run_at": (
                 self.auto_update_last_run_at.isoformat() if self.auto_update_last_run_at else None
             ),
+            "netbird_client_auto_update_version": self.netbird_client_auto_update_version or "disabled",
+            "netbird_client_auto_update_always": bool(self.netbird_client_auto_update_always),
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

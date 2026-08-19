@@ -571,6 +571,121 @@ function goToPage(page) {
     loadCustomers();
 }
 
+// ---------------------------------------------------------------------------
+// NetBird client (peer) automatic-updates — per-customer
+// ---------------------------------------------------------------------------
+function _nbuVersionOptions(selected) {
+    const opts = [
+        ['disabled', t('customer.nbuDisabled')],
+        ['latest', t('customer.nbuLatest')],
+        ['custom', t('customer.nbuCustom')],
+    ];
+    const isCustom = selected && selected !== 'disabled' && selected !== 'latest';
+    return opts.map(([v, label]) =>
+        `<option value="${v}" ${(!isCustom && v === selected) || (isCustom && v === 'custom') ? 'selected' : ''}>${label}</option>`
+    ).join('');
+}
+
+async function loadCustomerNetbirdUpdates(id, hasToken) {
+    const container = document.getElementById('nbu-container');
+    if (!container) return;
+
+    if (!hasToken) {
+        container.innerHTML = `
+            <p class="text-muted small mb-2">${t('customer.nbuNoToken')}</p>
+            <div class="input-group input-group-sm">
+                <input type="text" class="form-control" id="nbu-token-input" placeholder="${t('customer.nbuTokenPlaceholder')}">
+                <button class="btn btn-outline-primary" onclick="saveCustomerNetbirdToken(${id})">${t('customer.nbuSaveToken')}</button>
+            </div>
+            <div id="nbu-token-result" class="small mt-1"></div>`;
+        return;
+    }
+
+    container.innerHTML = `<span class="spinner-border spinner-border-sm"></span>`;
+    try {
+        const data = await api('GET', `/customers/${id}/netbird-updates`);
+        const isCustom = data.version && data.version !== 'disabled' && data.version !== 'latest';
+        container.innerHTML = `
+            <div class="row g-2 align-items-end">
+                <div class="col-auto">
+                    <label class="form-label small mb-1">${t('customer.nbuVersion')}</label>
+                    <select class="form-select form-select-sm" id="nbu-version-select" onchange="document.getElementById('nbu-custom-version').classList.toggle('d-none', this.value !== 'custom')">
+                        ${_nbuVersionOptions(data.version)}
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <input type="text" class="form-control form-control-sm ${isCustom ? '' : 'd-none'}" id="nbu-custom-version" placeholder="0.61.0" value="${isCustom ? esc(data.version) : ''}">
+                </div>
+                <div class="col-auto form-check pb-1">
+                    <input class="form-check-input" type="checkbox" id="nbu-always" ${data.always ? 'checked' : ''}>
+                    <label class="form-check-label small" for="nbu-always">${t('customer.nbuForce')}</label>
+                </div>
+                <div class="col-auto">
+                    <button class="btn btn-primary btn-sm" onclick="saveCustomerNetbirdUpdate(${id})">${t('customer.nbuSave')}</button>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="syncCustomerNetbirdFromMaster(${id})">${t('customer.nbuSyncMaster')}</button>
+                </div>
+            </div>
+            <div id="nbu-result" class="small mt-2"></div>`;
+    } catch (err) {
+        container.innerHTML = `<div class="alert alert-warning py-2 small mb-0">${esc(err.message)}</div>`;
+    }
+}
+
+async function saveCustomerNetbirdToken(id) {
+    const input = document.getElementById('nbu-token-input');
+    const resultEl = document.getElementById('nbu-token-result');
+    const token = input.value.trim();
+    if (!token) return;
+    resultEl.innerHTML = `<span class="spinner-border spinner-border-sm"></span>`;
+    try {
+        await api('PUT', `/customers/${id}/netbird-api-token`, { token });
+        showToast(t('customer.nbuTokenSaved'));
+        loadCustomerNetbirdUpdates(id, true);
+    } catch (err) {
+        resultEl.innerHTML = `<span class="text-danger">${esc(err.message)}</span>`;
+    }
+}
+
+async function _readNbuForm() {
+    const select = document.getElementById('nbu-version-select').value;
+    const version = select === 'custom' ? document.getElementById('nbu-custom-version').value.trim() : select;
+    const always = document.getElementById('nbu-always').checked;
+    return { version, always };
+}
+
+async function saveCustomerNetbirdUpdate(id) {
+    const resultEl = document.getElementById('nbu-result');
+    const payload = await _readNbuForm();
+    if (!payload.version) {
+        resultEl.innerHTML = `<span class="text-danger">${t('customer.nbuVersionRequired')}</span>`;
+        return;
+    }
+    resultEl.innerHTML = `<span class="spinner-border spinner-border-sm"></span>`;
+    try {
+        await api('PUT', `/customers/${id}/netbird-updates`, payload);
+        showToast(t('customer.nbuSaved'));
+        loadCustomerNetbirdUpdates(id, true);
+    } catch (err) {
+        resultEl.innerHTML = `<span class="text-danger">${esc(err.message)}</span>`;
+    }
+}
+
+async function syncCustomerNetbirdFromMaster(id) {
+    const resultEl = document.getElementById('nbu-result');
+    resultEl.innerHTML = `<span class="spinner-border spinner-border-sm"></span>`;
+    try {
+        const cfg = await api('GET', '/settings/system');
+        await api('PUT', `/customers/${id}/netbird-updates`, {
+            version: cfg.netbird_client_auto_update_version,
+            always: cfg.netbird_client_auto_update_always,
+        });
+        showToast(t('customer.nbuSynced'));
+        loadCustomerNetbirdUpdates(id, true);
+    } catch (err) {
+        resultEl.innerHTML = `<span class="text-danger">${esc(err.message)}</span>`;
+    }
+}
+
 // Search & filter listeners
 document.getElementById('search-input').addEventListener('input', debounce(() => { customersPage = 1; loadCustomers(); }, 300));
 document.getElementById('status-filter').addEventListener('change', () => { customersPage = 1; loadCustomers(); });
@@ -812,6 +927,14 @@ async function viewCustomer(id) {
                         ` : `<p class="text-muted mb-0">${t('customer.credentialsNotAvailable')}</p>`}
                     </div>
                 </div>
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <strong><i class="bi bi-phone me-1"></i>${t('customer.netbirdClientUpdates')}</strong>
+                    </div>
+                    <div class="card-body" id="nbu-container">
+                        <span class="spinner-border spinner-border-sm"></span>
+                    </div>
+                </div>
                 <div class="mt-3">
                     <button class="btn btn-success btn-sm me-1" onclick="customerAction(${id},'start')"><i class="bi bi-play-circle me-1"></i>${t('customer.start')}</button>
                     <button class="btn btn-warning btn-sm me-1" onclick="customerAction(${id},'stop')"><i class="bi bi-stop-circle me-1"></i>${t('customer.stop')}</button>
@@ -824,6 +947,7 @@ async function viewCustomer(id) {
                 </div>
                 <div id="detail-update-result"></div>
             `;
+            loadCustomerNetbirdUpdates(id, d.has_netbird_api_token);
         } else {
             document.getElementById('detail-deployment-content').innerHTML = `
                 <p class="text-muted">${t('customer.noDeployment')}</p>
@@ -946,6 +1070,13 @@ async function loadSettings() {
         document.getElementById('auto-update-last-run').textContent = cfg.auto_update_last_run_at
             ? new Date(cfg.auto_update_last_run_at).toLocaleString()
             : t('monitoring.autoUpdateNever');
+
+        const nbuVersion = cfg.netbird_client_auto_update_version || 'disabled';
+        const nbuIsCustom = nbuVersion !== 'disabled' && nbuVersion !== 'latest';
+        document.getElementById('cfg-nbu-version-select').value = nbuIsCustom ? 'custom' : nbuVersion;
+        document.getElementById('cfg-nbu-custom-version').value = nbuIsCustom ? nbuVersion : '';
+        document.getElementById('cfg-nbu-custom-version').classList.toggle('d-none', !nbuIsCustom);
+        document.getElementById('cfg-nbu-always').checked = cfg.netbird_client_auto_update_always || false;
 
         // Branding tab
         document.getElementById('cfg-branding-name').value = cfg.branding_name || '';
@@ -1079,6 +1210,67 @@ document.getElementById('settings-auto-update-form').addEventListener('submit', 
         showSettingsAlert('danger', t('errors.failed', { error: err.message }));
     }
 });
+
+function _readNbuMasterForm() {
+    const select = document.getElementById('cfg-nbu-version-select').value;
+    const version = select === 'custom' ? document.getElementById('cfg-nbu-custom-version').value.trim() : select;
+    const always = document.getElementById('cfg-nbu-always').checked;
+    return { version, always };
+}
+
+// NetBird client auto-update master default form
+document.getElementById('settings-nbu-master-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const { version, always } = _readNbuMasterForm();
+    if (!version) {
+        showSettingsAlert('danger', t('customer.nbuVersionRequired'));
+        return;
+    }
+    try {
+        await api('PUT', '/settings/system', {
+            netbird_client_auto_update_version: version,
+            netbird_client_auto_update_always: always,
+        });
+        showSettingsAlert('success', t('messages.imageSettingsSaved'));
+    } catch (err) {
+        showSettingsAlert('danger', t('errors.failed', { error: err.message }));
+    }
+});
+
+async function applyNetbirdUpdatesToAll() {
+    const { version, always } = _readNbuMasterForm();
+    if (!version) {
+        showSettingsAlert('danger', t('customer.nbuVersionRequired'));
+        return;
+    }
+    if (!confirm(t('customer.nbuConfirmApplyAll'))) return;
+
+    const btn = document.getElementById('btn-nbu-apply-all');
+    const resultDiv = document.getElementById('nbu-apply-all-result');
+    btn.disabled = true;
+    resultDiv.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>${t('common.loading')}`;
+    try {
+        const data = await api('POST', '/monitoring/netbird-updates/apply-all', { version, always });
+        const rows = data.results.map(r => `<tr>
+            <td>${esc(r.customer_name)}</td>
+            <td>${r.success
+                ? '<span class="badge bg-success"><i class="bi bi-check-lg"></i> OK</span>'
+                : '<span class="badge bg-danger"><i class="bi bi-x-lg"></i> Error</span>'}</td>
+            <td class="small text-muted">${esc(r.error || '')}</td>
+        </tr>`).join('');
+        resultDiv.innerHTML = `<div class="alert alert-${data.updated === data.results.length ? 'success' : 'warning'}">
+            <strong>${esc(data.message)}</strong>
+            <table class="table table-sm mb-0 mt-2">
+                <thead><tr><th>${t('monitoring.thName')}</th><th>${t('monitoring.thStatus')}</th><th></th></tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>`;
+    } catch (err) {
+        resultDiv.innerHTML = `<div class="alert alert-danger">${esc(err.message)}</div>`;
+    } finally {
+        btn.disabled = false;
+    }
+}
 
 // Test NPM connection
 async function testNpmConnection() {
