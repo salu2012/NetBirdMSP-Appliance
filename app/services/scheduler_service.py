@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 
 from app.database import SessionLocal
 from app.models import Deployment, SystemConfig
-from app.services import image_service, netbird_client_update_service
+from app.services import image_service, netbird_client_update_service, update_log_service
 from app.utils.security import decrypt_value, encrypt_value
 
 logger = logging.getLogger(__name__)
@@ -125,29 +125,49 @@ async def _tick() -> None:
         logger.info(
             "Running scheduled NetBird image update check (auto-apply=%s)...", apply_enabled
         )
-        await _run_check_and_optionally_apply(config, apply_enabled)
+        await _run_check_and_optionally_apply(config, apply_enabled, started_at=now)
     finally:
         db.close()
 
 
-async def _run_check_and_optionally_apply(config: SystemConfig, apply_enabled: bool) -> None:
-    hub_status = await image_service.check_all_images(config)
-    if not hub_status["any_update_available"]:
-        logger.info("Scheduled check: all NetBird images already up to date.")
-        return
+async def _run_check_and_optionally_apply(config: SystemConfig, apply_enabled: bool, started_at: datetime) -> None:
+    """Check Docker Hub, pull if needed, then (if enabled) recreate any
+    customer container that isn't running the locally-pulled image yet.
 
-    logger.info("Scheduled check: new NetBird image(s) available — pulling.")
-    pull_result = await image_service.pull_all_images(config)
-    if not pull_result["all_success"]:
-        logger.error("Scheduled image pull had failures: %s", pull_result["results"])
-
-    if not apply_enabled:
-        logger.info("Auto-apply disabled — images pulled, customer containers left untouched.")
-        return
-
-    db = SessionLocal()
+    The "recreate" step is intentionally NOT gated on a Hub update having
+    just been found: a customer can already be behind the *locally pulled*
+    image from an earlier check/pull that was never applied (e.g. auto-apply
+    was off at the time, or a previous run failed) — that backlog must keep
+    being cleared on every run, not just on runs that also found something
+    new on Hub, otherwise it silently never happens.
+    """
+    log_db = SessionLocal()
     try:
-        deployments = db.query(Deployment).all()
+        hub_status = await image_service.check_all_images(config)
+        any_update = hub_status["any_update_available"]
+
+        pull_attempted = False
+        pull_results = None
+        if any_update:
+            logger.info("Scheduled check: new NetBird image(s) available — pulling.")
+            pull_attempted = True
+            pull_result = await image_service.pull_all_images(config)
+            pull_results = pull_result["results"]
+            if not pull_result["all_success"]:
+                logger.error("Scheduled image pull had failures: %s", pull_results)
+        else:
+            logger.info("Scheduled check: all NetBird images already up to date on Docker Hub.")
+
+        if not apply_enabled:
+            logger.info("Auto-apply disabled — customer containers left untouched.")
+            update_log_service.record_run(
+                log_db, run_type="scheduled", trigger="scheduler",
+                started_at=started_at, any_update_available=any_update,
+                pull_attempted=pull_attempted, pull_results=pull_results,
+            )
+            return
+
+        deployments = log_db.query(Deployment).all()
         to_update = []
         for dep in deployments:
             cs = image_service.get_customer_container_image_status(dep.container_prefix, config)
@@ -159,16 +179,32 @@ async def _run_check_and_optionally_apply(config: SystemConfig, apply_enabled: b
                     "customer_name": customer.name,
                 })
         logger.info("Scheduled auto-apply: updating %d customer(s)...", len(to_update))
+        customer_results = []
         for entry in to_update:
             try:
                 res = await image_service.update_customer_containers(
                     entry["instance_dir"], entry["project_name"]
                 )
-                logger.info(
-                    "Scheduled update for %s: %s",
-                    entry["customer_name"], "OK" if res["success"] else res.get("error"),
-                )
-            except Exception:
+                ok = res["success"]
+                err = res.get("error")
+            except Exception as exc:
                 logger.exception("Scheduled update failed for %s", entry["customer_name"])
+                ok = False
+                err = str(exc)
+            logger.info("Scheduled update for %s: %s", entry["customer_name"], "OK" if ok else err)
+            customer_results.append({"customer_name": entry["customer_name"], "success": ok, "error": err})
+
+        update_log_service.record_run(
+            log_db, run_type="scheduled", trigger="scheduler",
+            started_at=started_at, any_update_available=any_update,
+            pull_attempted=pull_attempted, pull_results=pull_results,
+            apply_attempted=True, customer_results=customer_results,
+        )
+    except Exception as exc:
+        logger.exception("Scheduled update run failed")
+        update_log_service.record_run(
+            log_db, run_type="scheduled", trigger="scheduler",
+            started_at=started_at, error=str(exc),
+        )
     finally:
-        db.close()
+        log_db.close()

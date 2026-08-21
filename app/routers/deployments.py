@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal, get_db
 from app.dependencies import get_current_user
 from app.models import Customer, Deployment, SystemConfig, User
-from app.services import docker_service, image_service, netbird_client_update_service, netbird_service
+from app.services import docker_service, image_service, netbird_client_update_service, netbird_service, update_log_service
 from app.utils.security import decrypt_value, encrypt_value
 from app.utils.validators import NetbirdApiTokenPayload, NetbirdClientAutoUpdatePayload
 
@@ -246,8 +246,17 @@ async def update_customer_images(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="System not configured."
         )
 
+    started_at = datetime.utcnow()
     instance_dir = f"{config.data_dir}/{customer.subdomain}"
     result = await image_service.update_customer_containers(instance_dir, deployment.container_prefix)
+
+    update_log_service.record_run(
+        db, run_type="manual", trigger=current_user.username, started_at=started_at,
+        apply_attempted=True,
+        customer_results=[{
+            "customer_name": customer.name, "success": result["success"], "error": result.get("error"),
+        }],
+    )
 
     if not result["success"]:
         raise HTTPException(

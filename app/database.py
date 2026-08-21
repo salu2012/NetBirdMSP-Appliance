@@ -45,6 +45,7 @@ def init_db() -> None:
         Deployment,
         DeploymentLog,
         SystemConfig,
+        UpdateRunLog,
         User,
     )
 

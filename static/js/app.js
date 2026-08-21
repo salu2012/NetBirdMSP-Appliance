@@ -1943,7 +1943,90 @@ function togglePasswordVisibility(inputId) {
 // Monitoring
 // ---------------------------------------------------------------------------
 async function loadMonitoring() {
-    await Promise.all([loadResources(), loadAllCustomerStatuses()]);
+    await Promise.all([loadResources(), loadAllCustomerStatuses(), loadUpdateLog()]);
+}
+
+const _updateLogStatusBadge = {
+    success: 'bg-success',
+    no_update: 'bg-secondary',
+    partial: 'bg-warning text-dark',
+    failed: 'bg-danger',
+    running: 'bg-info',
+};
+
+async function loadUpdateLog() {
+    const body = document.getElementById('update-log-body');
+    body.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>${t('common.loading')}`;
+    try {
+        const logs = await api('GET', '/monitoring/update-logs?limit=30');
+        if (logs.length === 0) {
+            body.innerHTML = `<p class="text-muted mb-0">${t('monitoring.noUpdateLogs')}</p>`;
+            return;
+        }
+        const rows = logs.map((l, i) => {
+            const badgeClass = _updateLogStatusBadge[l.status] || 'bg-secondary';
+            const typeLabel = l.run_type === 'scheduled' ? t('monitoring.logTypeScheduled') : t('monitoring.logTypeManual');
+            const pullSummary = l.pull_attempted
+                ? (l.pull_success ? t('monitoring.logPullOk') : t('monitoring.logPullFailed'))
+                : t('monitoring.logPullSkipped');
+            const applySummary = l.apply_attempted
+                ? t('monitoring.logApplySummary', { updated: l.customers_updated ?? 0, total: l.customers_total ?? 0 })
+                : t('monitoring.logApplySkipped');
+            const detailId = `update-log-detail-${i}`;
+            const hasDetails = (l.pull_details && Object.keys(l.pull_details).length > 0) ||
+                (l.customer_details && l.customer_details.length > 0) || l.error;
+            const detailsHtml = hasDetails ? `
+                <div class="collapse mt-2" id="${detailId}">
+                    ${l.error ? `<div class="alert alert-danger py-2 small mb-2">${esc(l.error)}</div>` : ''}
+                    ${l.pull_details ? `
+                        <table class="table table-sm mb-2">
+                            <thead><tr><th>${t('monitoring.thImage')}</th><th>${t('monitoring.thStatus')}</th><th></th></tr></thead>
+                            <tbody>${Object.entries(l.pull_details).map(([img, r]) => `<tr>
+                                <td><code class="small">${esc(img)}</code></td>
+                                <td>${r.success ? `<span class="badge bg-success">OK</span>` : `<span class="badge bg-danger">Error</span>`}</td>
+                                <td class="small text-muted">${esc(r.error || '')}</td>
+                            </tr>`).join('')}</tbody>
+                        </table>` : ''}
+                    ${l.customer_details && l.customer_details.length > 0 ? `
+                        <table class="table table-sm mb-0">
+                            <thead><tr><th>${t('monitoring.thName')}</th><th>${t('monitoring.thStatus')}</th><th></th></tr></thead>
+                            <tbody>${l.customer_details.map(r => `<tr>
+                                <td>${esc(r.customer_name)}</td>
+                                <td>${r.success ? `<span class="badge bg-success">OK</span>` : `<span class="badge bg-danger">Error</span>`}</td>
+                                <td class="small text-muted">${esc(r.error || '')}</td>
+                            </tr>`).join('')}</tbody>
+                        </table>` : ''}
+                </div>` : '';
+            return `<tr>
+                <td class="small text-nowrap">${formatDate(l.started_at)}</td>
+                <td><span class="badge bg-light text-dark border">${typeLabel}</span></td>
+                <td><span class="badge ${badgeClass}">${t('monitoring.logStatus_' + l.status)}</span></td>
+                <td class="small">${pullSummary}</td>
+                <td class="small">${applySummary}</td>
+                <td class="small text-muted">${esc(l.trigger || '')}</td>
+                <td>${hasDetails ? `<button class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#${detailId}"><i class="bi bi-chevron-down"></i></button>` : ''}</td>
+            </tr>${detailsHtml ? `<tr class="d-none"></tr><tr><td colspan="7" class="p-0 border-0">${detailsHtml}</td></tr>` : ''}`;
+        }).join('');
+        body.innerHTML = `
+            <div class="table-responsive">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>${t('monitoring.logTime')}</th>
+                            <th>${t('monitoring.logType')}</th>
+                            <th>${t('monitoring.thStatus')}</th>
+                            <th>${t('monitoring.logPull')}</th>
+                            <th>${t('monitoring.logApply')}</th>
+                            <th>${t('monitoring.logTrigger')}</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>`;
+    } catch (err) {
+        body.innerHTML = `<div class="alert alert-danger">${esc(err.message)}</div>`;
+    }
 }
 
 async function loadResources() {

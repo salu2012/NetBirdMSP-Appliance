@@ -4,6 +4,7 @@ import asyncio
 import logging
 import platform
 import time
+from datetime import datetime
 from typing import Any
 
 import psutil
@@ -12,8 +13,8 @@ from sqlalchemy.orm import Session
 
 from app.database import SessionLocal, get_db
 from app.dependencies import get_current_user
-from app.models import Customer, Deployment, SystemConfig, User
-from app.services import docker_service, image_service, netbird_client_update_service
+from app.models import Customer, Deployment, SystemConfig, UpdateRunLog, User
+from app.services import docker_service, image_service, netbird_client_update_service, update_log_service
 from app.utils.security import decrypt_value
 from app.utils.validators import NetbirdClientAutoUpdatePayload
 
@@ -194,14 +195,25 @@ async def pull_all_netbird_images(
         config.netbird_dashboard_image,
     ]
 
+    username = current_user.username
+
     async def _pull_bg() -> None:
+        started_at = datetime.utcnow()
         bg_db = SessionLocal()
         try:
             cfg = bg_db.query(SystemConfig).filter(SystemConfig.id == 1).first()
-            if cfg:
-                await image_service.pull_all_images(cfg)
-        except Exception:
+            if not cfg:
+                return
+            pull_result = await image_service.pull_all_images(cfg)
+            update_log_service.record_run(
+                bg_db, run_type="manual", trigger=username, started_at=started_at,
+                any_update_available=True, pull_attempted=True, pull_results=pull_result["results"],
+            )
+        except Exception as exc:
             logger.exception("Background image pull failed")
+            update_log_service.record_run(
+                bg_db, run_type="manual", trigger=username, started_at=started_at, error=str(exc),
+            )
         finally:
             bg_db.close()
 
@@ -285,6 +297,28 @@ async def apply_netbird_client_updates_to_all(
     }
 
 
+@router.get("/update-logs")
+async def get_update_logs(
+    limit: int = 30,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[dict[str, Any]]:
+    """Return the most recent NetBird image update runs (scheduled and manual).
+
+    Shows exactly what happened on each run: whether an image pull was
+    attempted and its per-image result, and whether customer containers
+    were recreated and which ones failed — so this doesn't have to be
+    reconstructed from container logs.
+    """
+    logs = (
+        db.query(UpdateRunLog)
+        .order_by(UpdateRunLog.started_at.desc())
+        .limit(min(limit, 100))
+        .all()
+    )
+    return [log.to_dict() for log in logs]
+
+
 @router.post("/customers/update-all")
 async def update_all_customers(
     current_user: User = Depends(get_current_user),
@@ -299,6 +333,7 @@ async def update_all_customers(
     if current_user.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only.")
 
+    started_at = datetime.utcnow()
     config = db.query(SystemConfig).filter(SystemConfig.id == 1).first()
     if not config:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="System not configured.")
@@ -317,6 +352,10 @@ async def update_all_customers(
             })
 
     if not to_update:
+        update_log_service.record_run(
+            db, run_type="manual", trigger=current_user.username,
+            started_at=started_at, apply_attempted=True, customer_results=[],
+        )
         return {"message": "All customers are already up to date.", "updated": 0, "results": []}
 
     # Update customers sequentially — one at a time. A failure for one
@@ -343,6 +382,10 @@ async def update_all_customers(
         })
 
     success_count = sum(1 for r in update_results if r["success"])
+    update_log_service.record_run(
+        db, run_type="manual", trigger=current_user.username,
+        started_at=started_at, apply_attempted=True, customer_results=update_results,
+    )
     return {
         "message": f"Updated {success_count} of {len(update_results)} customer(s).",
         "updated": success_count,

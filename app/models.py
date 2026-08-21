@@ -1,5 +1,6 @@
 """SQLAlchemy ORM models for NetBird MSP Appliance."""
 
+import json
 from datetime import datetime
 from typing import Optional
 
@@ -318,6 +319,56 @@ class DeploymentLog(Base):
             "message": self.message,
             "details": self.details,
             "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class UpdateRunLog(Base):
+    """Audit trail for NetBird Docker image update runs (pull + container recreate).
+
+    Written for both scheduled (automatic) and manual (button-triggered)
+    runs, so the actual outcome — which image pulls failed, which customer
+    container recreates failed — is visible in the UI instead of only in
+    container logs.
+    """
+
+    __tablename__ = "update_run_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_type: Mapped[str] = mapped_column(String(20), nullable=False)  # "scheduled" | "manual"
+    trigger: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # username, or "scheduler"
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(20), default="running"
+    )  # running | no_update | success | partial | failed
+    any_update_available: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    pull_attempted: Mapped[bool] = mapped_column(Boolean, default=False)
+    pull_success: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    pull_details: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON: {image: {success, error}}
+    apply_attempted: Mapped[bool] = mapped_column(Boolean, default=False)
+    customers_updated: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    customers_total: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    customer_details: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON list
+    error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    def to_dict(self) -> dict:
+        """Serialize to dict, parsing the embedded JSON blobs."""
+        return {
+            "id": self.id,
+            "run_type": self.run_type,
+            "trigger": self.trigger,
+            "started_at": self.started_at.isoformat() if self.started_at else None,
+            "finished_at": self.finished_at.isoformat() if self.finished_at else None,
+            "status": self.status,
+            "any_update_available": self.any_update_available,
+            "pull_attempted": self.pull_attempted,
+            "pull_success": self.pull_success,
+            "pull_details": json.loads(self.pull_details) if self.pull_details else None,
+            "apply_attempted": self.apply_attempted,
+            "customers_updated": self.customers_updated,
+            "customers_total": self.customers_total,
+            "customer_details": json.loads(self.customer_details) if self.customer_details else None,
+            "error": self.error,
         }
 
 

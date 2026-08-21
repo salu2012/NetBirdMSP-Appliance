@@ -454,6 +454,25 @@
     "autoUpdateApplyHint": "Wenn aktiviert, werden nach einer gefundenen Aktualisierung automatisch alle Kunden-Container neu erstellt (kurzer Neustart der Dienste). Wenn deaktiviert, werden nur die Images geladen — die Aktualisierung der Kunden erfolgt weiterhin manuell.",
     "autoUpdateLastRun": "Letzte automatische Prüfung",
     "autoUpdateNever": "Noch nie ausgeführt",
-    "saveAutoUpdateSettings": "Automatisierung speichern"
+    "saveAutoUpdateSettings": "Automatisierung speichern",
+    "updateLogTitle": "Update-Verlauf",
+    "noUpdateLogs": "Noch keine Update-Läufe protokolliert.",
+    "logTypeScheduled": "Automatisch",
+    "logTypeManual": "Manuell",
+    "logTime": "Zeitpunkt",
+    "logType": "Typ",
+    "logPull": "Image-Download",
+    "logApply": "Kunden-Update",
+    "logTrigger": "Ausgelöst von",
+    "logPullOk": "Erfolgreich",
+    "logPullFailed": "Fehlgeschlagen",
+    "logPullSkipped": "Nicht nötig",
+    "logApplySummary": "{updated}/{total} Kunden",
+    "logApplySkipped": "Nicht ausgeführt",
+    "logStatus_success": "Erfolgreich",
+    "logStatus_no_update": "Kein Update nötig",
+    "logStatus_partial": "Teilweise",
+    "logStatus_failed": "Fehlgeschlagen",
+    "logStatus_running": "Läuft…"
   }
 }
