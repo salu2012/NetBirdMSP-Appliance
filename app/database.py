@@ -133,6 +133,10 @@ def _run_migrations() -> None:
         ("deployments", "netbird_api_token_renewed_at", "TEXT"),
         ("system_config", "netbird_client_auto_update_version", "TEXT DEFAULT 'disabled'"),
         ("system_config", "netbird_client_auto_update_always", "BOOLEAN DEFAULT 0"),
+        # Automatic restart of unreachable customer containers
+        ("system_config", "auto_restart_unreachable_enabled", "BOOLEAN DEFAULT 0"),
+        ("system_config", "auto_restart_cooldown_minutes", "INTEGER DEFAULT 30"),
+        ("deployments", "last_auto_restart_at", "TEXT"),
     ]
     for table, column, col_type in migrations:
         if not _has_column(table, column):

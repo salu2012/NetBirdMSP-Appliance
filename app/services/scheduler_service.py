@@ -12,7 +12,14 @@ from datetime import datetime, timedelta
 
 from app.database import SessionLocal
 from app.models import Deployment, SystemConfig
-from app.services import image_service, netbird_client_update_service, update_log_service
+from app.services import (
+    docker_service,
+    image_service,
+    netbird_client_update_service,
+    netbird_service,
+    update_log_service,
+)
+from app.services.netbird_service import _log_action
 from app.utils.security import decrypt_value, encrypt_value
 
 logger = logging.getLogger(__name__)
@@ -55,6 +62,10 @@ async def _poll_loop() -> None:
             await _token_renewal_tick()
         except Exception:
             logger.exception("Token renewal tick failed")
+        try:
+            await _auto_restart_tick()
+        except Exception:
+            logger.exception("Auto-restart tick failed")
         await asyncio.sleep(_POLL_INTERVAL_SECONDS)
 
 
@@ -208,3 +219,65 @@ async def _run_check_and_optionally_apply(config: SystemConfig, apply_enabled: b
         )
     finally:
         log_db.close()
+
+
+async def _auto_restart_tick() -> None:
+    """Every poll interval, restart any customer whose NetBird dashboard
+    doesn't actually respond over HTTP(S) — a container can be "running" in
+    Docker while the web UI behind it is still unreachable, which is the
+    actual symptom customers hit, so this probes the real endpoint rather
+    than trusting container state alone. Falls back to container status
+    only if a customer has no setup_url yet. Guarded by
+    SystemConfig.auto_restart_unreachable_enabled and a per-deployment
+    cooldown so a persistently broken customer doesn't get restarted in a
+    tight loop, and skipped for deployments that aren't running/failed
+    (e.g. intentionally stopped or still pending).
+    """
+    db = SessionLocal()
+    try:
+        config = db.query(SystemConfig).filter(SystemConfig.id == 1).first()
+        if not config or not config.auto_restart_unreachable_enabled:
+            return
+
+        cooldown = timedelta(minutes=config.auto_restart_cooldown_minutes or 30)
+        now = datetime.now()
+
+        deployments = db.query(Deployment).all()
+        for dep in deployments:
+            if dep.deployment_status not in ("running", "failed"):
+                continue
+            if dep.last_auto_restart_at and now - dep.last_auto_restart_at < cooldown:
+                continue
+
+            reason = None
+            if dep.setup_url:
+                if not await netbird_service.check_dashboard_reachable(dep.setup_url):
+                    reason = f"dashboard ({dep.setup_url}) did not respond"
+            else:
+                containers = await docker_service.get_container_status_async(dep.container_prefix)
+                if not containers or not all(c["status"] == "running" for c in containers):
+                    not_running = [c["name"] for c in containers if c["status"] != "running"] or ["no containers found"]
+                    reason = f"container(s) not running: {', '.join(not_running)}"
+
+            if not reason:
+                continue
+
+            logger.warning(
+                "Auto-restart: customer %s unreachable (%s) — restarting.",
+                dep.container_prefix, reason,
+            )
+            _log_action(
+                db, dep.customer_id, "auto_restart", "info",
+                f"Automatic restart triggered: {reason}.",
+            )
+            try:
+                result = await netbird_service.restart_customer(db, dep.customer_id)
+                if not result["success"]:
+                    logger.error("Auto-restart failed for customer %s.", dep.container_prefix)
+            except Exception:
+                logger.exception("Auto-restart failed for customer %s.", dep.container_prefix)
+
+            dep.last_auto_restart_at = now
+            db.commit()
+    finally:
+        db.close()

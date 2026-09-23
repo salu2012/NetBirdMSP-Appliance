@@ -26,6 +26,7 @@ import urllib.error
 from datetime import datetime
 from typing import Any
 
+import httpx
 from jinja2 import Environment, FileSystemLoader
 from sqlalchemy.orm import Session
 
@@ -527,6 +528,25 @@ async def restart_customer(db: Session, customer_id: int) -> dict[str, Any]:
     else:
         _log_action(db, customer_id, "restart", "error", "Failed to restart containers.")
     return {"success": ok}
+
+
+async def check_dashboard_reachable(setup_url: str, timeout: float = 10) -> bool:
+    """Check whether a customer's NetBird dashboard actually responds over HTTP(S).
+
+    A container can be "running" in Docker while the web UI behind it is
+    still unreachable (e.g. the management service is up but not accepting
+    connections yet), so this checks the real endpoint rather than the
+    container state. Any HTTP response (including 4xx/5xx from the app
+    itself) counts as reachable — only connection failures/timeouts don't.
+    """
+    if not setup_url:
+        return True  # nothing to check (e.g. deployment not fully set up yet)
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            await client.get(setup_url)
+        return True
+    except httpx.HTTPError:
+        return False
 
 
 def get_customer_health(db: Session, customer_id: int) -> dict[str, Any]:

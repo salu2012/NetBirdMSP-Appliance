@@ -1096,6 +1096,9 @@ async function loadSettings() {
             ? new Date(cfg.auto_update_last_run_at).toLocaleString()
             : t('monitoring.autoUpdateNever');
 
+        document.getElementById('cfg-auto-restart-enabled').checked = cfg.auto_restart_unreachable_enabled || false;
+        document.getElementById('cfg-auto-restart-cooldown').value = cfg.auto_restart_cooldown_minutes || 30;
+
         const nbuVersion = cfg.netbird_client_auto_update_version || 'disabled';
         const nbuIsCustom = nbuVersion !== 'disabled' && nbuVersion !== 'latest';
         document.getElementById('cfg-nbu-version-select').value = nbuIsCustom ? 'custom' : nbuVersion;
@@ -1229,6 +1232,20 @@ document.getElementById('settings-auto-update-form').addEventListener('submit', 
             auto_update_check_enabled: document.getElementById('cfg-auto-update-check-enabled').checked,
             auto_update_check_time: document.getElementById('cfg-auto-update-check-time').value || '03:00',
             auto_update_apply_enabled: document.getElementById('cfg-auto-update-apply-enabled').checked,
+        });
+        showSettingsAlert('success', t('messages.imageSettingsSaved'));
+    } catch (err) {
+        showSettingsAlert('danger', t('errors.failed', { error: err.message }));
+    }
+});
+
+// Automatic restart of unreachable customer containers
+document.getElementById('settings-auto-restart-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+        await api('PUT', '/settings/system', {
+            auto_restart_unreachable_enabled: document.getElementById('cfg-auto-restart-enabled').checked,
+            auto_restart_cooldown_minutes: parseInt(document.getElementById('cfg-auto-restart-cooldown').value, 10) || 30,
         });
         showSettingsAlert('success', t('messages.imageSettingsSaved'));
     } catch (err) {

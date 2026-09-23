@@ -96,6 +96,7 @@ class Deployment(Base):
     )
     deployed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     last_health_check: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    last_auto_restart_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     __table_args__ = (
         CheckConstraint(
@@ -127,6 +128,9 @@ class Deployment(Base):
             "deployed_at": self.deployed_at.isoformat() if self.deployed_at else None,
             "last_health_check": (
                 self.last_health_check.isoformat() if self.last_health_check else None
+            ),
+            "last_auto_restart_at": (
+                self.last_auto_restart_at.isoformat() if self.last_auto_restart_at else None
             ),
         }
 
@@ -212,6 +216,10 @@ class SystemConfig(Base):
     auto_update_apply_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     auto_update_last_run_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
+    # Automatic restart of customer containers when found unreachable/not running
+    auto_restart_unreachable_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    auto_restart_cooldown_minutes: Mapped[int] = mapped_column(Integer, default=30)
+
     # Master default for the NetBird *client* (peer) automatic-updates feature
     # (Settings > Clients > Automatic Updates inside each customer's own
     # NetBird dashboard) — pushed to customers via the NetBird Management API.
@@ -278,6 +286,8 @@ class SystemConfig(Base):
             "auto_update_last_run_at": (
                 self.auto_update_last_run_at.isoformat() if self.auto_update_last_run_at else None
             ),
+            "auto_restart_unreachable_enabled": bool(self.auto_restart_unreachable_enabled),
+            "auto_restart_cooldown_minutes": self.auto_restart_cooldown_minutes or 30,
             "netbird_client_auto_update_version": self.netbird_client_auto_update_version or "disabled",
             "netbird_client_auto_update_always": bool(self.netbird_client_auto_update_always),
             "created_at": self.created_at.isoformat() if self.created_at else None,

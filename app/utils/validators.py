@@ -165,6 +165,9 @@ class SystemConfigUpdate(BaseModel):
     # Master default for the NetBird client (peer) automatic-updates feature
     netbird_client_auto_update_version: Optional[str] = Field(None, max_length=50)
     netbird_client_auto_update_always: Optional[bool] = None
+    # Automatic restart of unreachable customer containers
+    auto_restart_unreachable_enabled: Optional[bool] = None
+    auto_restart_cooldown_minutes: Optional[int] = Field(None, ge=1, le=1440)
 
     @field_validator("auto_update_check_time")
     @classmethod
