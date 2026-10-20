@@ -3,9 +3,10 @@
 from datetime import datetime, timedelta
 from typing import Optional
 
+import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError, jwt
+from jwt import PyJWTError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -56,7 +57,7 @@ def verify_mfa_token(token: str) -> str:
                 detail="Invalid MFA token.",
             )
         return username
-    except JWTError:
+    except PyJWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="MFA token expired or invalid.",
@@ -95,7 +96,7 @@ def get_current_user(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token payload.",
             )
-    except JWTError:
+    except PyJWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token.",
